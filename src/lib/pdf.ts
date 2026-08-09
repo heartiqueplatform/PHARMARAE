@@ -158,12 +158,12 @@ export function generateReceiptPdf(
   doc.text(`TOTAL PAID:`, 35, ty);
   doc.text(`${currency} ${sale.total.toFixed(2)}`, 75, ty, { align: 'right' });
   ty += 5;
-
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  const paymentMethod = (sale as any).payment_method || 'cash';
+  const paymentMethod = sale.payments && sale.payments.length > 0
+    ? sale.payments[0].method
+    : 'cash';
   doc.text(`Payment Method: ${paymentMethod.toUpperCase()}`, 5, ty);
-
   // Footer
   ty += 6;
   doc.setLineWidth(0.2);
@@ -260,10 +260,17 @@ export function generateDailyReportPdf(
   doc.text(`Total Discount Granted: ${currency} ${totalDiscounts.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, 71);
 
   // Payment Breakdown
+  // Payment Breakdown
   const paymentMethodTotals: Record<string, number> = {};
   sales.forEach(s => {
-    const method = (s as any).payment_method || 'cash';
-    paymentMethodTotals[method] = (paymentMethodTotals[method] || 0) + s.total;
+    if (s.payments && s.payments.length > 0) {
+      s.payments.forEach(p => {
+        paymentMethodTotals[p.method] = (paymentMethodTotals[p.method] || 0) + p.amount;
+      });
+    } else {
+      // Fallback: if no payments recorded, use total as cash
+      paymentMethodTotals['cash'] = (paymentMethodTotals['cash'] || 0) + s.total;
+    }
   });
 
   const paymentRows = Object.entries(paymentMethodTotals).map(([method, val]) => [
@@ -493,6 +500,46 @@ export function generateMonthlyReportPdf(
   });
 
   let nextY = (doc as any).lastAutoTable.finalY + 10;
+
+  // ============================================
+  // ADD THIS: Payment Method Breakdown Section
+  // ============================================
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('Payment Method Breakdown', 14, nextY);
+
+  // Calculate totals by payment method
+  // Calculate totals by payment method
+  const monthlyPaymentTotals: Record<string, number> = {};
+  monthlySales.forEach(s => {
+    if (s.payments && s.payments.length > 0) {
+      s.payments.forEach(p => {
+        monthlyPaymentTotals[p.method] = (monthlyPaymentTotals[p.method] || 0) + p.amount;
+      });
+    } else {
+      // Fallback: if no payments recorded, use total as cash
+      monthlyPaymentTotals['cash'] = (monthlyPaymentTotals['cash'] || 0) + s.total;
+    }
+  });
+  // Format rows for the table
+  const monthlyPaymentRows = Object.entries(monthlyPaymentTotals).map(([method, val]) => [
+    method.toUpperCase(),
+    `${currency} ${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  ]);
+
+  // Add payment breakdown table
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [['Payment Method', 'Amount']],
+    body: monthlyPaymentRows.length > 0 ? monthlyPaymentRows : [['None', `${currency} 0.00`]],
+    theme: 'striped',
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [14, 116, 144] },
+    margin: { left: 14, right: 14 }
+  });
+
+  // Update nextY for the next section
+  nextY = (doc as any).lastAutoTable.finalY + 10;
 
   // Top Selling Products
   doc.setFont('helvetica', 'bold');
