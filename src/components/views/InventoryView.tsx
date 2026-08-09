@@ -35,14 +35,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
 
-  // REMOVED ALL borders from card styles
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
 
-  // Large touch targets for mobile
   const touchTarget = 'min-h-[44px] min-w-[44px]';
   const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
 
@@ -50,7 +48,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Modals & Submission States
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -60,7 +57,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [isSavingBatch, setIsSavingBatch] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // New Product Form State
   const [newProdName, setNewProdName] = useState('');
   const [newProdGeneric, setNewProdGeneric] = useState('');
   const [newProdBrand, setNewProdBrand] = useState('');
@@ -75,7 +71,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [newProdQuantity, setNewProdQuantity] = useState<number>(0);
   const [showDrugSuggestions, setShowDrugSuggestions] = useState(false);
 
-  // Auto fill product from Common Drug Formulary
+  // New state for product sub-category and attributes
+  const [newProdSubCategory, setNewProdSubCategory] = useState('');
+  const [newProdMaterial, setNewProdMaterial] = useState('');
+  const [newProdSize, setNewProdSize] = useState('');
+  const [newProdAbsorbency, setNewProdAbsorbency] = useState('');
+  const [newProdFragrance, setNewProdFragrance] = useState('');
+
   const handleSelectCommonDrug = (drug: CommonDrug) => {
     setNewProdName(drug.name);
     setNewProdGeneric(drug.generic_name);
@@ -85,6 +87,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdCost(drug.default_cost_price);
     setNewProdPrice(drug.default_selling_price);
     setNewProdRx(drug.prescription_required);
+    setNewProdSubCategory('');
+    setNewProdMaterial('');
+    setNewProdSize('');
+    setNewProdAbsorbency('');
+    setNewProdFragrance('');
 
     const matchedCat = categories.find(c =>
       c.name.toLowerCase().includes(drug.category_name.toLowerCase()) ||
@@ -96,7 +103,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setShowDrugSuggestions(false);
   };
 
-  // New Batch Form State
   const [newBatchNumber, setNewBatchNumber] = useState('');
   const [newBatchExpiry, setNewBatchExpiry] = useState('');
   const [newBatchQty, setNewBatchQty] = useState<number>(100);
@@ -104,7 +110,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [newBatchPrice, setNewBatchPrice] = useState<number>(0);
   const [newBatchSupplier, setNewBatchSupplier] = useState('');
 
-  // Save Product
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -141,7 +146,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         reorder_level: Number(newProdReorder) || 10,
         prescription_required: newProdRx,
         quantity: Number(newProdQuantity) || 0,
-        active: true
+        active: true,
+        // Add custom attributes for sanitary products
+        sub_category: newProdSubCategory || null,
+        material: newProdMaterial || null,
+        size: newProdSize || null,
+        absorbency: newProdAbsorbency || null,
+        fragrance: newProdFragrance || null,
       };
 
       await onAddProduct(productData);
@@ -156,7 +167,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
-  // Edit Product
   const handleEditProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -191,7 +201,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         default_cost_price: Number(newProdCost) || 0,
         reorder_level: Number(newProdReorder) || 10,
         prescription_required: newProdRx,
-        active: true
+        active: true,
+        sub_category: newProdSubCategory || null,
+        material: newProdMaterial || null,
+        size: newProdSize || null,
+        absorbency: newProdAbsorbency || null,
+        fragrance: newProdFragrance || null,
       };
 
       await onUpdateProduct(editingProduct.id, productData);
@@ -207,7 +222,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
-  // Delete Product
   const handleDeleteProduct = async (productId: string) => {
     if (!onDeleteProduct) {
       alert('Delete function not available.');
@@ -229,7 +243,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
-  // Open Edit Modal
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
     setNewProdName(product.name || '');
@@ -244,10 +257,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdReorder(product.reorder_level || 10);
     setNewProdRx(product.prescription_required || false);
     setNewProdQuantity(product.quantity || 0);
+    setNewProdSubCategory((product as any).sub_category || '');
+    setNewProdMaterial((product as any).material || '');
+    setNewProdSize((product as any).size || '');
+    setNewProdAbsorbency((product as any).absorbency || '');
+    setNewProdFragrance((product as any).fragrance || '');
     setShowEditProductModal(true);
   };
 
-  // Reset Product Form
   const resetProductForm = () => {
     setNewProdName('');
     setNewProdGeneric('');
@@ -261,9 +278,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdForm('tablet');
     setNewProdStrength('');
     setNewProdQuantity(0);
+    setNewProdSubCategory('');
+    setNewProdMaterial('');
+    setNewProdSize('');
+    setNewProdAbsorbency('');
+    setNewProdFragrance('');
   };
 
-  // Save Batch
   const handleSaveBatch = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -325,7 +346,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
-  // Filter Catalog
   const filteredProducts = products.filter(p => {
     const matchesCat = selectedCategory === 'all' || p.category_id === selectedCategory || p.category_name === selectedCategory;
     const q = searchQuery.toLowerCase().trim();
@@ -336,7 +356,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Header & Subtabs - REMOVED border */}
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl shadow-sm ${cardBg}`}>
         <div>
           <h2 className={`text-base font-extrabold flex items-center gap-2 ${textTitle}`}>
@@ -359,7 +378,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs - Larger touch targets */}
       <div className={`flex gap-4 text-sm font-bold ${borderLine}`}>
         <button
           onClick={() => setActiveSubTab('catalog')}
@@ -390,11 +408,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </button>
       </div>
 
-      {/* Catalog Subtab View */}
       {activeSubTab === 'catalog' && (
         <div className="space-y-3">
 
-          {/* Search & Category Bar - Larger touch targets */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className={`w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`} />
@@ -419,7 +435,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </select>
           </div>
 
-          {/* Catalog Cards Table - REMOVED border */}
           <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -529,7 +544,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* FEFO Batches Subtab View - REMOVED border */}
       {activeSubTab === 'batches' && (
         <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
           <div className={`p-4 text-sm ${borderLine} ${textMuted}`}>
@@ -574,7 +588,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Stock Movements Log - REMOVED border */}
       {activeSubTab === 'movements' && (
         <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
           <div className="overflow-x-auto">
@@ -625,7 +638,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Add New Product - REMOVED border, full screen on mobile */}
+      {/* Modal: Add New Product */}
       {showAddProductModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
@@ -634,7 +647,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </h3>
 
             <form onSubmit={handleSaveProduct} className="space-y-3 text-sm">
-              {/* Quick Drug Auto-Complete Header - Larger touch targets */}
               <div className={`p-3 rounded-xl space-y-2 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'
                 }`}>
                 <div className="flex items-center justify-between text-[12px] font-extrabold text-[#2ea043]">
@@ -658,6 +670,44 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       + {d.name}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewProdName('Sanitary Pads (Cotton)');
+                      setNewProdGeneric('Feminine Hygiene Pad');
+                      setNewProdBrand('CottonCare');
+                      setNewProdForm('sanitary_pad');
+                      setNewProdSubCategory('feminine_hygiene');
+                      setNewProdMaterial('100% cotton');
+                      setNewProdSize('Regular');
+                      setNewProdAbsorbency('regular');
+                      setNewProdFragrance('unscented');
+                    }}
+                    className={`px-3 py-2 text-[11px] rounded-xl transition-colors text-left ${touchTargetSmall} ${isDark
+                      ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]'
+                      : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
+                      }`}
+                  >
+                    + Sanitary Pads
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewProdName('Cotton Wool Pads');
+                      setNewProdGeneric('Absorbent Cotton');
+                      setNewProdBrand('SoftTouch');
+                      setNewProdForm('cotton_wool');
+                      setNewProdSubCategory('personal_care');
+                      setNewProdMaterial('100% cotton');
+                      setNewProdSize('100 pack');
+                    }}
+                    className={`px-3 py-2 text-[11px] rounded-xl transition-colors text-left ${touchTargetSmall} ${isDark
+                      ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]'
+                      : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
+                      }`}
+                  >
+                    + Cotton Pads
+                  </button>
                 </div>
               </div>
 
@@ -729,7 +779,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Dosage Form</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Dosage Form / Category</label>
                   <select
                     value={newProdForm}
                     onChange={(e) => setNewProdForm(e.target.value as DosageFormType)}
@@ -743,11 +793,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <option value="cream">Cream</option>
                     <option value="ointment">Ointment</option>
                     <option value="bandage">Bandage</option>
+                    <option value="sanitary_pad">Sanitary Pad</option>
+                    <option value="cotton_wool">Cotton Wool</option>
+                    <option value="medical_device">Medical Device</option>
+                    <option value="supplement">Supplement</option>
                     <option value="equipment">Medical Equipment</option>
                   </select>
                 </div>
                 <div>
-                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Category</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Product Category</label>
                   <select
                     value={newProdCategory}
                     onChange={(e) => setNewProdCategory(e.target.value)}
@@ -758,6 +812,120 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              {/* Sub-Category field - appears for all products */}
+              <div>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Sub-Category</label>
+                <select
+                  value={newProdSubCategory}
+                  onChange={(e) => setNewProdSubCategory(e.target.value)}
+                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                >
+                  <option value="">Select Sub-Category</option>
+                  <option value="feminine_hygiene">Feminine Hygiene</option>
+                  <option value="wound_care">Wound Care</option>
+                  <option value="personal_care">Personal Care</option>
+                  <option value="baby_care">Baby Care</option>
+                  <option value="first_aid">First Aid</option>
+                  <option value="diagnostic">Diagnostic</option>
+                  <option value="nutritional">Nutritional</option>
+                  <option value="respiratory">Respiratory</option>
+                  <option value="cardiovascular">Cardiovascular</option>
+                  <option value="pain_relief">Pain Relief</option>
+                </select>
+              </div>
+
+              {/* Sanitary Product Specific Attributes */}
+              {(newProdForm === 'sanitary_pad' || newProdForm === 'cotton_wool') && (
+                <div className={`p-4 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
+                  <h4 className={`text-sm font-bold ${textTitle}`}>Product Specifications</h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`block mb-1.5 font-bold ${textMuted}`}>Material</label>
+                      <select
+                        value={newProdMaterial}
+                        onChange={(e) => setNewProdMaterial(e.target.value)}
+                        className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                      >
+                        <option value="">Select Material</option>
+                        <option value="100% cotton">100% Cotton</option>
+                        <option value="organic cotton">Organic Cotton</option>
+                        <option value="cotton_blend">Cotton Blend</option>
+                        <option value="synthetic">Synthetic</option>
+                        <option value="bamboo_fiber">Bamboo Fiber</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block mb-1.5 font-bold ${textMuted}`}>Size / Pack</label>
+                      <input
+                        type="text"
+                        value={newProdSize}
+                        onChange={(e) => setNewProdSize(e.target.value)}
+                        placeholder="e.g. Regular, 10 pack"
+                        className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                      />
+                    </div>
+                  </div>
+
+                  {newProdForm === 'sanitary_pad' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block mb-1.5 font-bold ${textMuted}`}>Absorbency</label>
+                        <select
+                          value={newProdAbsorbency}
+                          onChange={(e) => setNewProdAbsorbency(e.target.value)}
+                          className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                        >
+                          <option value="">Select Absorbency</option>
+                          <option value="light">Light</option>
+                          <option value="regular">Regular</option>
+                          <option value="super">Super</option>
+                          <option value="super_plus">Super Plus</option>
+                          <option value="overnight">Overnight</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block mb-1.5 font-bold ${textMuted}`}>Fragrance</label>
+                        <select
+                          value={newProdFragrance}
+                          onChange={(e) => setNewProdFragrance(e.target.value)}
+                          className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                        >
+                          <option value="">Select Option</option>
+                          <option value="unscented">Unscented</option>
+                          <option value="lightly_scented">Lightly Scented</option>
+                          <option value="scented">Scented</option>
+                          <option value="natural">Natural</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Strength</label>
+                  <input
+                    type="text"
+                    value={newProdStrength}
+                    onChange={(e) => setNewProdStrength(e.target.value)}
+                    placeholder="e.g. 500mg"
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Barcode / SKU</label>
+                  <input
+                    type="text"
+                    value={newProdBarcode}
+                    onChange={(e) => setNewProdBarcode(e.target.value)}
+                    placeholder="Barcode string"
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none font-mono ${inputBg} ${touchTargetSmall}`}
+                  />
                 </div>
               </div>
 
@@ -796,17 +964,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className={`block mb-1.5 font-bold ${textMuted}`}>Barcode / SKU</label>
-                <input
-                  type="text"
-                  value={newProdBarcode}
-                  onChange={(e) => setNewProdBarcode(e.target.value)}
-                  placeholder="Barcode string"
-                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none font-mono ${inputBg} ${touchTargetSmall}`}
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block mb-1.5 font-bold ${textMuted}`}>Initial Stock</label>
@@ -834,7 +991,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                 <button
                   type="button"
-                  onClick={() => setShowAddProductModal(false)}
+                  onClick={() => {
+                    setShowAddProductModal(false);
+                    resetProductForm();
+                  }}
                   className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                     }`}
                 >
@@ -860,7 +1020,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Edit Product - REMOVED border, full screen on mobile */}
+      {/* Modal: Edit Product */}
       {showEditProductModal && editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
@@ -903,7 +1063,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Dosage Form</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Dosage Form / Category</label>
                   <select
                     value={newProdForm}
                     onChange={(e) => setNewProdForm(e.target.value as DosageFormType)}
@@ -917,11 +1077,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <option value="cream">Cream</option>
                     <option value="ointment">Ointment</option>
                     <option value="bandage">Bandage</option>
+                    <option value="sanitary_pad">Sanitary Pad</option>
+                    <option value="cotton_wool">Cotton Wool</option>
+                    <option value="medical_device">Medical Device</option>
+                    <option value="supplement">Supplement</option>
                     <option value="equipment">Medical Equipment</option>
                   </select>
                 </div>
                 <div>
-                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Category</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Product Category</label>
                   <select
                     value={newProdCategory}
                     onChange={(e) => setNewProdCategory(e.target.value)}
@@ -932,6 +1096,117 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Sub-Category</label>
+                <select
+                  value={newProdSubCategory}
+                  onChange={(e) => setNewProdSubCategory(e.target.value)}
+                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                >
+                  <option value="">Select Sub-Category</option>
+                  <option value="feminine_hygiene">Feminine Hygiene</option>
+                  <option value="wound_care">Wound Care</option>
+                  <option value="personal_care">Personal Care</option>
+                  <option value="baby_care">Baby Care</option>
+                  <option value="first_aid">First Aid</option>
+                  <option value="diagnostic">Diagnostic</option>
+                  <option value="nutritional">Nutritional</option>
+                  <option value="respiratory">Respiratory</option>
+                  <option value="cardiovascular">Cardiovascular</option>
+                  <option value="pain_relief">Pain Relief</option>
+                </select>
+              </div>
+
+              {(newProdForm === 'sanitary_pad' || newProdForm === 'cotton_wool') && (
+                <div className={`p-4 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
+                  <h4 className={`text-sm font-bold ${textTitle}`}>Product Specifications</h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`block mb-1.5 font-bold ${textMuted}`}>Material</label>
+                      <select
+                        value={newProdMaterial}
+                        onChange={(e) => setNewProdMaterial(e.target.value)}
+                        className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                      >
+                        <option value="">Select Material</option>
+                        <option value="100% cotton">100% Cotton</option>
+                        <option value="organic cotton">Organic Cotton</option>
+                        <option value="cotton_blend">Cotton Blend</option>
+                        <option value="synthetic">Synthetic</option>
+                        <option value="bamboo_fiber">Bamboo Fiber</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block mb-1.5 font-bold ${textMuted}`}>Size / Pack</label>
+                      <input
+                        type="text"
+                        value={newProdSize}
+                        onChange={(e) => setNewProdSize(e.target.value)}
+                        placeholder="e.g. Regular, 10 pack"
+                        className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                      />
+                    </div>
+                  </div>
+
+                  {newProdForm === 'sanitary_pad' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block mb-1.5 font-bold ${textMuted}`}>Absorbency</label>
+                        <select
+                          value={newProdAbsorbency}
+                          onChange={(e) => setNewProdAbsorbency(e.target.value)}
+                          className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                        >
+                          <option value="">Select Absorbency</option>
+                          <option value="light">Light</option>
+                          <option value="regular">Regular</option>
+                          <option value="super">Super</option>
+                          <option value="super_plus">Super Plus</option>
+                          <option value="overnight">Overnight</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block mb-1.5 font-bold ${textMuted}`}>Fragrance</label>
+                        <select
+                          value={newProdFragrance}
+                          onChange={(e) => setNewProdFragrance(e.target.value)}
+                          className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                        >
+                          <option value="">Select Option</option>
+                          <option value="unscented">Unscented</option>
+                          <option value="lightly_scented">Lightly Scented</option>
+                          <option value="scented">Scented</option>
+                          <option value="natural">Natural</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Strength</label>
+                  <input
+                    type="text"
+                    value={newProdStrength}
+                    onChange={(e) => setNewProdStrength(e.target.value)}
+                    placeholder="e.g. 500mg"
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Barcode / SKU</label>
+                  <input
+                    type="text"
+                    value={newProdBarcode}
+                    onChange={(e) => setNewProdBarcode(e.target.value)}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none font-mono ${inputBg} ${touchTargetSmall}`}
+                  />
                 </div>
               </div>
 
@@ -968,16 +1243,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className={`block mb-1.5 font-bold ${textMuted}`}>Barcode / SKU</label>
-                <input
-                  type="text"
-                  value={newProdBarcode}
-                  onChange={(e) => setNewProdBarcode(e.target.value)}
-                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none font-mono ${inputBg} ${touchTargetSmall}`}
-                />
               </div>
 
               <div className="flex items-center gap-3 pt-2">
@@ -1024,7 +1289,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Add Batch - REMOVED border, full screen on mobile */}
+      {/* Modal: Add Batch */}
       {showAddBatchModal && selectedProductForBatch && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>

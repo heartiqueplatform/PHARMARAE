@@ -1341,9 +1341,8 @@ export default function App() {
 
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans antialiased transition-colors duration-200 overflow-x-hidden ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+    <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
       }`}>
-
       <Navigation
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab)}
@@ -1352,7 +1351,7 @@ export default function App() {
         pharmacyName={currentProfile?.pharmacy_name || null}
         currentProfile={currentProfile}
       />
-      <div className="flex-1 flex flex-col w-full min-w-0 transition-all duration-300">
+      <div className="flex-1 flex flex-col w-full min-w-0 transition-all duration-300 overflow-y-auto">
         <Header
           pharmacy={getPharmacyFromProfile(currentProfile)}
           currentProfile={currentProfile}
@@ -1378,7 +1377,7 @@ export default function App() {
           appVersion="1.0.0"
         />
 
-        <main className="flex-1 w-full px-2 sm:px-3 md:px-4 py-2 sm:py-4 min-w-0">
+        <main className="flex-1 w-full px-2 sm:px-3 md:px-4 pt-2 sm:pt-4 pb-0 min-w-0 overflow-y-auto">
           {activeTab === 'home' && (
             <DashboardView
               pharmacyName={currentProfile?.pharmacy_name || null}
