@@ -1,0 +1,6 @@
+{
+  "name": "MED P",
+  "description": "Simple, fast, offline-first mobile pharmacy management system for chemstry & pharmacies",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
