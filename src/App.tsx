@@ -26,15 +26,20 @@ import { PosView } from './components/views/PosView';
 import { InventoryView } from './components/views/InventoryView';
 import { ReportsView } from './components/views/ReportsView';
 import { MoreView } from './components/views/MoreView';
-// Add these imports at the top of your App.tsx
 import { AboutView } from '@/components/views/AboutView';
 import { PrivacyPolicyView } from '@/components/views/PrivacyPolicyView';
 import { TermsConditionsView } from '@/components/views/TermsConditionsView';
+const APP_VERSION = '1.0.0';
+const APP_NAME = 'PHARMARAE KENYA';
+const VERSION_KEY = 'pharmarae_app_version';
+const LAST_UPDATE_CHECK = 'pharmarae_last_update_check';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncPendingCount, setSyncPendingCount] = useState<number>(0);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   // Core Data State - SINGLE TABLE ARCHITECTURE
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
@@ -62,24 +67,82 @@ export default function App() {
     return localStorage.getItem('medp_authenticated') === 'true';
   });
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('medp_theme') as 'dark' | 'light') || 'dark';
+    return (localStorage.getItem('medp_theme') as 'dark' | 'light') || 'light';
   });
-
+  const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(APP_VERSION);
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     localStorage.setItem('medp_theme', next);
   };
+  // =============================================
+  // CHECK FOR APP UPDATES
+  // =============================================
+  const checkForUpdates = useCallback(() => {
+    const storedVersion = localStorage.getItem(VERSION_KEY);
+    const lastCheck = localStorage.getItem(LAST_UPDATE_CHECK);
+    const now = Date.now();
 
+    // Check every hour (3600000 ms)
+    const shouldCheck = !lastCheck || (now - parseInt(lastCheck) > 3600000);
+
+    if (storedVersion !== APP_VERSION && shouldCheck) {
+      console.log(`🔄 App update detected: ${storedVersion} → ${APP_VERSION}`);
+      localStorage.setItem(VERSION_KEY, APP_VERSION);
+      localStorage.setItem(LAST_UPDATE_CHECK, now.toString());
+
+      // Check if service worker has an update
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((registration) => {
+          registration.update();
+        });
+      }
+
+      setIsUpdateAvailable(true);
+      setShowUpdateNotification(true);
+      return true;
+    }
+
+    if (shouldCheck) {
+      localStorage.setItem(LAST_UPDATE_CHECK, now.toString());
+    }
+
+    return false;
+  }, []);
+
+  const isDark = theme === 'dark';
+  // =============================================
+  // HANDLE APP UPDATE
+  // =============================================
+  const handleUpdate = useCallback(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        if (registration.waiting) {
+          // Send skip waiting message to service worker
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    }
+
+    // Reload the page to apply updates
+    setShowUpdateNotification(false);
+    window.location.reload();
+  }, []);
+
+  const handleDismissUpdate = useCallback(() => {
+    setShowUpdateNotification(false);
+  }, []);
   // =============================================
   // NORMALIZE PHARMACY NAME HELPER
   // =============================================
   const normalizePharmacyName = (name: string): string => {
     if (!name) return '';
     return name
-      .trim()                          // Remove leading/trailing spaces
-      .replace(/\s+/g, ' ')            // Replace multiple spaces with single
-      .toUpperCase();                  // Convert to lowercase for consistency
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
   };
 
   const displayPharmacyName = (name: string): string => {
@@ -91,6 +154,8 @@ export default function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      // Auto-sync when coming back online
+      console.log('🌐 Back online, triggering sync...');
       triggerSyncQueue();
     };
     const handleOffline = () => setIsOnline(false);
@@ -104,6 +169,88 @@ export default function App() {
     };
   }, []);
 
+  // Auto-sync every 30 seconds when online and app is visible
+  useEffect(() => {
+    if (!isOnline || !currentProfile) return;
+
+    const interval = setInterval(() => {
+      // Only sync if tab is visible to save resources
+      if (document.visibilityState === 'visible') {
+        console.log('⏰ Auto-sync interval triggered');
+        triggerSyncQueue();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isOnline, currentProfile]);
+
+  // Sync when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isOnline && currentProfile) {
+        console.log('👁️ Tab became visible, checking for updates...');
+        triggerSyncQueue();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isOnline, currentProfile]);
+  // =============================================
+  // CHECK FOR UPDATES ON MOUNT
+  // =============================================
+  useEffect(() => {
+    // Check for updates on mount
+    checkForUpdates();
+
+    // Listen for service worker update messages
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+        setIsUpdateAvailable(true);
+        setShowUpdateNotification(true);
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+
+      // Check for service worker updates
+      navigator.serviceWorker.ready.then((registration) => {
+        // Check for updates every 30 seconds
+        const intervalId = setInterval(() => {
+          registration.update().then(() => {
+            if (registration.waiting) {
+              console.log('🔄 New service worker waiting...');
+              setIsUpdateAvailable(true);
+              setShowUpdateNotification(true);
+            }
+          });
+        }, 30000);
+
+        // Listen for new service worker installation
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('🔄 New service worker installed!');
+                setIsUpdateAvailable(true);
+                setShowUpdateNotification(true);
+              }
+            });
+          }
+        });
+
+        return () => clearInterval(intervalId);
+      });
+    }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleMessage);
+      }
+    };
+  }, [checkForUpdates]);
   // Helper function to convert Profile to Pharmacy
   const getPharmacyFromProfile = (profile: Profile | null): Pharmacy | null => {
     if (!profile) return null;
@@ -131,7 +278,9 @@ export default function App() {
     };
   };
 
-  // Load Data from Dexie IndexedDB
+  // =============================================
+  // LOAD DATA - WITH FORCED SUPABASE PULL
+  // =============================================
   const loadDatabaseData = useCallback(async () => {
     try {
       await seedInitialDataIfNeeded();
@@ -149,63 +298,95 @@ export default function App() {
       }
 
       if (current) {
-        // Normalize the pharmacy name for consistency
         const pharmacyName = normalizePharmacyName(current.pharmacy_name);
 
         setCurrentProfile(current);
         setCurrentRole(current.role || 'owner');
 
         if (pharmacyName) {
-          // Use normalized name for queries
-          const cats = await db.categories.where('pharmacy_name').equals(pharmacyName).toArray();
-          setCategories(cats);
+          // ✅ FORCE PULL FROM SUPABASE IF ONLINE
+          if (isOnline && isSupabaseConfigured()) {
+            console.log(`🔄 FORCE PULLING from Supabase for: ${pharmacyName}`);
+            try {
+              const success = await pullFromSupabaseToLocal(pharmacyName);
+              if (success) {
+                console.log('✅ Supabase data pulled successfully!');
+                setLastSyncTime(new Date());
+              } else {
+                console.warn('⚠️ Failed to pull from Supabase, using local data');
+              }
+            } catch (err) {
+              console.error('❌ Error pulling from Supabase:', err);
+            }
+          }
 
-          const un = await db.units.where('pharmacy_name').equals(pharmacyName).toArray();
-          setUnits(un);
+          // Load from Dexie (which now has fresh data)
+          console.log(`📂 Loading data from Dexie for: ${pharmacyName}`);
 
-          const supps = await db.suppliers.where('pharmacy_name').equals(pharmacyName).toArray();
-          setSuppliers(supps);
+          // Products - use case-insensitive filter
+          const allProducts = await db.products.toArray();
+          const filteredProducts = allProducts.filter(p =>
+            normalizePharmacyName(p.pharmacy_name) === pharmacyName
+          );
+          console.log(`📦 Products in Dexie: ${filteredProducts.length}`);
+          setProducts(filteredProducts);
 
-          const custs = await db.customers.where('pharmacy_name').equals(pharmacyName).toArray();
-          setCustomers(custs);
+          // Batches
+          const allBatches = await db.product_batches.toArray();
+          const filteredBatches = allBatches.filter(b =>
+            normalizePharmacyName(b.pharmacy_name) === pharmacyName
+          );
+          console.log(`📦 Batches in Dexie: ${filteredBatches.length}`);
+          setBatches(filteredBatches);
 
-          const bList = await db.product_batches.where('pharmacy_name').equals(pharmacyName).toArray();
-          setBatches(bList);
+          // Categories
+          const allCategories = await db.categories.toArray();
+          setCategories(allCategories.filter(c =>
+            normalizePharmacyName(c.pharmacy_name) === pharmacyName
+          ));
 
-          const prodList = await db.products.where('pharmacy_name').equals(pharmacyName).toArray();
-          const pUnits = await db.product_units.toArray();
+          // Units
+          const allUnits = await db.units.toArray();
+          setUnits(allUnits.filter(u =>
+            normalizePharmacyName(u.pharmacy_name) === pharmacyName
+          ));
 
-          const enrichedProducts = prodList.map(prod => {
-            const prodBatches = bList.filter(b => b.product_id === prod.id);
-            const totalStock = prodBatches.reduce((sum, b) => sum + (b.quantity_base || 0), 0);
-            const pkgUnits = pUnits.filter(pu => pu.product_id === prod.id);
+          // Suppliers
+          const allSuppliers = await db.suppliers.toArray();
+          setSuppliers(allSuppliers.filter(s =>
+            normalizePharmacyName(s.pharmacy_name) === pharmacyName
+          ));
 
-            return {
-              ...prod,
-              total_stock_base: totalStock,
-              packaging_units: pkgUnits
-            };
-          });
+          // Customers
+          const allCustomers = await db.customers.toArray();
+          setCustomers(allCustomers.filter(c =>
+            normalizePharmacyName(c.pharmacy_name) === pharmacyName
+          ));
 
-          setProducts(enrichedProducts);
+          // Sales
+          const allSales = await db.sales.toArray();
+          const filteredSales = allSales.filter(s =>
+            normalizePharmacyName(s.pharmacy_name) === pharmacyName
+          );
+          setSales(filteredSales);
 
-          const salesList = await db.sales.where('pharmacy_name').equals(pharmacyName).reverse().sortBy('created_at');
-          const sItemsList = await db.sale_items.toArray();
+          // Sale Items
+          const allSaleItems = await db.sale_items.toArray();
+          setSaleItems(allSaleItems);
 
-          const enrichedSales = salesList.map(s => {
-            const items = sItemsList.filter(si => si.sale_id === s.id);
-            return { ...s, items };
-          });
+          // Movements
+          const allMovements = await db.stock_movements.toArray();
+          setMovements(allMovements.filter(m =>
+            normalizePharmacyName(m.pharmacy_name) === pharmacyName
+          ));
 
-          setSales(enrichedSales);
-          setSaleItems(sItemsList);
+          // Audit Logs
+          const allAuditLogs = await db.audit_logs.toArray();
+          setAuditLogs(allAuditLogs.filter(a =>
+            normalizePharmacyName(a.pharmacy_name) === pharmacyName
+          ));
 
-          const movs = await db.stock_movements.where('pharmacy_name').equals(pharmacyName).reverse().sortBy('created_at');
-          setMovements(movs);
-
-          const logs = await db.audit_logs.where('pharmacy_name').equals(pharmacyName).reverse().sortBy('created_at');
-          setAuditLogs(logs);
-
+          // Sync pending count
           const pendingCount = await db.sync_queue.where('status').equals('pending').count();
           setSyncPendingCount(pendingCount);
         }
@@ -213,26 +394,107 @@ export default function App() {
     } catch (err) {
       console.error('Error loading database data:', err);
     }
-  }, []);
-
+  }, [isOnline]);
+  // Add this useEffect in your App component (around line 100)
+  useEffect(() => {
+    // Update body background when theme changes
+    if (isDark) {
+      document.body.style.backgroundColor = '#0d1117';
+      document.body.style.color = '#c9d1d9';
+    } else {
+      document.body.style.backgroundColor = '#f6f8fa';
+      document.body.style.color = '#1f2328';
+    }
+  }, [isDark]);
   useEffect(() => {
     loadDatabaseData();
   }, [loadDatabaseData]);
 
-  // Sync Queue Runner
+  // =============================================
+  // SYNC QUEUE RUNNER - WITH FULL BACKGROUND SYNC
+  // =============================================
   const triggerSyncQueue = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      await processOfflineSyncQueue();
-      if (currentProfile && isSupabaseConfigured) {
-        await pullFromSupabaseToLocal(normalizePharmacyName(currentProfile.pharmacy_name));
+      console.log('🔄 Starting background sync...');
+
+      // Step 1: Process pending offline mutations (push to Supabase)
+      const { synced, failed } = await processOfflineSyncQueue();
+      if (synced > 0) {
+        console.log(`✅ Pushed ${synced} items to Supabase`);
       }
+      if (failed > 0) {
+        console.warn(`⚠️ ${failed} items failed to sync`);
+      }
+
+      // Step 2: Pull fresh data from Supabase
+      if (currentProfile && isSupabaseConfigured() && isOnline) {
+        const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
+        console.log(`🔄 Pulling fresh data from Supabase for: ${pharmacyName}`);
+        const success = await pullFromSupabaseToLocal(pharmacyName);
+        if (success) {
+          console.log('✅ Fresh data pulled from Supabase');
+          setLastSyncTime(new Date());
+        }
+      }
+
+      // Step 3: Update pending count
       const count = await db.sync_queue.where('status').equals('pending').count();
       setSyncPendingCount(count);
+
+      // Step 4: Reload UI data
       await loadDatabaseData();
+
+      console.log('✅ Background sync complete!');
     } catch (err) {
-      console.error('Sync queue error:', err);
+      console.error('❌ Sync queue error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // =============================================
+  // FORCE SYNC - User triggered with feedback
+  // =============================================
+  const handleForceSync = async () => {
+    if (!currentProfile) {
+      alert('No profile found. Please login.');
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      alert('Supabase not configured. Please check your settings.');
+      return;
+    }
+
+    if (!isOnline) {
+      alert('You are offline. Please connect to the internet and try again.');
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
+      console.log(`🔄 FORCE SYNC from Supabase for: ${pharmacyName}`);
+
+      // Process pending mutations
+      const { synced, failed } = await processOfflineSyncQueue();
+      console.log(`✅ Pushed ${synced} items, ${failed} failed`);
+
+      // Pull fresh data
+      const success = await pullFromSupabaseToLocal(pharmacyName);
+      if (success) {
+        console.log('✅ Force sync complete!');
+        setLastSyncTime(new Date());
+        await loadDatabaseData();
+        alert('✅ Data synced successfully!');
+      } else {
+        alert('❌ Sync failed. Please check your connection and try again.');
+      }
+    } catch (error) {
+      console.error('❌ Force sync failed:', error);
+      alert('Sync failed: ' + (error as Error).message);
     } finally {
       setIsSyncing(false);
     }
@@ -477,7 +739,7 @@ export default function App() {
   };
 
   // =============================================
-  // ADD PRODUCT - MATCHES YOUR EXACT SCHEMA
+  // ADD PRODUCT - WITH AUTO SYNC
   // =============================================
   const handleAddProduct = async (prodData: Partial<Product>) => {
     if (!currentProfile) return;
@@ -523,7 +785,7 @@ export default function App() {
       updated_at: new Date().toISOString()
     };
 
-    console.log('📦 Saving product:', newProd);
+    console.log('📦 Saving product to Dexie:', newProd);
     await db.products.put(newProd);
 
     const supabaseProd = {
@@ -961,14 +1223,13 @@ export default function App() {
   };
 
   // =============================================
-  // UPDATE PROFILE - WITH NORMALIZATION AND AVATAR SUPPORT
+  // UPDATE PROFILE
   // =============================================
   const handleUpdateProfile = async (profileId: string, updates: Partial<Profile>) => {
     if (!currentProfile) return;
     const existing = await db.profiles.get(profileId);
     if (!existing) return;
 
-    // If pharmacy_name is being updated, normalize it
     let normalizedUpdates = { ...updates };
     if (normalizedUpdates.pharmacy_name) {
       normalizedUpdates.pharmacy_name = normalizePharmacyName(normalizedUpdates.pharmacy_name);
@@ -980,69 +1241,29 @@ export default function App() {
       updated_at: new Date().toISOString()
     };
 
-    console.log('📝 Updating profile with:', updated); // ✅ Debug log
-
-    // Save to local Dexie
+    console.log('📝 Updating profile with:', updated);
     await db.profiles.put(updated);
 
-    // If pharmacy name changed, update ALL related tables
     if (normalizedUpdates.pharmacy_name && normalizedUpdates.pharmacy_name !== existing.pharmacy_name) {
       const oldName = existing.pharmacy_name;
       const newName = normalizedUpdates.pharmacy_name;
 
       console.log(`🔄 Normalizing pharmacy name from "${oldName}" to "${newName}"`);
 
-      await db.products
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.product_batches
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.sales
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.sale_items
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.stock_movements
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.customers
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.suppliers
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.categories
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
-
-      await db.audit_logs
-        .where('pharmacy_name')
-        .equals(oldName)
-        .modify({ pharmacy_name: newName });
+      await db.products.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.product_batches.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.sales.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.sale_items.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.stock_movements.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.customers.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.suppliers.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.categories.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
+      await db.audit_logs.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
     }
 
-    // ✅ UPDATE SUPABASE WITH ALL FIELDS INCLUDING AVATAR
     const client = getSupabaseClient();
     if (client && navigator.onLine) {
       try {
-        // ✅ Explicitly include avatar_url in the update
         const supabaseUpdate = {
           pharmacy_name: updated.pharmacy_name,
           pharmacy_trading_name: updated.pharmacy_trading_name || null,
@@ -1063,12 +1284,12 @@ export default function App() {
           role: updated.role || 'owner',
           is_owner: updated.is_owner || false,
           is_active: updated.is_active !== undefined ? updated.is_active : true,
-          avatar_url: updated.avatar_url || null, // ✅ THIS IS THE KEY FIX
+          avatar_url: updated.avatar_url || null,
           last_login_at: updated.last_login_at || null,
           updated_at: new Date().toISOString()
         };
 
-        console.log('☁️ Sending to Supabase:', supabaseUpdate); // ✅ Debug
+        console.log('☁️ Sending to Supabase:', supabaseUpdate);
 
         const { error } = await client
           .from('profiles')
@@ -1097,7 +1318,7 @@ export default function App() {
   };
 
   // =============================================
-  // UPDATE PHARMACY NAME - For MoreView
+  // UPDATE PHARMACY NAME
   // =============================================
   const handleUpdatePharmacyName = async (newName: string) => {
     if (!currentProfile) return;
@@ -1118,7 +1339,6 @@ export default function App() {
   const expiryCutoffStr = expiryCutoff.toISOString().split('T')[0];
   const expiringBatches = batches.filter(b => b.expiry_date <= expiryCutoffStr && b.quantity_base > 0);
 
-  const isDark = theme === 'dark';
 
   return (
     <div className={`min-h-screen flex flex-col font-sans antialiased transition-colors duration-200 overflow-x-hidden ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
@@ -1132,10 +1352,9 @@ export default function App() {
         pharmacyName={currentProfile?.pharmacy_name || null}
         currentProfile={currentProfile}
       />
-
-      <div className="flex-1 flex flex-col md:pl-16 w-full min-w-0 transition-all duration-300">
+      <div className="flex-1 flex flex-col w-full min-w-0 transition-all duration-300">
         <Header
-          pharmacyName={currentProfile?.pharmacy_name || null}
+          pharmacy={getPharmacyFromProfile(currentProfile)}
           currentProfile={currentProfile}
           currentRole={currentRole}
           profiles={profiles}
@@ -1156,9 +1375,10 @@ export default function App() {
             localStorage.removeItem('medp_current_user_id');
             setIsAuthenticated(false);
           }}
+          appVersion="1.0.0"
         />
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-1 sm:px-3 md:px-6 py-2 sm:py-4 min-w-0">
+        <main className="flex-1 w-full px-2 sm:px-3 md:px-4 py-2 sm:py-4 min-w-0">
           {activeTab === 'home' && (
             <DashboardView
               pharmacyName={currentProfile?.pharmacy_name || null}
@@ -1201,6 +1421,7 @@ export default function App() {
               onAddBatch={handleAddBatch}
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
+              onForceSync={handleForceSync} // ✅ Pass force sync
               theme={theme}
             />
           )}
@@ -1258,7 +1479,48 @@ export default function App() {
           )}
         </main>
       </div>
-
+      {/* =============================================
+          APP UPDATE NOTIFICATION
+          ============================================ */}
+      {showUpdateNotification && isUpdateAvailable && (
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:bottom-4 md:max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 z-50 animate-slide-up">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Update Available!</h4>
+              <p className="text-gray-600 dark:text-gray-300 text-xs mt-0.5">
+                Version {APP_VERSION} is ready. Refresh to get the latest features.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleUpdate}
+                  className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  Update Now
+                </button>
+                <button
+                  onClick={handleDismissUpdate}
+                  className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Later
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={handleDismissUpdate}
+              className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
       <BarcodeScannerModal
         isOpen={isBarcodeScannerOpen}
         onClose={() => setIsBarcodeScannerOpen(false)}

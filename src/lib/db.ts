@@ -54,7 +54,9 @@ export class MedPDatabase extends Dexie {
   constructor() {
     super('MedPPharmacyDB');
 
-    // Version 1: Original schema
+    // =============================================
+    // VERSION 1: Original schema with pharmacy_id
+    // =============================================
     this.version(1).stores({
       pharmacies: 'id, name, is_active, created_at',
       profiles: 'id, full_name, email, phone, pin_code, created_at',
@@ -81,7 +83,9 @@ export class MedPDatabase extends Dexie {
       sync_queue: '++id, sync_id, pharmacy_id, user_id, entity_type, status, created_at'
     });
 
-    // Version 2: Add indexes for single table architecture
+    // =============================================
+    // VERSION 2: Add indexes for single table architecture
+    // =============================================
     this.version(2).stores({
       pharmacies: 'id, name, is_active, created_at',
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
@@ -105,7 +109,7 @@ export class MedPDatabase extends Dexie {
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
+      sync_queue: '++id, sync_id, pharmacy_id, user_id, entity_type, status, created_at'  // ⚠️ STILL pharmacy_id
     }).upgrade(async (tx) => {
       console.log('🔄 Upgrading database to version 2...');
 
@@ -156,7 +160,10 @@ export class MedPDatabase extends Dexie {
       }
     });
 
-    // Version 3: Remove pharmacies and pharmacy_users tables (clean up)
+    // =============================================
+    // VERSION 3: Remove pharmacies and pharmacy_users tables
+    // ⚠️ FIXED: sync_queue now uses pharmacy_name
+    // =============================================
     this.version(3).stores({
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
       categories: 'id, pharmacy_name, name, active',
@@ -178,36 +185,63 @@ export class MedPDatabase extends Dexie {
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at' // ✅ FIXED: pharmacy_name
     }).upgrade(async (tx) => {
-      console.log('🔄 Migrating to version 3 - removing old tables...');
+      console.log('🔄 Migrating to version 3 - fixing sync_queue...');
 
-      const profiles = await tx.table('profiles').toArray();
+      try {
+        // Migrate existing sync_queue items from pharmacy_id to pharmacy_name
+        const syncItems = await tx.table('sync_queue').toArray();
+        let fixed = 0;
 
-      for (const profile of profiles) {
-        if (!profile.pharmacy_name) {
-          console.warn(`⚠️ Profile ${profile.id} has no pharmacy_name, skipping`);
-          continue;
+        for (const item of syncItems) {
+          if (item.pharmacy_id && !item.pharmacy_name) {
+            // Get the pharmacy name from the pharmacy_id
+            const pharmacy = await tx.table('pharmacies').get(item.pharmacy_id);
+            if (pharmacy) {
+              await tx.table('sync_queue').update(item.id, {
+                pharmacy_name: pharmacy.name,
+                pharmacy_id: undefined // Remove the old field
+              });
+              fixed++;
+            }
+          }
         }
 
-        if (!profile.role) {
-          profile.role = 'owner';
-          profile.is_owner = true;
-        }
-        if (profile.is_owner === undefined) {
-          profile.is_owner = profile.role === 'owner';
-        }
-        if (profile.is_active === undefined) {
-          profile.is_active = true;
+        console.log(`✅ Migrated ${fixed} sync_queue items from pharmacy_id to pharmacy_name`);
+
+        // Also migrate profiles
+        const profiles = await tx.table('profiles').toArray();
+        for (const profile of profiles) {
+          if (!profile.pharmacy_name) {
+            console.warn(`⚠️ Profile ${profile.id} has no pharmacy_name, skipping`);
+            continue;
+          }
+
+          if (!profile.role) {
+            profile.role = 'owner';
+            profile.is_owner = true;
+          }
+          if (profile.is_owner === undefined) {
+            profile.is_owner = profile.role === 'owner';
+          }
+          if (profile.is_active === undefined) {
+            profile.is_active = true;
+          }
+
+          await tx.table('profiles').put(profile);
         }
 
-        await tx.table('profiles').put(profile);
+        console.log('✅ Migration to version 3 complete!');
+      } catch (error) {
+        console.error('❌ Error during database upgrade:', error);
+        throw error;
       }
-
-      console.log('✅ Migration to version 3 complete!');
     });
 
-    // ✅ VERSION 4: Normalize all pharmacy_names to UPPERCASE
+    // =============================================
+    // VERSION 4: Normalize all pharmacy_names to UPPERCASE
+    // =============================================
     this.version(4).stores({
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
       categories: 'id, pharmacy_name, name, active',
@@ -229,7 +263,7 @@ export class MedPDatabase extends Dexie {
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at' // ✅ FIXED
     }).upgrade(async (tx) => {
       console.log('🔄 Migrating to version 4 - Normalizing pharmacy names to UPPERCASE...');
 
@@ -239,7 +273,7 @@ export class MedPDatabase extends Dexie {
         'product_batches', 'purchases', 'purchase_items', 'customers',
         'sales', 'sale_items', 'payments', 'stock_movements',
         'stocktakes', 'stocktake_items', 'sale_returns', 'discounts',
-        'audit_logs', 'notifications'
+        'audit_logs', 'notifications', 'sync_queue'
       ];
 
       let totalFixed = 0;
@@ -276,6 +310,89 @@ export class MedPDatabase extends Dexie {
 
       console.log(`✅ Version 4 migration complete! ${totalFixed} total records normalized to UPPERCASE.`);
     });
+
+    // =============================================
+    // VERSION 5: Clean up - ensure all tables have pharmacy_name index
+    // =============================================
+    this.version(5).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
+      categories: 'id, pharmacy_name, name, active',
+      units: 'id, pharmacy_name, name, abbreviation',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at',
+      sales: 'id, pharmacy_name, sale_number, customer_id, status, created_at',
+      sale_items: 'id, sale_id, product_id, batch_id',
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
+    }).upgrade(async (tx) => {
+      console.log('🔄 Migrating to version 5 - Final cleanup...');
+
+      try {
+        // Ensure all sync_queue items have pharmacy_name
+        const syncItems = await tx.table('sync_queue').toArray();
+        let fixed = 0;
+
+        for (const item of syncItems) {
+          if (!item.pharmacy_name) {
+            // Try to find pharmacy_name from the payload
+            const payload = item.payload || {};
+            let pharmacyName = payload.pharmacy_name || payload.pharmacy_id || 'UNKNOWN';
+
+            // If it's an ID, try to look up the name
+            if (pharmacyName && pharmacyName.includes('-') && pharmacyName.length === 36) {
+              const pharmacy = await tx.table('pharmacies').get(pharmacyName);
+              if (pharmacy) {
+                pharmacyName = pharmacy.name;
+              }
+            }
+
+            // Normalize and update
+            const normalized = pharmacyName
+              .trim()
+              .replace(/\s+/g, ' ')
+              .toUpperCase();
+
+            await tx.table('sync_queue').update(item.id, {
+              pharmacy_name: normalized
+            });
+            fixed++;
+          }
+        }
+
+        console.log(`✅ Fixed ${fixed} sync_queue items with missing pharmacy_name`);
+
+        // Check for any orphaned items
+        const orphaned = await tx.table('sync_queue')
+          .where('pharmacy_name')
+          .equals('')
+          .toArray();
+
+        if (orphaned.length > 0) {
+          console.warn(`⚠️ Found ${orphaned.length} orphaned sync_queue items with empty pharmacy_name`);
+          for (const item of orphaned) {
+            await tx.table('sync_queue').delete(item.id);
+          }
+          console.log(`✅ Deleted ${orphaned.length} orphaned items`);
+        }
+
+        console.log('✅ Version 5 migration complete!');
+      } catch (error) {
+        console.error('❌ Error during version 5 migration:', error);
+        throw error;
+      }
+    });
   }
 
   // Helper method to clear all data
@@ -304,6 +421,39 @@ export class MedPDatabase extends Dexie {
     await this.notifications.clear();
     await this.sync_queue.clear();
   }
+
+  // Helper to clear only pharmacy data
+  async clearPharmacyData(pharmacyName: string) {
+    const normalized = pharmacyName
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+
+    console.log(`🧹 Clearing data for pharmacy: ${normalized}`);
+
+    const tables = [
+      'products', 'product_batches', 'categories', 'units',
+      'suppliers', 'customers', 'sales', 'sale_items',
+      'stock_movements', 'audit_logs', 'sync_queue'
+    ];
+
+    for (const tableName of tables) {
+      const table = this[tableName as keyof this] as any;
+      if (table && typeof table.where === 'function') {
+        try {
+          const items = await table.where('pharmacy_name').equals(normalized).toArray();
+          for (const item of items) {
+            await table.delete(item.id);
+          }
+          if (items.length > 0) {
+            console.log(`  ✅ Cleared ${items.length} records from ${tableName}`);
+          }
+        } catch (err) {
+          console.log(`  ⚠️ Could not clear ${tableName}: ${err}`);
+        }
+      }
+    }
+  }
 }
 
 // Create and export a single instance
@@ -312,8 +462,8 @@ export const db = new MedPDatabase();
 // Utility for initializing database schema
 export async function seedInitialDataIfNeeded() {
   try {
-    if (localStorage.getItem('medp_schema_v4_clean') !== 'true') {
-      console.log('🧹 Running schema cleanup...');
+    if (localStorage.getItem('medp_schema_v5_clean') !== 'true') {
+      console.log('🧹 Running schema cleanup v5...');
 
       const profiles = await db.profiles.toArray();
 
@@ -359,7 +509,20 @@ export async function seedInitialDataIfNeeded() {
         }
       }
 
-      localStorage.setItem('medp_schema_v4_clean', 'true');
+      // Clean up sync_queue items without pharmacy_name
+      const orphaned = await db.sync_queue
+        .where('pharmacy_name')
+        .equals('')
+        .toArray();
+
+      if (orphaned.length > 0) {
+        console.log(`🧹 Cleaning up ${orphaned.length} orphaned sync_queue items...`);
+        for (const item of orphaned) {
+          await db.sync_queue.delete(item.id);
+        }
+      }
+
+      localStorage.setItem('medp_schema_v5_clean', 'true');
       console.log('✅ Database cleanup complete!');
     }
   } catch (err) {

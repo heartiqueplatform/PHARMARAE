@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { Pharmacy, Profile, UserRole } from '../types';
-import { Wifi, WifiOff, RefreshCw, UserCheck, ChevronDown, Sun, Moon, User, Settings, LogOut, Shield, Calendar, Mail, Phone } from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw, UserCheck, ChevronDown, Sun, Moon, User, Settings, LogOut, Shield, Calendar, Mail, Phone, Info, GitBranch } from 'lucide-react';
+
+// =============================================
+// APP VERSION - Import from App or define here
+// =============================================
+const APP_VERSION = '1.0.0';
 
 interface HeaderProps {
   pharmacy: Pharmacy | null;
@@ -15,6 +20,7 @@ interface HeaderProps {
   onSwitchProfile: (profile: Profile) => void;
   onTriggerSync: () => void;
   onSignOut?: () => void;
+  appVersion?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,8 +36,10 @@ export const Header: React.FC<HeaderProps> = ({
   onSwitchProfile,
   onTriggerSync,
   onSignOut,
+  appVersion = APP_VERSION,
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showVersionInfo, setShowVersionInfo] = useState(false);
   const isDark = theme === 'dark';
 
   // Get the pharmacy name from current profile or pharmacy object
@@ -81,39 +89,83 @@ export const Header: React.FC<HeaderProps> = ({
     return profile.full_name.charAt(0).toUpperCase();
   };
 
+  // Check for app update (simplified)
+  const checkForAppUpdate = () => {
+    const storedVersion = localStorage.getItem('pharmarae_app_version');
+    if (storedVersion && storedVersion !== appVersion) {
+      return true;
+    }
+    return false;
+  };
+
+  const hasUpdate = checkForAppUpdate();
+
   return (
-    <header className={`sticky top-0 z-30 shadow-md border-b px-3 py-2.5 transition-colors ${isDark
-      ? 'bg-[#161b22] text-[#f0f6fc] border-[#30363d]'
-      : 'bg-white text-[#1f2328] border-[#d0d7de]'
+    <header className={`sticky top-0 z-30 backdrop-blur-xl border-b transition-all duration-300 px-3 py-2.5 ${isDark
+      ? 'bg-[#161b22]/95 text-[#f0f6fc] border-[#30363d]/50'
+      : 'bg-white/95 text-[#1f2328] border-[#d0d7de]/50'
       }`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
 
         {/* Pharmacy Title & Brand */}
-        <div className="flex items-center gap-2.5">
-          {/* ✅ Show pharmacy avatar if available */}
+        <div className="flex items-center gap-3">
+          {/*  Perfect Circle Avatar with floating style */}
           {currentProfile?.avatar_url ? (
-            <img
-              src={currentProfile.avatar_url}
-              alt={pharmacyName}
-              className="w-8 h-8 rounded-xl object-cover border border-[#2ea043]/30"
-            />
+            <div className="relative">
+              <img
+                src={currentProfile.avatar_url}
+                alt={pharmacyName}
+                className="w-10 h-10 rounded-full object-cover border-2 border-[#2ea043]/30 shadow-lg shadow-[#2ea043]/10"
+              />
+              {/* Online status dot - floating style */}
+              {isOnline && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
+              )}
+            </div>
           ) : (
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#2ea043] to-[#58a6ff] flex items-center justify-center text-white font-extrabold text-base shadow-sm">
-              P
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2ea043] to-[#58a6ff] flex items-center justify-center text-white font-extrabold text-base shadow-lg shadow-[#2ea043]/20">
+                {pharmacyName.charAt(0).toUpperCase()}
+              </div>
+              {isOnline && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
+              )}
             </div>
           )}
           <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="font-extrabold text-sm tracking-tight leading-none">
+            <div className="flex items-center gap-2">
+              <h1 className="font-extrabold text-base tracking-tight leading-none">
                 {pharmacyName}
               </h1>
-              <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${isDark
+                ? 'bg-[#2ea043]/20 text-[#2ea043] border-[#2ea043]/30'
+                : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                }`}>
                 {currentRole === 'owner' ? 'Owner' : currentRole === 'admin' ? 'Manager' : 'Staff'}
               </span>
+              {/*  Version Badge - Floating style */}
+              <button
+                onClick={() => setShowVersionInfo(!showVersionInfo)}
+                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-200 ${isDark
+                  ? 'bg-[#21262d]/80 text-[#8b949e] border-[#30363d] hover:bg-[#30363d]'
+                  : 'bg-[#f6f8fa]/80 text-[#656d76] border-[#d0d7de] hover:bg-slate-200'
+                  }`}
+                title={`Version ${appVersion}`}
+              >
+                v{appVersion}
+                {hasUpdate && (
+                  <span className="ml-1 inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                )}
+              </button>
             </div>
-            <p className={`text-[10px] truncate max-w-[150px] sm:max-w-xs mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+            <p className={`text-[10px] truncate max-w-[150px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
               }`}>
               {pharmacyTown ? `${pharmacyTown} • POS active` : 'Pharmacy Management System'}
+              {hasUpdate && (
+                <span className="text-[8px] text-emerald-500 font-medium animate-pulse">
+                  • Update available
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -121,13 +173,13 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Controls: Theme Toggle, Sync Badge, Profile Switcher */}
         <div className="flex items-center gap-2">
 
-          {/* Theme Toggle Button */}
+          {/* Theme Toggle Button - Floating style */}
           {onToggleTheme && (
             <button
               onClick={onToggleTheme}
-              className={`p-1.5 rounded-xl border transition-colors ${isDark
-                ? 'bg-[#21262d] border-[#30363d] text-amber-400 hover:bg-[#30363d]'
-                : 'bg-[#f6f8fa] border-[#d0d7de] text-indigo-600 hover:bg-slate-200'
+              className={`p-2 rounded-full border transition-all duration-200 hover:scale-105 ${isDark
+                ? 'bg-[#21262d]/80 border-[#30363d] text-amber-400 hover:bg-[#30363d]'
+                : 'bg-[#f6f8fa]/80 border-[#d0d7de] text-indigo-600 hover:bg-slate-200'
                 }`}
               title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
@@ -135,16 +187,16 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Sync & Network Badge */}
+          {/* Sync & Network Badge - Floating style */}
           <button
             onClick={onTriggerSync}
             disabled={isSyncing}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${isOnline
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 hover:scale-105 ${isOnline
               ? syncPendingCount > 0
                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                 : isDark
-                  ? 'bg-[#21262d] text-[#2ea043] border-[#30363d]'
-                  : 'bg-[#f6f8fa] text-[#1f883d] border-[#d0d7de]'
+                  ? 'bg-[#21262d]/80 text-[#2ea043] border-[#30363d] hover:bg-[#30363d]'
+                  : 'bg-[#f6f8fa]/80 text-[#1f883d] border-[#d0d7de] hover:bg-slate-200'
               : 'bg-red-500/20 text-red-400 border-red-500/40'
               }`}
             title="Click to process offline sync queue"
@@ -161,25 +213,25 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* ✅ Profile Switcher with Avatar */}
+          {/*  Profile Switcher with Avatar - Floating style */}
           {filteredProfiles.length > 0 && (
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className={`flex items-center gap-1.5 border px-2.5 py-1 rounded-xl text-xs font-semibold transition-colors ${isDark
-                  ? 'bg-[#21262d] border-[#30363d] hover:bg-[#30363d] text-[#f0f6fc]'
-                  : 'bg-[#f6f8fa] border-[#d0d7de] hover:bg-slate-200 text-[#1f2328]'
+                className={`flex items-center gap-2 border px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 hover:scale-105 ${isDark
+                  ? 'bg-[#21262d]/80 border-[#30363d] hover:bg-[#30363d] text-[#f0f6fc]'
+                  : 'bg-[#f6f8fa]/80 border-[#d0d7de] hover:bg-slate-200 text-[#1f2328]'
                   }`}
               >
-                {/* ✅ Avatar with initials fallback */}
+                {/*  Perfect Circle Avatar */}
                 {getAvatarUrl(currentProfile) ? (
                   <img
                     src={getAvatarUrl(currentProfile)!}
                     alt={currentProfile?.full_name || 'User'}
-                    className="w-5 h-5 rounded-full object-cover"
+                    className="w-6 h-6 rounded-full object-cover border border-[#2ea043]/30"
                   />
                 ) : (
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${currentRole === 'owner'
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${currentRole === 'owner'
                     ? 'bg-amber-500/20 text-amber-400'
                     : currentRole === 'admin'
                       ? 'bg-purple-500/20 text-purple-400'
@@ -191,39 +243,46 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-semibold max-w-[80px] sm:max-w-[120px] truncate hidden xs:inline">
                   {getDisplayName(currentProfile)}
                 </span>
-                <span className={`text-[9px] px-1 rounded border hidden sm:inline ${badge.bg}`}>
-                  {badge.label}
-                </span>
                 <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </button>
 
-              {/* ✅ Profile Dropdown Menu with Full Details */}
+              {/*  Profile Dropdown Menu - Floating style with perfect circles */}
               {showProfileMenu && (
-                <div className={`absolute right-0 mt-2 w-64 border rounded-2xl shadow-2xl py-1 z-50 text-xs ${isDark
-                  ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]'
-                  : 'bg-white border-[#d0d7de] text-[#1f2328]'
+                <div className={`absolute right-0 mt-2 w-72 rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
+                  ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
+                  : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
                   }`}>
-                  {/* ✅ Current User Section with Avatar */}
-                  <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} flex items-center gap-3`}>
-                    {/* Large Avatar */}
+                  {/*  Current User Section with Perfect Circle Avatar */}
+                  <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} flex items-center gap-3`}>
+                    {/* Large Perfect Circle Avatar */}
                     {getAvatarUrl(currentProfile) ? (
-                      <img
-                        src={getAvatarUrl(currentProfile)!}
-                        alt={currentProfile?.full_name || 'User'}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-[#2ea043]/30"
-                      />
+                      <div className="relative">
+                        <img
+                          src={getAvatarUrl(currentProfile)!}
+                          alt={currentProfile?.full_name || 'User'}
+                          className="w-14 h-14 rounded-full object-cover border-2 border-[#2ea043]/30 shadow-lg shadow-[#2ea043]/10"
+                        />
+                        {isOnline && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
+                        )}
+                      </div>
                     ) : (
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${currentRole === 'owner'
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : currentRole === 'admin'
-                          ? 'bg-purple-500/20 text-purple-400'
-                          : 'bg-[#58a6ff]/20 text-[#58a6ff]'
-                        }`}>
-                        {getInitials(currentProfile)}
+                      <div className="relative">
+                        <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shadow-lg ${currentRole === 'owner'
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : currentRole === 'admin'
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : 'bg-[#58a6ff]/20 text-[#58a6ff]'
+                          }`}>
+                          {getInitials(currentProfile)}
+                        </div>
+                        {isOnline && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
+                        )}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-extrabold text-sm truncate">
+                      <p className="font-extrabold text-base truncate">
                         {currentProfile?.full_name || 'Staff Member'}
                       </p>
                       <p className={`text-[10px] capitalize flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
@@ -241,9 +300,9 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
                   </div>
 
-                  {/* ✅ Staff List */}
-                  <div className="py-1 max-h-48 overflow-y-auto">
-                    <p className={`px-3 py-1.5 text-[9px] uppercase font-bold tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                  {/*  Staff List with Perfect Circle Avatars */}
+                  <div className="py-1 max-h-56 overflow-y-auto">
+                    <p className={`px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
                       }`}>
                       All Staff Members ({filteredProfiles.length})
                     </p>
@@ -256,20 +315,20 @@ export const Header: React.FC<HeaderProps> = ({
                             onSwitchProfile(p);
                             setShowProfileMenu(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 transition-colors ${isActive
-                            ? isDark ? 'bg-[#21262d] text-[#58a6ff] font-bold' : 'bg-[#f3f4f6] text-[#0969da] font-bold'
-                            : isDark ? 'hover:bg-[#21262d]' : 'hover:bg-slate-100'
+                          className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-3 transition-colors ${isActive
+                            ? isDark ? 'bg-[#21262d]/80 text-[#58a6ff] font-bold' : 'bg-[#f3f4f6] text-[#0969da] font-bold'
+                            : isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-slate-100'
                             }`}
                         >
-                          {/* ✅ Avatar in staff list */}
+                          {/*  Perfect Circle Avatar in staff list */}
                           {p.avatar_url ? (
                             <img
                               src={p.avatar_url}
                               alt={p.full_name}
-                              className="w-7 h-7 rounded-full object-cover"
+                              className="w-8 h-8 rounded-full object-cover border border-[#2ea043]/20"
                             />
                           ) : (
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold ${p.role === 'owner'
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${p.role === 'owner'
                               ? 'bg-amber-500/20 text-amber-400'
                               : p.role === 'admin'
                                 ? 'bg-purple-500/20 text-purple-400'
@@ -284,29 +343,38 @@ export const Header: React.FC<HeaderProps> = ({
                               {p.role} • {p.email?.split('@')[0] || ''}
                             </p>
                           </div>
-                          {isActive && <UserCheck className="w-3.5 h-3.5 text-[#2ea043] flex-shrink-0" />}
+                          {isActive && <UserCheck className="w-4 h-4 text-[#2ea043] flex-shrink-0" />}
                         </button>
                       );
                     })}
                   </div>
 
-                  {/* ✅ Action Buttons */}
-                  <div className={`border-t pt-1 mt-1 ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'}`}>
-                    {/* Settings - Only for Owner/Admin */}
-                    {(currentRole === 'owner' || currentRole === 'admin') && (
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          // Navigate to settings - you can add this logic
-                          // onNavigateToSettings?.();
-                        }}
-                        className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-[#21262d] transition-colors"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                        <span>Settings</span>
-                      </button>
-                    )}
+                  {/*  Version Info Section */}
+                  <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} px-3 py-2`}>
+                    <div className={`flex items-center justify-between text-[9px] ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                      <span className="flex items-center gap-1">
+                        <GitBranch className="w-3 h-3" />
+                        v{appVersion}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Info className="w-3 h-3" />
+                        {hasUpdate ? (
+                          <span className="text-emerald-500 font-medium animate-pulse">
+                            Update available
+                          </span>
+                        ) : (
+                          <span>Up to date</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className={`text-[8px] mt-0.5 flex items-center justify-between ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                      <span>PHARMARAE KENYA</span>
+                      <span>{new Date().getFullYear()}</span>
+                    </div>
+                  </div>
 
+                  {/*  Action Buttons */}
+                  <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} pt-1`}>
                     {/* Sign Out */}
                     {onSignOut && (
                       <button
@@ -314,9 +382,12 @@ export const Header: React.FC<HeaderProps> = ({
                           setShowProfileMenu(false);
                           onSignOut();
                         }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-rose-500 hover:bg-rose-500/10 transition-colors flex items-center gap-2 font-bold"
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 font-bold rounded-b-2xl ${isDark
+                          ? 'text-rose-400 hover:bg-rose-500/10'
+                          : 'text-rose-600 hover:bg-rose-50'
+                          }`}
                       >
-                        <LogOut className="w-3.5 h-3.5" />
+                        <LogOut className="w-4 h-4" />
                         <span>Sign Out</span>
                       </button>
                     )}
@@ -328,6 +399,22 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
       </div>
+
+      {/*  Version Info Tooltip - Floating style */}
+      {showVersionInfo && (
+        <div className={`absolute left-4 top-full mt-1 px-3 py-2 rounded-xl border shadow-lg text-xs max-w-xs z-40 backdrop-blur-xl ${isDark
+          ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
+          : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
+          }`}>
+          <p className="font-mono font-bold">PHARMARAE KENYA</p>
+          <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+            Version: <span className="font-mono text-emerald-500">{appVersion}</span>
+          </p>
+          <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} text-[8px] mt-0.5`}>
+            {hasUpdate ? '🔄 Update available - Refresh to install' : ' Up to date'}
+          </p>
+        </div>
+      )}
     </header>
   );
 };

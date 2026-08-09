@@ -38,22 +38,26 @@ export const PosView: React.FC<PosViewProps> = ({
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
 
-  // Base card styles
-  const cardBg = isDark ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]' : 'bg-white border-[#d0d7de] text-[#1f2328] shadow-sm';
+  // Base card styles - REMOVED ALL borders
+  const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const cardHover = isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
-  const inputBg = isDark ? 'bg-[#0d1117] border-[#30363d] text-[#f0f6fc]' : 'bg-[#f6f8fa] border-[#d0d7de] text-[#1f2328]';
+  const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
 
-  // Additional theme variables for cart items
-  const cartItemBg = isDark ? 'bg-[#21262d] border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]';
+  // Large touch targets for mobile
+  const touchTarget = 'min-h-[44px] min-w-[44px]';
+  const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
+
+  // Additional theme variables for cart items - REMOVED borders
+  const cartItemBg = isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]';
   const cartItemText = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const cartItemSubText = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const cartItemBorder = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
-  const selectBg = isDark ? 'bg-[#0d1117] border-[#30363d] text-[#f0f6fc]' : 'bg-white border-[#d0d7de] text-[#1f2328]';
+  const selectBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-white text-[#1f2328]';
   const inputDisabled = isDark ? 'bg-[#161b22] text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]';
-  const buttonSecondary = isDark ? 'bg-[#21262d] border-[#30363d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] text-[#1f2328] hover:bg-[#eaeef2]';
+  const buttonSecondary = isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-[#eaeef2]';
   const buttonSecondaryActive = isDark ? 'bg-[#2ea043] text-white' : 'bg-[#2ea043] text-white';
 
   // Search & Filters
@@ -221,26 +225,26 @@ export const PosView: React.FC<PosViewProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pb-20 md:pb-6">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 px-0 md:px-4 pb-20 md:pb-6">
 
       {/* Left Column: Fast Product Search & Grid (7 cols) */}
-      <div className="lg:col-span-7 space-y-3">
+      <div className="lg:col-span-7 space-y-4">
 
-        {/* Search Bar & Barcode Trigger */}
-        <div className="flex items-center gap-2">
+        {/* Search Bar & Barcode Trigger - Large touch targets */}
+        <div className="flex items-center gap-3">
           <div className="relative flex-1">
-            <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${textMuted}`} />
+            <Search className={`w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by drug name, generic, brand or barcode..."
-              className={`w-full rounded-xl pl-9 pr-3 py-2.5 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
+              className={`w-full rounded-xl pl-12 pr-4 py-4 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg} ${touchTarget}`}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold ${textMuted}`}
+                className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold ${textMuted} ${touchTargetSmall}`}
               >
                 Clear
               </button>
@@ -249,24 +253,24 @@ export const PosView: React.FC<PosViewProps> = ({
 
           <button
             onClick={onOpenBarcodeScanner}
-            className={`p-2.5 text-[#2ea043] border rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors ${isDark ? 'bg-[#21262d] border-[#30363d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] hover:bg-slate-200'
+            className={`p-4 text-[#2ea043] rounded-xl text-sm font-bold flex items-center gap-2 shrink-0 transition-colors ${touchTarget} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
               }`}
             title="Scan drug barcode using phone camera"
           >
-            <Camera className="w-4 h-4" />
+            <Camera className="w-5 h-5" />
             <span className="hidden xs:inline">Scan</span>
           </button>
         </div>
 
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        {/* Category Pills - Larger touch targets */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
           <button
             onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-colors ${selectedCategory === 'all'
+            className={`px-4 py-2 rounded-full text-sm font-bold shrink-0 transition-colors ${touchTargetSmall} ${selectedCategory === 'all'
               ? 'bg-[#2ea043] text-white shadow-sm'
               : isDark
-                ? 'bg-[#161b22] text-[#8b949e] border border-[#30363d] hover:text-[#f0f6fc]'
-                : 'bg-white text-[#656d76] border border-[#d0d7de] hover:text-[#1f2328]'
+                ? 'bg-[#161b22] text-[#8b949e] hover:text-[#f0f6fc]'
+                : 'bg-white text-[#656d76] hover:text-[#1f2328]'
               }`}
           >
             All Items
@@ -275,11 +279,11 @@ export const PosView: React.FC<PosViewProps> = ({
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 transition-colors ${selectedCategory === cat
+              className={`px-4 py-2 rounded-full text-sm font-bold shrink-0 transition-colors ${touchTargetSmall} ${selectedCategory === cat
                 ? 'bg-[#2ea043] text-white shadow-sm'
                 : isDark
-                  ? 'bg-[#161b22] text-[#8b949e] border border-[#30363d] hover:text-[#f0f6fc]'
-                  : 'bg-white text-[#656d76] border border-[#d0d7de] hover:text-[#1f2328]'
+                  ? 'bg-[#161b22] text-[#8b949e] hover:text-[#f0f6fc]'
+                  : 'bg-white text-[#656d76] hover:text-[#1f2328]'
                 }`}
             >
               {cat}
@@ -287,10 +291,10 @@ export const PosView: React.FC<PosViewProps> = ({
           ))}
         </div>
 
-        {/* Product Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[550px] overflow-y-auto pr-1">
+        {/* Product Cards Grid - Larger touch targets */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[550px] overflow-y-auto pr-1">
           {filteredProducts.length === 0 ? (
-            <div className={`col-span-full py-12 text-center text-xs ${textMuted}`}>
+            <div className={`col-span-full py-12 text-center text-sm ${textMuted}`}>
               No matching items found in inventory.
             </div>
           ) : (
@@ -304,53 +308,53 @@ export const PosView: React.FC<PosViewProps> = ({
                   key={prod.id}
                   onClick={() => addToCart(prod)}
                   disabled={isOutOfStock}
-                  className={`text-left p-3 rounded-2xl border transition-all flex flex-col justify-between relative group ${isOutOfStock
-                    ? 'opacity-50 cursor-not-allowed bg-slate-100 border-slate-300 dark:bg-slate-900/40 dark:border-slate-800'
-                    : `${cardBg} ${cardHover} hover:border-[#2ea043]/50 active:scale-98`
+                  className={`text-left p-4 rounded-2xl transition-all flex flex-col justify-between relative group ${touchTarget} ${isOutOfStock
+                    ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-900/40'
+                    : `${cardBg} ${cardHover} active:scale-98`
                     }`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-1">
-                      <p className={`font-bold text-xs line-clamp-2 leading-tight ${textTitle}`}>
+                      <p className={`font-bold text-sm line-clamp-2 leading-tight ${textTitle}`}>
                         {prod.name}
                       </p>
                       {prod.prescription_required && (
-                        <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/15 border border-amber-500/30 px-1 rounded shrink-0">
+                        <span className="text-[10px] font-black uppercase text-amber-500 bg-amber-500/15 px-1.5 py-0.5 rounded shrink-0">
                           Rx
                         </span>
                       )}
                       {prod.is_controlled && (
-                        <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/15 border border-red-500/30 px-1 rounded shrink-0">
+                        <span className="text-[10px] font-black uppercase text-red-500 bg-red-500/15 px-1.5 py-0.5 rounded shrink-0">
                           Ctrl
                         </span>
                       )}
                     </div>
                     {prod.generic_name && (
-                      <p className={`text-[10px] truncate mt-0.5 ${textMuted}`}>
+                      <p className={`text-[11px] truncate mt-1 ${textMuted}`}>
                         {prod.generic_name}
                       </p>
                     )}
                     {prod.form && prod.strength && (
-                      <p className={`text-[10px] truncate ${textMuted}`}>
+                      <p className={`text-[11px] truncate ${textMuted}`}>
                         {prod.form} • {prod.strength}
                       </p>
                     )}
                   </div>
 
-                  <div className={`mt-3 pt-2 border-t flex items-center justify-between ${borderLine}`}>
+                  <div className={`mt-3 pt-2 flex items-center justify-between ${borderLine}`}>
                     <div>
-                      <span className="text-xs font-extrabold text-[#2ea043]">
+                      <span className="text-sm font-extrabold text-[#2ea043]">
                         {currency} {prod.selling_price}
                       </span>
-                      <span className={`text-[10px] ml-1 ${textMuted}`}>
+                      <span className={`text-[11px] ml-1 ${textMuted}`}>
                         /unit
                       </span>
                     </div>
 
-                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${isOutOfStock
-                      ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded ${isOutOfStock
+                      ? 'bg-rose-500/15 text-rose-500'
                       : isLowStock
-                        ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                        ? 'bg-amber-500/15 text-amber-500'
                         : isDark ? 'bg-[#30363d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-700'
                       }`}>
                       {isOutOfStock ? 'OUT' : `${availableQty} left`}
@@ -364,73 +368,73 @@ export const PosView: React.FC<PosViewProps> = ({
 
       </div>
 
-      {/* Right Column: Cart & Checkout (5 cols) */}
-      <div className={`lg:col-span-5 border rounded-2xl p-4 shadow-xl flex flex-col justify-between h-full ${cardBg}`}>
+      {/* Right Column: Cart & Checkout (5 cols) - REMOVED border */}
+      <div className={`lg:col-span-5 rounded-2xl p-4 shadow-xl flex flex-col justify-between h-full ${cardBg}`}>
 
         <div>
           {/* Cart Title & Clear */}
-          <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
+          <div className={`flex items-center justify-between pb-3 mb-3 ${borderLine}`}>
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-[#2ea043]" />
-              <h2 className={`font-extrabold text-sm ${textTitle}`}>Current Cart</h2>
-              <span className="bg-[#2ea043]/20 text-[#2ea043] text-xs px-2 py-0.5 rounded-full font-extrabold">
+              <h2 className={`font-extrabold text-base ${textTitle}`}>Current Cart</h2>
+              <span className="bg-[#2ea043]/20 text-[#2ea043] text-xs px-2.5 py-1 rounded-full font-extrabold">
                 {cart.length}
               </span>
             </div>
             {cart.length > 0 && (
               <button
                 onClick={() => setCart([])}
-                className="text-xs text-rose-500 hover:text-rose-400 font-bold"
+                className={`text-sm text-rose-500 hover:text-rose-400 font-bold ${touchTargetSmall}`}
               >
                 Clear All
               </button>
             )}
           </div>
 
-          {/* Cart Item List */}
+          {/* Cart Item List - Larger touch targets */}
           {cart.length === 0 ? (
-            <div className={`py-12 text-center ${textMuted} text-xs space-y-2`}>
-              <ShoppingBag className={`w-10 h-10 mx-auto ${textMuted}`} />
+            <div className={`py-12 text-center ${textMuted} text-sm space-y-2`}>
+              <ShoppingBag className={`w-12 h-12 mx-auto ${textMuted}`} />
               <p>Your cart is empty.</p>
-              <p className="text-[10px]">Select items from the left panel or scan barcode to add.</p>
+              <p className="text-[11px]">Select items from the left panel or scan barcode to add.</p>
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
               {cart.map((item, idx) => (
                 <div
                   key={idx}
-                  className={`${cartItemBg} border rounded-xl p-2.5 text-xs flex flex-col gap-1.5`}
+                  className={`${cartItemBg} rounded-xl p-3 text-sm flex flex-col gap-2`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 pr-2">
                       <p className={`font-bold ${cartItemText}`}>{item.product.name}</p>
                       {item.batch && (
-                        <p className={`text-[9px] font-mono ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>
+                        <p className={`text-[10px] font-mono ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>
                           Batch: {item.batch.batch_number} (Exp: {item.batch.expiry_date})
                         </p>
                       )}
                       {item.product.form && (
-                        <p className={`text-[9px] ${cartItemSubText}`}>
+                        <p className={`text-[10px] ${cartItemSubText}`}>
                           {item.product.form} {item.product.strength}
                         </p>
                       )}
                     </div>
                     <button
                       onClick={() => removeItem(idx)}
-                      className={`${isDark ? 'text-slate-500 hover:text-rose-400' : 'text-[#656d76] hover:text-rose-500'} transition-colors p-0.5`}
+                      className={`${isDark ? 'text-slate-500 hover:text-rose-400' : 'text-[#656d76] hover:text-rose-500'} transition-colors p-2 ${touchTargetSmall}`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Quantity Stepper & Price */}
-                  <div className={`flex items-center justify-between pt-1 border-t ${cartItemBorder}`}>
-                    <div className={`flex items-center gap-1 ${isDark ? 'bg-[#0d1117] border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'} border rounded-lg p-0.5`}>
+                  {/* Quantity Stepper & Price - Larger controls */}
+                  <div className={`flex items-center justify-between pt-2 ${cartItemBorder}`}>
+                    <div className={`flex items-center gap-2 ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} rounded-lg p-1`}>
                       <button
                         onClick={() => updateQuantity(idx, item.quantity - 1)}
-                        className={`w-5 h-5 rounded ${isDark ? 'hover:bg-[#21262d] text-[#c9d1d9]' : 'hover:bg-[#eaeef2] text-[#1f2328]'} flex items-center justify-center font-bold`}
+                        className={`w-8 h-8 rounded ${isDark ? 'hover:bg-[#21262d] text-[#c9d1d9]' : 'hover:bg-[#eaeef2] text-[#1f2328]'} flex items-center justify-center font-bold ${touchTargetSmall}`}
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-4 h-4" />
                       </button>
                       <input
                         type="number"
@@ -443,17 +447,17 @@ export const PosView: React.FC<PosViewProps> = ({
                             updateQuantity(idx, val);
                           }
                         }}
-                        className={`w-10 text-center font-bold text-xs ${isDark ? 'bg-[#161b22] text-emerald-400' : 'bg-white text-emerald-600'} rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 py-0.5`}
+                        className={`w-12 text-center font-bold text-sm ${isDark ? 'bg-[#161b22] text-emerald-400' : 'bg-white text-emerald-600'} rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 py-1 ${touchTargetSmall}`}
                       />
                       <button
                         onClick={() => updateQuantity(idx, item.quantity + 1)}
-                        className={`w-5 h-5 rounded ${isDark ? 'hover:bg-[#21262d] text-[#c9d1d9]' : 'hover:bg-[#eaeef2] text-[#1f2328]'} flex items-center justify-center font-bold`}
+                        className={`w-8 h-8 rounded ${isDark ? 'hover:bg-[#21262d] text-[#c9d1d9]' : 'hover:bg-[#eaeef2] text-[#1f2328]'} flex items-center justify-center font-bold ${touchTargetSmall}`}
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-4 h-4" />
                       </button>
                     </div>
 
-                    <div className={`font-bold ${cartItemText}`}>
+                    <div className={`font-bold text-base ${cartItemText}`}>
                       {currency} {item.subtotal.toFixed(2)}
                     </div>
                   </div>
@@ -463,13 +467,13 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
           )}
 
-          {/* Customer & Payment Method */}
-          <div className={`mt-4 pt-3 border-t ${borderLine} space-y-2.5`}>
+          {/* Customer & Payment Method - Larger touch targets */}
+          <div className={`mt-4 pt-3 ${borderLine} space-y-3`}>
 
             {/* Customer Select */}
-            <div className={`flex items-center justify-between text-xs ${textMuted}`}>
-              <span className="flex items-center gap-1">
-                <User className="w-3.5 h-3.5" />
+            <div className={`flex items-center justify-between text-sm ${textMuted}`}>
+              <span className="flex items-center gap-2">
+                <User className="w-4 h-4" />
                 Customer:
               </span>
               <select
@@ -478,7 +482,7 @@ export const PosView: React.FC<PosViewProps> = ({
                   const found = customers.find(c => c.id === e.target.value);
                   setSelectedCustomer(found || null);
                 }}
-                className={`${selectBg} text-xs rounded-lg px-2 py-1 max-w-[150px] focus:outline-none focus:ring-1 focus:ring-[#2ea043]`}
+                className={`${selectBg} text-sm rounded-lg px-3 py-2 max-w-[160px] focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
               >
                 <option value="">Cash Customer</option>
                 {customers.map(c => (
@@ -488,9 +492,9 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
 
             {/* Discount */}
-            <div className={`flex items-center justify-between text-xs ${textMuted}`}>
-              <span className="flex items-center gap-1">
-                <Tag className="w-3.5 h-3.5" />
+            <div className={`flex items-center justify-between text-sm ${textMuted}`}>
+              <span className="flex items-center gap-2">
+                <Tag className="w-4 h-4" />
                 Discount ({currency}):
               </span>
               <input
@@ -500,23 +504,23 @@ export const PosView: React.FC<PosViewProps> = ({
                 value={discountAmount || ''}
                 onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
                 placeholder="0"
-                className={`${inputBg} text-xs rounded-lg px-2 py-1 w-20 text-right focus:outline-none focus:ring-1 focus:ring-[#2ea043]`}
+                className={`${inputBg} text-sm rounded-lg px-3 py-2 w-24 text-right focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
               />
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Method - Larger touch targets */}
             <div>
-              <p className={`text-[10px] font-bold uppercase ${textMuted} mb-1.5`}>Payment Method</p>
-              <div className="grid grid-cols-3 gap-1.5 text-xs">
+              <p className={`text-[11px] font-bold uppercase ${textMuted} mb-2`}>Payment Method</p>
+              <div className="grid grid-cols-3 gap-2 text-sm">
                 {(['cash', 'mpesa', 'card', 'credit', 'insurance'] as PaymentMethod[]).map(pm => (
                   <button
                     key={pm}
                     onClick={() => setPaymentMethod(pm)}
-                    className={`py-1.5 px-2 rounded-lg font-bold uppercase text-[10px] border transition-colors ${paymentMethod === pm
-                      ? 'bg-[#2ea043] text-white border-[#2ea043]'
+                    className={`py-2.5 px-3 rounded-lg font-bold uppercase text-sm transition-colors ${touchTargetSmall} ${paymentMethod === pm
+                      ? 'bg-[#2ea043] text-white'
                       : isDark
-                        ? 'bg-[#21262d] text-[#c9d1d9] border-[#30363d] hover:bg-[#30363d]'
-                        : 'bg-[#f6f8fa] text-[#1f2328] border-[#d0d7de] hover:bg-[#eaeef2]'
+                        ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]'
+                        : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-[#eaeef2]'
                       }`}
                   >
                     {pm}
@@ -528,19 +532,19 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
         </div>
 
-        {/* Checkout Button */}
-        <div className={`mt-4 pt-3 border-t ${borderLine} space-y-2`}>
-          <div className={`flex justify-between items-center ${textMuted} text-xs`}>
+        {/* Checkout Button - Larger touch target */}
+        <div className={`mt-4 pt-3 ${borderLine} space-y-3`}>
+          <div className={`flex justify-between items-center ${textMuted} text-sm`}>
             <span>Subtotal:</span>
             <span>{currency} {subtotal.toFixed(2)}</span>
           </div>
           {discountAmount > 0 && (
-            <div className="flex justify-between items-center text-amber-500 text-xs">
+            <div className="flex justify-between items-center text-amber-500 text-sm">
               <span>Discount:</span>
               <span>-{currency} {discountAmount.toFixed(2)}</span>
             </div>
           )}
-          <div className={`flex justify-between items-center font-extrabold text-base ${textTitle}`}>
+          <div className={`flex justify-between items-center font-extrabold text-xl ${textTitle}`}>
             <span>Total:</span>
             <span className="text-[#2ea043]">{currency} {finalTotal.toFixed(2)}</span>
           </div>
@@ -548,7 +552,7 @@ export const PosView: React.FC<PosViewProps> = ({
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0 || isSubmitting}
-            className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all active:scale-98 ${cart.length === 0 || isSubmitting
+            className={`w-full py-4 rounded-xl font-bold text-base shadow-lg flex items-center justify-center gap-3 transition-all active:scale-98 ${touchTarget} ${cart.length === 0 || isSubmitting
               ? isDark
                 ? 'bg-[#21262d] text-[#8b949e] cursor-not-allowed'
                 : 'bg-[#f6f8fa] text-[#656d76] cursor-not-allowed'
@@ -557,12 +561,12 @@ export const PosView: React.FC<PosViewProps> = ({
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>Processing...</span>
               </>
             ) : (
               <>
-                <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
                 <span>COMPLETE SALE ({currency} {finalTotal.toFixed(2)})</span>
               </>
             )}

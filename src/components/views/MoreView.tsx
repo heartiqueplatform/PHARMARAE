@@ -3,9 +3,7 @@ import { Profile, UserRole, Supplier, AuditLog } from '../../types';
 import { Users, Truck, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image } from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient } from '../../lib/supabase';
 import { db } from '../../lib/db';
-// Option 1: Use relative path from current file
 import { AvatarUpload } from '@/components/AvatarUpload';
-
 
 interface MoreViewProps {
   profile: Profile | null;
@@ -42,11 +40,16 @@ export const MoreView: React.FC<MoreViewProps> = ({
 }) => {
   const isDark = theme === 'dark';
 
-  const cardBg = isDark ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]' : 'bg-white border-[#d0d7de] text-[#1f2328] shadow-sm';
+  // REMOVED ALL borders from card styles
+  const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
-  const inputBg = isDark ? 'bg-[#0d1117] border-[#30363d] text-[#f0f6fc]' : 'bg-[#f6f8fa] border-[#d0d7de] text-[#1f2328]';
+  const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
+
+  // Large touch targets for mobile
+  const touchTarget = 'min-h-[44px] min-w-[44px]';
+  const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
 
   const [activeSection, setActiveSection] = useState<'staff' | 'suppliers' | 'settings' | 'sync' | 'audit'>('settings');
 
@@ -76,7 +79,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [pharmFooter, setPharmFooter] = useState(profile?.pharmacy_receipt_footer || '');
   const [pharmCurrency, setPharmCurrency] = useState(profile?.pharmacy_currency || 'KSh');
 
-  // ✅ Avatar State
+  // Avatar State
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [avatarPublicId, setAvatarPublicId] = useState(profile?.avatar_public_id || '');
 
@@ -177,7 +180,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
   const [suppName, setSuppName] = useState('');
   const [suppPhone, setSuppPhone] = useState('');
-  // In MoreView.tsx - The handleSaveSettings function
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSavingSettings || !profile) return;
@@ -191,7 +194,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
     try {
       const nameChanged = pharmName !== profile.pharmacy_name;
 
-      // ✅ Prepare updates with avatar
       const updates: Partial<Profile> = {
         pharmacy_name: pharmName.trim(),
         pharmacy_trading_name: pharmTradingName,
@@ -202,7 +204,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         pharmacy_receipt_header: pharmHeader,
         pharmacy_receipt_footer: pharmFooter,
         pharmacy_currency: pharmCurrency,
-        avatar_url: avatarUrl, // ✅ Include avatar URL
+        avatar_url: avatarUrl,
       };
 
       if (nameChanged) {
@@ -216,7 +218,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
         if (onUpdatePharmacyName) {
           await onUpdatePharmacyName(pharmName.trim());
-          // Then update other settings including avatar
           await onUpdateProfile(profile.id, updates);
         } else {
           await onUpdateProfile(profile.id, updates);
@@ -320,76 +321,76 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const canView = currentRole === 'owner' || currentRole === 'admin';
 
   return (
-    <div className="space-y-4 pb-20 md:pb-6">
+    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Top Hub Navigation Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      {/* Top Hub Navigation Cards - REMOVED borders */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <button
           onClick={() => setActiveSection('settings')}
-          className={`p-3 rounded-2xl border text-left flex flex-col items-center justify-center text-center gap-1 transition-colors ${activeSection === 'settings'
-            ? 'bg-[#2ea043]/20 border-[#2ea043] text-[#2ea043] font-bold shadow-sm'
-            : `${cardBg} hover:border-[#2ea043]/40`
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'settings'
+            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
+            : `${cardBg}`
             }`}
         >
-          <Settings className={`w-5 h-5 mb-1 ${canManage ? 'text-[#2ea043]' : 'text-slate-500'}`} />
-          <span className={`text-xs font-bold ${canManage ? '' : 'text-slate-500'}`}>
+          <Settings className={`w-6 h-6 mb-1 ${canManage ? 'text-[#2ea043]' : 'text-slate-500'}`} />
+          <span className={`text-sm font-bold ${canManage ? '' : 'text-slate-500'}`}>
             Settings {!canManage && '🔒'}
           </span>
         </button>
 
         <button
           onClick={() => setActiveSection('staff')}
-          className={`p-3 rounded-2xl border text-left flex flex-col items-center justify-center text-center gap-1 transition-colors ${activeSection === 'staff'
-            ? 'bg-[#2ea043]/20 border-[#2ea043] text-[#2ea043] font-bold shadow-sm'
-            : `${cardBg} hover:border-[#2ea043]/40`
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'staff'
+            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
+            : `${cardBg}`
             }`}
         >
-          <Users className={`w-5 h-5 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
-          <span className={`text-xs font-bold ${canView ? '' : 'text-slate-500'}`}>
+          <Users className={`w-6 h-6 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
+          <span className={`text-sm font-bold ${canView ? '' : 'text-slate-500'}`}>
             Staff {!canView && '🔒'}
           </span>
         </button>
 
         <button
           onClick={() => setActiveSection('suppliers')}
-          className={`p-3 rounded-2xl border text-left flex flex-col items-center justify-center text-center gap-1 transition-colors ${activeSection === 'suppliers'
-            ? 'bg-[#2ea043]/20 border-[#2ea043] text-[#2ea043] font-bold shadow-sm'
-            : `${cardBg} hover:border-[#2ea043]/40`
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'suppliers'
+            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
+            : `${cardBg}`
             }`}
         >
-          <Truck className={`w-5 h-5 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
-          <span className={`text-xs font-bold ${canView ? '' : 'text-slate-500'}`}>
+          <Truck className={`w-6 h-6 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
+          <span className={`text-sm font-bold ${canView ? '' : 'text-slate-500'}`}>
             Suppliers {!canView && '🔒'}
           </span>
         </button>
 
         <button
           onClick={() => setActiveSection('sync')}
-          className={`p-3 rounded-2xl border text-left flex flex-col items-center justify-center text-center gap-1 transition-colors ${activeSection === 'sync'
-            ? 'bg-[#2ea043]/20 border-[#2ea043] text-[#2ea043] font-bold shadow-sm'
-            : `${cardBg} hover:border-[#2ea043]/40`
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'sync'
+            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
+            : `${cardBg}`
             }`}
         >
-          <RefreshCw className="w-5 h-5 mb-1 text-[#2ea043]" />
-          <span className="text-xs font-bold">Sync</span>
+          <RefreshCw className="w-6 h-6 mb-1 text-[#2ea043]" />
+          <span className="text-sm font-bold">Sync</span>
         </button>
 
         <button
           onClick={() => setActiveSection('audit')}
-          className={`p-3 rounded-2xl border text-left flex flex-col items-center justify-center text-center gap-1 transition-colors ${activeSection === 'audit'
-            ? 'bg-[#2ea043]/20 border-[#2ea043] text-[#2ea043] font-bold shadow-sm'
-            : `${cardBg} hover:border-[#2ea043]/40`
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'audit'
+            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
+            : `${cardBg}`
             }`}
         >
-          <Shield className="w-5 h-5 mb-1 text-[#2ea043]" />
-          <span className="text-xs font-bold">Audit</span>
+          <Shield className="w-6 h-6 mb-1 text-[#2ea043]" />
+          <span className="text-sm font-bold">Audit</span>
         </button>
       </div>
 
-      {/* Settings Panel - Owner Only */}
+      {/* Settings Panel - REMOVED border */}
       {activeSection === 'settings' && (
-        <form onSubmit={handleSaveSettings} className={`border rounded-2xl p-4 space-y-3 text-xs ${cardBg}`}>
-          <h3 className={`font-bold text-sm pb-2 border-b ${borderLine} ${textTitle}`}>
+        <form onSubmit={handleSaveSettings} className={`rounded-2xl p-4 space-y-4 text-sm ${cardBg}`}>
+          <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle}`}>
             Pharmacy Profile Settings
             {!canManage && (
               <span className="ml-2 text-xs text-amber-500 font-normal">
@@ -399,13 +400,13 @@ export const MoreView: React.FC<MoreViewProps> = ({
           </h3>
 
           {!canManage && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-500 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" />
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500 text-sm flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
               <span>Only the pharmacy owner can edit these settings.</span>
             </div>
           )}
 
-          {/* ✅ Avatar Upload Section */}
+          {/* Avatar Upload Section */}
           <div className="flex flex-col items-center py-4 border-b border-slate-800">
             <AvatarUpload
               currentImage={avatarUrl}
@@ -422,14 +423,14 @@ export const MoreView: React.FC<MoreViewProps> = ({
               size="large"
               theme={theme}
             />
-            <p className={`text-[10px] mt-2 ${textMuted}`}>
+            <p className={`text-[11px] mt-2 ${textMuted}`}>
               Upload a pharmacy logo or avatar
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={`block mb-1 font-bold ${textMuted}`}>Pharmacy Name *</label>
+              <label className={`block mb-1.5 font-bold ${textMuted}`}>Pharmacy Name *</label>
               <input
                 type="text"
                 required
@@ -441,45 +442,45 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   }
                 }}
                 disabled={!canManage}
-                className={`w-full rounded-xl px-3 py-2 focus:outline-none font-semibold ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-semibold ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
               {nameError && (
-                <div className="mt-1 text-[10px] text-amber-500 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
+                <div className="mt-1 text-[11px] text-amber-500 flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
                   <span>{nameError}</span>
                 </div>
               )}
             </div>
             <div>
-              <label className={`block mb-1 font-bold ${textMuted}`}>Trading Name</label>
+              <label className={`block mb-1.5 font-bold ${textMuted}`}>Trading Name</label>
               <input
                 type="text"
                 value={pharmTradingName}
                 onChange={(e) => setPharmTradingName(e.target.value)}
                 disabled={!canManage}
-                className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={`block mb-1 font-bold ${textMuted}`}>Phone Number</label>
+              <label className={`block mb-1.5 font-bold ${textMuted}`}>Phone Number</label>
               <input
                 type="text"
                 value={pharmPhone}
                 onChange={(e) => setPharmPhone(e.target.value)}
                 disabled={!canManage}
-                className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
             <div>
-              <label className={`block mb-1 font-bold ${textMuted}`}>Currency</label>
+              <label className={`block mb-1.5 font-bold ${textMuted}`}>Currency</label>
               <select
                 value={pharmCurrency}
                 onChange={(e) => setPharmCurrency(e.target.value)}
                 disabled={!canManage}
-                className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <option value="KSh">KSh - Kenya Shilling</option>
                 <option value="UGX">UGX - Uganda Shilling</option>
@@ -489,59 +490,59 @@ export const MoreView: React.FC<MoreViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={`block mb-1 font-bold ${textMuted}`}>County</label>
+              <label className={`block mb-1.5 font-bold ${textMuted}`}>County</label>
               <input
                 type="text"
                 value={pharmCounty}
                 onChange={(e) => setPharmCounty(e.target.value)}
                 disabled={!canManage}
-                className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
             <div>
-              <label className={`block mb-1 font-bold ${textMuted}`}>Town</label>
+              <label className={`block mb-1.5 font-bold ${textMuted}`}>Town</label>
               <input
                 type="text"
                 value={pharmTown}
                 onChange={(e) => setPharmTown(e.target.value)}
                 disabled={!canManage}
-                className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
           </div>
 
           <div>
-            <label className={`block mb-1 font-bold ${textMuted}`}>Address</label>
+            <label className={`block mb-1.5 font-bold ${textMuted}`}>Address</label>
             <input
               type="text"
               value={pharmAddress}
               onChange={(e) => setPharmAddress(e.target.value)}
               disabled={!canManage}
-              className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
             />
           </div>
 
           <div>
-            <label className={`block mb-1 font-bold ${textMuted}`}>Receipt Header</label>
+            <label className={`block mb-1.5 font-bold ${textMuted}`}>Receipt Header</label>
             <textarea
               rows={2}
               value={pharmHeader}
               onChange={(e) => setPharmHeader(e.target.value)}
               disabled={!canManage}
-              className={`w-full rounded-xl p-2 focus:outline-none font-mono text-[11px] ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`w-full rounded-xl p-3 text-sm focus:outline-none font-mono text-[11px] ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
             />
           </div>
 
           <div>
-            <label className={`block mb-1 font-bold ${textMuted}`}>Receipt Footer</label>
+            <label className={`block mb-1.5 font-bold ${textMuted}`}>Receipt Footer</label>
             <textarea
               rows={2}
               value={pharmFooter}
               onChange={(e) => setPharmFooter(e.target.value)}
               disabled={!canManage}
-              className={`w-full rounded-xl p-2 focus:outline-none font-mono text-[11px] ${inputBg} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`w-full rounded-xl p-3 text-sm focus:outline-none font-mono text-[11px] ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
             />
           </div>
 
@@ -549,16 +550,16 @@ export const MoreView: React.FC<MoreViewProps> = ({
             <button
               type="submit"
               disabled={isSavingSettings || !canManage}
-              className={`px-5 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] active:scale-98 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center gap-2 ${!canManage ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`px-6 py-3.5 bg-[#2ea043] hover:bg-[#3fb950] active:scale-98 text-white font-extrabold text-sm rounded-xl transition-all shadow-sm flex items-center gap-2 ${touchTarget} ${!canManage ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {isSavingSettings ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   <span>Saving Settings...</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-4 h-4" />
+                  <Save className="w-5 h-5" />
                   <span>Save Pharmacy Settings</span>
                 </>
               )}
@@ -567,51 +568,50 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </form>
       )}
 
-      {/* Staff Management */}
+      {/* Staff Management - REMOVED border */}
       {activeSection === 'staff' && (
-        <div className={`border rounded-2xl p-4 space-y-3 ${cardBg}`}>
-          <div className={`flex items-center justify-between pb-2 border-b ${borderLine}`}>
-            <h3 className={`font-bold text-sm ${textTitle}`}>
+        <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
+          <div className={`flex items-center justify-between pb-3 ${borderLine}`}>
+            <h3 className={`font-bold text-base ${textTitle}`}>
               Staff Members ({profiles.filter(p => !p.is_owner).length})
             </h3>
             {canManage && (
               <button
                 onClick={() => setShowAddStaffModal(true)}
-                className="px-3 py-1.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5"
+                className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm flex items-center gap-2 ${touchTargetSmall}`}
               >
                 <span>+ Add Staff</span>
               </button>
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {profiles.filter(p => !p.is_owner).map(p => (
-              <div key={p.id} className={`p-3 border rounded-xl flex items-center justify-between text-xs ${isDark ? 'bg-[#0d1117]/60 border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'
+              <div key={p.id} className={`p-4 rounded-xl flex items-center justify-between text-sm ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'
                 }`}>
                 <div className="flex items-center gap-3">
-                  {/* ✅ Show avatar if available */}
                   {p.avatar_url ? (
                     <img
                       src={p.avatar_url}
                       alt={p.full_name}
-                      className="w-8 h-8 rounded-full object-cover border border-slate-700"
+                      className="w-10 h-10 rounded-full object-cover border border-slate-700"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-[#58a6ff]/20 text-[#58a6ff] font-extrabold flex items-center justify-center text-xs">
+                    <div className="w-10 h-10 rounded-full bg-[#58a6ff]/20 text-[#58a6ff] font-extrabold flex items-center justify-center text-sm">
                       {p.full_name?.charAt(0) || 'U'}
                     </div>
                   )}
                   <div>
                     <div className={`font-bold ${textTitle}`}>{p.full_name}</div>
-                    <div className={`text-[10px] ${textMuted}`}>
+                    <div className={`text-[11px] ${textMuted}`}>
                       {p.email} • Phone: {p.phone || 'N/A'} • PIN: {p.pin_code || 'None'}
                     </div>
-                    <div className="text-[10px] mt-0.5">
-                      <span className={`px-1.5 py-0.5 rounded font-bold ${p.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                    <div className="text-[11px] mt-0.5">
+                      <span className={`px-2 py-0.5 rounded font-bold ${p.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
                         }`}>
                         {p.is_active ? 'Active' : 'Inactive'}
                       </span>
-                      <span className={`ml-1.5 px-1.5 py-0.5 rounded font-bold bg-blue-500/20 text-blue-400`}>
+                      <span className={`ml-1.5 px-2 py-0.5 rounded font-bold bg-blue-500/20 text-blue-400`}>
                         {p.role}
                       </span>
                     </div>
@@ -620,7 +620,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 {canManage && (
                   <button
                     onClick={() => handleStartEditProfile(p)}
-                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 transition-colors"
+                    className={`px-3 py-2 text-sm font-bold rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors ${touchTargetSmall}`}
                   >
                     Edit
                   </button>
@@ -631,30 +631,30 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Suppliers Management */}
+      {/* Suppliers Management - REMOVED border */}
       {activeSection === 'suppliers' && (
-        <div className={`border rounded-2xl p-4 space-y-3 ${cardBg}`}>
-          <div className={`flex items-center justify-between pb-2 border-b ${borderLine}`}>
-            <h3 className={`font-bold text-sm ${textTitle}`}>Suppliers</h3>
+        <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
+          <div className={`flex items-center justify-between pb-3 ${borderLine}`}>
+            <h3 className={`font-bold text-base ${textTitle}`}>Suppliers</h3>
             {canManage && (
               <button
                 onClick={() => setShowAddSupplierModal(true)}
-                className="px-3 py-1.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-xs rounded-xl shadow-sm"
+                className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm ${touchTargetSmall}`}
               >
                 + Add Supplier
               </button>
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {suppliers.map(s => (
-              <div key={s.id} className={`p-3 border rounded-xl flex items-center justify-between text-xs ${isDark ? 'bg-[#0d1117]/60 border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'
+              <div key={s.id} className={`p-4 rounded-xl flex items-center justify-between text-sm ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'
                 }`}>
                 <div>
                   <div className={`font-bold ${textTitle}`}>{s.name}</div>
-                  <div className={`text-[10px] ${textMuted}`}>Tel: {s.phone}</div>
+                  <div className={`text-[11px] ${textMuted}`}>Tel: {s.phone}</div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded bg-[#2ea043]/20 text-[#2ea043]">
                   {s.active ? 'Active' : 'Inactive'}
                 </span>
               </div>
@@ -663,27 +663,27 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Offline Sync */}
+      {/* Offline Sync - REMOVED borders */}
       {activeSection === 'sync' && (
         <div className="space-y-4">
-          <div className={`border rounded-2xl p-4 space-y-3 ${cardBg}`}>
-            <h3 className={`font-bold text-sm pb-2 border-b ${borderLine} ${textTitle} flex items-center justify-between`}>
+          <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
+            <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle} flex items-center justify-between`}>
               <span className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-[#2ea043]" />
+                <Database className="w-5 h-5 text-[#2ea043]" />
                 Supabase Cloud Sync
               </span>
-              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30 flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-[#2ea043] animate-ping' : 'bg-amber-500'}`} />
+              <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#2ea043]/20 text-[#2ea043] flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-[#2ea043] animate-ping' : 'bg-amber-500'}`} />
                 <span>{isOnline ? 'Online' : 'Offline'}</span>
               </span>
             </h3>
 
-            <div className={`p-3.5 border rounded-xl text-xs space-y-2.5 ${isDark ? 'bg-[#0d1117]/80 border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'
+            <div className={`p-4 rounded-xl text-sm space-y-3 ${isDark ? 'bg-[#0d1117]/80' : 'bg-[#f6f8fa]'
               }`}>
               <div className="flex items-center justify-between">
                 <span className={textMuted}>Status:</span>
-                <span className="font-bold text-[#2ea043] flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> Auto-Sync Active
+                <span className="font-bold text-[#2ea043] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" /> Auto-Sync Active
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -695,25 +695,25 @@ export const MoreView: React.FC<MoreViewProps> = ({
             </div>
           </div>
 
-          <div className={`border rounded-2xl p-4 space-y-3 ${cardBg}`}>
-            <h3 className={`font-bold text-sm pb-2 border-b ${borderLine} ${textTitle}`}>
+          <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
+            <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle}`}>
               Manual Sync & Maintenance
             </h3>
 
-            <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <div className="flex flex-col sm:flex-row gap-3 pt-1">
               <button
                 onClick={handleTriggerSyncQueue}
                 disabled={isTriggeringSync}
-                className="flex-1 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] active:scale-98 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                className={`flex-1 py-3.5 bg-[#2ea043] hover:bg-[#3fb950] active:scale-98 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 ${touchTarget}`}
               >
                 {isTriggeringSync ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                     <span>Syncing...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-5 h-5" />
                     <span>Sync Now ({syncPendingCount})</span>
                   </>
                 )}
@@ -723,12 +723,12 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 <button
                   onClick={handleResetCache}
                   disabled={isResettingCache}
-                  className={`py-2.5 px-4 border text-rose-500 hover:bg-rose-500/10 active:scale-98 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 ${isDark ? 'border-[#30363d] bg-[#0d1117]' : 'border-[#d0d7de] bg-[#f6f8fa]'
+                  className={`py-3.5 px-5 text-rose-500 hover:bg-rose-500/10 active:scale-98 font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${touchTarget} ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'
                     }`}
                 >
                   {isResettingCache ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                      <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
                       <span>Resetting...</span>
                     </>
                   ) : (
@@ -741,15 +741,15 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Audit Trail */}
+      {/* Audit Trail - REMOVED border */}
       {activeSection === 'audit' && (
-        <div className={`border rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-          <div className={`p-3 border-b font-bold text-xs ${borderLine} ${textTitle}`}>
+        <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+          <div className={`p-4 font-bold text-base ${borderLine} ${textTitle}`}>
             Activity Audit Trail
           </div>
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="w-full text-left text-xs">
-              <thead className={`uppercase font-bold text-[10px] tracking-wider sticky top-0 ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+            <table className="w-full text-left text-sm">
+              <thead className={`uppercase font-bold text-[11px] tracking-wider sticky top-0 ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
                 }`}>
                 <tr>
                   <th className="p-3">Time</th>
@@ -762,7 +762,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 {auditLogs.slice(0, 50).map(a => (
                   <tr key={a.id} className={`transition-colors ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
                     }`}>
-                    <td className={`p-3 text-[10px] ${textMuted}`}>{new Date(a.created_at).toLocaleString()}</td>
+                    <td className={`p-3 text-[11px] ${textMuted}`}>{new Date(a.created_at).toLocaleString()}</td>
                     <td className={`p-3 font-semibold ${textTitle}`}>{a.user_name || 'System'}</td>
                     <td className="p-3 font-bold text-[#2ea043]">{a.action}</td>
                     <td className={`p-3 ${textMuted}`}>{a.details || '-'}</td>
@@ -774,62 +774,62 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Add Staff Modal */}
+      {/* Add Staff Modal - REMOVED border, full screen on mobile */}
       {showAddStaffModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`border rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
-            <h3 className={`font-bold text-sm mb-3 pb-2 border-b ${borderLine} ${textTitle}`}>Add Staff Member</h3>
-            <form onSubmit={handleSaveStaff} className="space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
+            <h3 className={`font-bold text-base mb-4 pb-3 ${borderLine} ${textTitle}`}>Add Staff Member</h3>
+            <form onSubmit={handleSaveStaff} className="space-y-4 text-sm">
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Full Name *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Full Name *</label>
                 <input
                   type="text"
                   required
                   value={staffName}
                   onChange={(e) => setStaffName(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                   placeholder="e.g. Jane Muthoni"
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Email *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Email *</label>
                 <input
                   type="email"
                   required
                   value={staffEmail}
                   onChange={(e) => setStaffEmail(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                   placeholder="jane@pharmacy.com"
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Phone</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Phone</label>
                 <input
                   type="text"
                   value={staffPhone}
                   onChange={(e) => setStaffPhone(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                   placeholder="+254 712 345 678"
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>4-Digit PIN *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>4-Digit PIN *</label>
                 <input
                   type="text"
                   maxLength={4}
                   required
                   value={staffPin}
                   onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, ''))}
-                  className={`w-full rounded-xl px-3 py-2 font-mono text-center text-base tracking-widest ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center text-base tracking-widest ${inputBg} ${touchTarget}`}
                   placeholder="1234"
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Role *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Role *</label>
                 <select
                   value={staffRole}
                   onChange={(e) => setStaffRole(e.target.value as UserRole)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 >
                   <option value="cashier">Cashier</option>
                   <option value="pharmacist">Pharmacist</option>
@@ -837,11 +837,11 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <option value="admin">Admin / Manager</option>
                 </select>
               </div>
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowAddStaffModal(false)}
-                  className={`px-3 py-1.5 rounded-xl font-bold ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
+                  className={`px-4 py-2.5 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
                     }`}
                 >
                   Cancel
@@ -849,11 +849,11 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingStaff}
-                  className="px-4 py-1.5 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                  className={`px-5 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 ${touchTargetSmall}`}
                 >
                   {isSavingStaff ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Saving...</span>
                     </>
                   ) : (
@@ -866,37 +866,37 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Add Supplier Modal */}
+      {/* Add Supplier Modal - REMOVED border, full screen on mobile */}
       {showAddSupplierModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`border rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
-            <h3 className={`font-bold text-sm mb-3 pb-2 border-b ${borderLine} ${textTitle}`}>Add Supplier</h3>
-            <form onSubmit={handleSaveSupplier} className="space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
+            <h3 className={`font-bold text-base mb-4 pb-3 ${borderLine} ${textTitle}`}>Add Supplier</h3>
+            <form onSubmit={handleSaveSupplier} className="space-y-4 text-sm">
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Company Name *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Company Name *</label>
                 <input
                   type="text"
                   required
                   value={suppName}
                   onChange={(e) => setSuppName(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Phone *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Phone *</label>
                 <input
                   type="text"
                   required
                   value={suppPhone}
                   onChange={(e) => setSuppPhone(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowAddSupplierModal(false)}
-                  className={`px-3 py-1.5 rounded-xl font-bold ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
+                  className={`px-4 py-2.5 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
                     }`}
                 >
                   Cancel
@@ -904,11 +904,11 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingSupplier}
-                  className="px-4 py-1.5 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                  className={`px-5 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 ${touchTargetSmall}`}
                 >
                   {isSavingSupplier ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Saving...</span>
                     </>
                   ) : (
@@ -921,57 +921,57 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Edit Profile Modal */}
+      {/* Edit Profile Modal - REMOVED border, full screen on mobile */}
       {editingProfile && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`border rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
-            <h3 className={`font-bold text-sm mb-3 pb-2 border-b ${borderLine} ${textTitle}`}>Edit Staff Profile</h3>
-            <form onSubmit={handleSaveEditProfile} className="space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
+            <h3 className={`font-bold text-base mb-4 pb-3 ${borderLine} ${textTitle}`}>Edit Staff Profile</h3>
+            <form onSubmit={handleSaveEditProfile} className="space-y-4 text-sm">
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Full Name *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Full Name *</label>
                 <input
                   type="text"
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Email *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Email *</label>
                 <input
                   type="email"
                   required
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Phone</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Phone</label>
                 <input
                   type="text"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>PIN Code</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>PIN Code</label>
                 <input
                   type="text"
                   maxLength={4}
                   value={editPin}
                   onChange={(e) => setEditPin(e.target.value.replace(/\D/g, ''))}
-                  className={`w-full rounded-xl px-3 py-2 font-mono text-center tracking-widest ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center tracking-widest ${inputBg} ${touchTarget}`}
                 />
               </div>
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Role</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Role</label>
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as UserRole)}
-                  className={`w-full rounded-xl px-3 py-2 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm ${inputBg} ${touchTarget}`}
                 >
                   <option value="cashier">Cashier</option>
                   <option value="pharmacist">Pharmacist</option>
@@ -979,11 +979,11 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <option value="admin">Admin / Manager</option>
                 </select>
               </div>
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
                   onClick={() => setEditingProfile(null)}
-                  className={`px-3 py-1.5 rounded-xl font-bold ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
+                  className={`px-4 py-2.5 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
                     }`}
                 >
                   Cancel
@@ -991,11 +991,11 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingEditProfile}
-                  className="px-4 py-1.5 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                  className={`px-5 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 ${touchTargetSmall}`}
                 >
                   {isSavingEditProfile ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Updating...</span>
                     </>
                   ) : (
@@ -1010,8 +1010,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
       {/* Floating Toast */}
       {successToast && (
-        <div className="fixed bottom-16 right-4 z-50 bg-[#2ea043] text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 border border-emerald-300/40 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle2 className="w-4 h-4" />
+        <div className="fixed bottom-16 right-4 z-50 bg-[#2ea043] text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <CheckCircle2 className="w-5 h-5" />
           <span>{successToast}</span>
         </div>
       )}

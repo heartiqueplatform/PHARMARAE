@@ -35,11 +35,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
 
-  const cardBg = isDark ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]' : 'bg-white border-[#d0d7de] text-[#1f2328] shadow-sm';
+  // REMOVED ALL borders from card styles
+  const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
-  const inputBg = isDark ? 'bg-[#0d1117] border-[#30363d] text-[#f0f6fc]' : 'bg-[#f6f8fa] border-[#d0d7de] text-[#1f2328]';
+  const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
+
+  // Large touch targets for mobile
+  const touchTarget = 'min-h-[44px] min-w-[44px]';
+  const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
 
   const [activeSubTab, setActiveSubTab] = useState<'catalog' | 'batches' | 'movements'>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
@@ -329,10 +334,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   });
 
   return (
-    <div className="space-y-4 pb-20 md:pb-6">
+    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Header & Subtabs */}
-      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border shadow-sm ${cardBg}`}>
+      {/* Header & Subtabs - REMOVED border */}
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl shadow-sm ${cardBg}`}>
         <div>
           <h2 className={`text-base font-extrabold flex items-center gap-2 ${textTitle}`}>
             <Package className="w-5 h-5 text-[#2ea043]" />
@@ -346,19 +351,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAddProductModal(true)}
-            className="px-3.5 py-2 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+            className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
           >
-            <Plus className="w-4 h-4 stroke-[3]" />
+            <Plus className="w-5 h-5 stroke-[3]" />
             <span>New Product</span>
           </button>
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs */}
-      <div className={`flex border-b gap-4 text-xs font-bold ${borderLine}`}>
+      {/* Navigation Sub-Tabs - Larger touch targets */}
+      <div className={`flex gap-4 text-sm font-bold ${borderLine}`}>
         <button
           onClick={() => setActiveSubTab('catalog')}
-          className={`pb-2.5 transition-colors relative ${activeSubTab === 'catalog'
+          className={`py-3 transition-colors relative ${touchTargetSmall} ${activeSubTab === 'catalog'
             ? 'text-[#2ea043] border-b-2 border-[#2ea043] font-extrabold'
             : `${textMuted} hover:${textTitle}`
             }`}
@@ -367,7 +372,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </button>
         <button
           onClick={() => setActiveSubTab('batches')}
-          className={`pb-2.5 transition-colors relative ${activeSubTab === 'batches'
+          className={`py-3 transition-colors relative ${touchTargetSmall} ${activeSubTab === 'batches'
             ? 'text-[#2ea043] border-b-2 border-[#2ea043] font-extrabold'
             : `${textMuted} hover:${textTitle}`
             }`}
@@ -376,7 +381,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </button>
         <button
           onClick={() => setActiveSubTab('movements')}
-          className={`pb-2.5 transition-colors relative ${activeSubTab === 'movements'
+          className={`py-3 transition-colors relative ${touchTargetSmall} ${activeSubTab === 'movements'
             ? 'text-[#2ea043] border-b-2 border-[#2ea043] font-extrabold'
             : `${textMuted} hover:${textTitle}`
             }`}
@@ -389,23 +394,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       {activeSubTab === 'catalog' && (
         <div className="space-y-3">
 
-          {/* Search & Category Bar */}
-          <div className="flex flex-col sm:flex-row gap-2">
+          {/* Search & Category Bar - Larger touch targets */}
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${textMuted}`} />
+              <Search className={`w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter by drug name, generic name, barcode..."
-                className={`w-full rounded-xl pl-9 pr-3 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
+                className={`w-full rounded-xl pl-12 pr-4 py-3.5 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg} ${touchTarget}`}
               />
             </div>
 
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className={`rounded-xl px-3 py-2 text-xs focus:outline-none ${inputBg}`}
+              className={`rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
             >
               <option value="all">All Categories</option>
               {categories.map(c => (
@@ -414,11 +419,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </select>
           </div>
 
-          {/* Catalog Cards Table */}
-          <div className={`border rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+          {/* Catalog Cards Table - REMOVED border */}
+          <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className={`uppercase font-bold text-[10px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+              <table className="w-full text-left text-sm">
+                <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
                   }`}>
                   <tr>
                     <th className="p-3">Product</th>
@@ -449,18 +454,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             <div>
                               <span>{p.name}</span>
                               {p.prescription_required && (
-                                <span className="ml-1.5 text-[9px] font-black uppercase text-amber-500 bg-amber-500/15 border border-amber-500/30 px-1 rounded">
+                                <span className="ml-1.5 text-[10px] font-black uppercase text-amber-500 bg-amber-500/15 px-1.5 py-0.5 rounded">
                                   Rx
                                 </span>
                               )}
                             </div>
-                            <div className={`text-[10px] font-normal ${textMuted}`}>
+                            <div className={`text-[11px] font-normal ${textMuted}`}>
                               {p.generic_name || p.brand || 'General'} {p.strength ? `(${p.strength})` : ''}
                             </div>
                           </td>
                           <td className="p-3">
                             <div className="font-semibold">{p.category_name || 'General'}</div>
-                            <div className={`text-[10px] capitalize ${textMuted}`}>{p.form}</div>
+                            <div className={`text-[11px] capitalize ${textMuted}`}>{p.form}</div>
                           </td>
                           <td className="p-3 font-extrabold text-[#2ea043]">
                             {currency} {p.selling_price.toFixed(2)}
@@ -469,45 +474,45 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             {stock} units
                           </td>
                           <td className="p-3">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${isOut
-                              ? 'bg-rose-500/15 text-rose-500 border-rose-500/30'
+                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded ${isOut
+                              ? 'bg-rose-500/15 text-rose-500'
                               : isLow
-                                ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                                ? 'bg-amber-500/15 text-amber-500'
+                                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                               }`}>
                               {isOut ? 'OUT OF STOCK' : isLow ? 'LOW STOCK' : 'IN STOCK'}
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => openEditModal(p)}
-                                className={`px-2 py-1 text-blue-400 border rounded-lg text-[11px] font-bold transition-colors ${isDark ? 'bg-[#21262d] border-[#30363d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] hover:bg-slate-200'
+                                className={`p-2 text-blue-400 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
                                   }`}
                                 title="Edit Product"
                               >
-                                <Edit2 className="w-3 h-3" />
+                                <Edit2 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => {
                                   setSelectedProductForBatch(p);
                                   setShowAddBatchModal(true);
                                 }}
-                                className={`px-2 py-1 text-teal-600 dark:text-teal-300 border rounded-lg text-[11px] font-bold transition-colors ${isDark ? 'bg-[#21262d] border-[#30363d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] hover:bg-slate-200'
+                                className={`p-2 text-teal-600 dark:text-teal-300 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
                                   }`}
                                 title="Add Batch"
                               >
-                                <PlusCircle className="w-3 h-3" />
+                                <PlusCircle className="w-4 h-4" />
                               </button>
                               {onDeleteProduct && (
                                 <button
                                   onClick={() => handleDeleteProduct(p.id)}
                                   disabled={isDeleting}
-                                  className={`px-2 py-1 text-rose-400 border rounded-lg text-[11px] font-bold transition-colors ${isDark ? 'bg-[#21262d] border-[#30363d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] hover:bg-slate-200'
+                                  className={`p-2 text-rose-400 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
                                     }`}
                                   title="Delete Product"
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
                             </div>
@@ -524,15 +529,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* FEFO Batches Subtab View - Keep same as before */}
+      {/* FEFO Batches Subtab View - REMOVED border */}
       {activeSubTab === 'batches' && (
-        <div className={`border rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-          <div className={`p-3 border-b text-xs ${borderLine} ${textMuted}`}>
+        <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+          <div className={`p-4 text-sm ${borderLine} ${textMuted}`}>
             Batches sorted by <span className="text-[#2ea043] font-extrabold">FEFO (First Expiry, First Out)</span> to prevent expired stock loss.
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className={`uppercase font-bold text-[10px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+            <table className="w-full text-left text-sm">
+              <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
                 }`}>
                 <tr>
                   <th className="p-3">Product Name</th>
@@ -569,12 +574,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Stock Movements Log - Keep same as before */}
+      {/* Stock Movements Log - REMOVED border */}
       {activeSubTab === 'movements' && (
-        <div className={`border rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+        <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className={`uppercase font-bold text-[10px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+            <table className="w-full text-left text-sm">
+              <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
                 }`}>
                 <tr>
                   <th className="p-3">Date / Time</th>
@@ -601,7 +606,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       </td>
                       <td className={`p-3 font-bold ${textTitle}`}>{m.product_name || 'Product'}</td>
                       <td className="p-3">
-                        <span className={`uppercase text-[9px] font-bold px-2 py-0.5 rounded border ${isDark ? 'bg-[#21262d] border-[#30363d] text-[#c9d1d9]' : 'bg-slate-100 border-slate-300 text-slate-800'
+                        <span className={`uppercase text-[10px] font-bold px-2.5 py-1 rounded ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-100 text-slate-800'
                           }`}>
                           {m.movement_type}
                         </span>
@@ -620,34 +625,34 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Add New Product */}
+      {/* Modal: Add New Product - REMOVED border, full screen on mobile */}
       {showAddProductModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`border rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[90vh] shadow-2xl ${cardBg}`}>
-            <h3 className={`text-sm font-bold pb-2 border-b mb-3 ${borderLine} ${textTitle}`}>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
+            <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
               Add New Product
             </h3>
 
-            <form onSubmit={handleSaveProduct} className="space-y-3 text-xs">
-              {/* Quick Drug Auto-Complete Header */}
-              <div className={`border p-2.5 rounded-xl space-y-1.5 ${isDark ? 'bg-[#21262d]/60 border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'
+            <form onSubmit={handleSaveProduct} className="space-y-3 text-sm">
+              {/* Quick Drug Auto-Complete Header - Larger touch targets */}
+              <div className={`p-3 rounded-xl space-y-2 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'
                 }`}>
-                <div className="flex items-center justify-between text-[11px] font-extrabold text-[#2ea043]">
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
+                <div className="flex items-center justify-between text-[12px] font-extrabold text-[#2ea043]">
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
                     <span>Quick Select Common Medicine:</span>
                   </span>
-                  <span className={`text-[10px] font-normal ${textMuted}`}>Tap to auto-fill</span>
+                  <span className={`text-[11px] font-normal ${textMuted}`}>Tap to auto-fill</span>
                 </div>
-                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto no-scrollbar pt-1">
+                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto no-scrollbar pt-1">
                   {COMMON_DRUGS_LIST.slice(0, 10).map((d) => (
                     <button
                       key={d.name}
                       type="button"
                       onClick={() => handleSelectCommonDrug(d)}
-                      className={`px-2 py-1 border text-[10px] rounded-lg transition-colors text-left ${isDark
-                        ? 'bg-[#161b22] hover:bg-[#2ea043]/20 hover:border-[#2ea043]/50 border-[#30363d] text-[#c9d1d9]'
-                        : 'bg-white hover:bg-[#2ea043]/10 hover:border-[#2ea043]/50 border-[#d0d7de] text-[#1f2328]'
+                      className={`px-3 py-2 text-[11px] rounded-xl transition-colors text-left ${touchTargetSmall} ${isDark
+                        ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]'
+                        : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
                         }`}
                     >
                       + {d.name}
@@ -657,7 +662,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </div>
 
               <div className="relative">
-                <label className={`block mb-1 font-bold ${textMuted}`}>Product Name *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Product Name *</label>
                 <input
                   type="text"
                   required
@@ -668,11 +673,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     setShowDrugSuggestions(true);
                   }}
                   placeholder="Type product name..."
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg} ${touchTarget}`}
                 />
 
                 {showDrugSuggestions && newProdName.trim().length >= 1 && (
-                  <div className={`absolute left-0 right-0 top-full mt-1 border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y no-scrollbar ${cardBg} ${borderLine}`}>
+                  <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y no-scrollbar ${cardBg}`}>
                     {COMMON_DRUGS_LIST.filter(d =>
                       d.name.toLowerCase().includes(newProdName.toLowerCase()) ||
                       d.generic_name.toLowerCase().includes(newProdName.toLowerCase()) ||
@@ -682,14 +687,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         key={d.name}
                         type="button"
                         onClick={() => handleSelectCommonDrug(d)}
-                        className={`w-full p-2 text-left flex items-center justify-between text-xs transition-colors ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'
+                        className={`w-full p-3 text-left flex items-center justify-between text-sm transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'
                           }`}
                       >
                         <div>
                           <div className={`font-bold ${textTitle}`}>{d.name}</div>
-                          <div className={`text-[10px] ${textMuted}`}>{d.generic_name} • {d.brand} ({d.form})</div>
+                          <div className={`text-[11px] ${textMuted}`}>{d.generic_name} • {d.brand} ({d.form})</div>
                         </div>
-                        <div className="text-right text-[10px]">
+                        <div className="text-right text-[11px]">
                           <span className="text-[#2ea043] font-bold">{currency} {d.default_selling_price}</span>
                           <span className={`block ${textMuted}`}>{d.category_name}</span>
                         </div>
@@ -699,36 +704,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Generic Name</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Generic Name</label>
                   <input
                     type="text"
                     value={newProdGeneric}
                     onChange={(e) => setNewProdGeneric(e.target.value)}
                     placeholder="e.g. Acetaminophen"
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Brand Name</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Brand Name</label>
                   <input
                     type="text"
                     value={newProdBrand}
                     onChange={(e) => setNewProdBrand(e.target.value)}
                     placeholder="e.g. Panadol Extra"
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Dosage Form</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Dosage Form</label>
                   <select
                     value={newProdForm}
                     onChange={(e) => setNewProdForm(e.target.value as DosageFormType)}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   >
                     <option value="tablet">Tablet</option>
                     <option value="capsule">Capsule</option>
@@ -742,11 +747,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Category</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Category</label>
                   <select
                     value={newProdCategory}
                     onChange={(e) => setNewProdCategory(e.target.value)}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   >
                     <option value="">Select Category</option>
                     {categories.map(c => (
@@ -756,9 +761,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Selling Price *</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Selling Price *</label>
                   <input
                     type="number"
                     required
@@ -766,71 +771,71 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     step="0.01"
                     value={newProdPrice || ''}
                     onChange={(e) => setNewProdPrice(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Cost Price</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Cost Price</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={newProdCost || ''}
                     onChange={(e) => setNewProdCost(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Reorder Level</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Reorder Level</label>
                   <input
                     type="number"
                     value={newProdReorder}
                     onChange={(e) => setNewProdReorder(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Barcode / SKU</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Barcode / SKU</label>
                 <input
                   type="text"
                   value={newProdBarcode}
                   onChange={(e) => setNewProdBarcode(e.target.value)}
                   placeholder="Barcode string"
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none font-mono ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none font-mono ${inputBg} ${touchTargetSmall}`}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Initial Stock</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Initial Stock</label>
                   <input
                     type="number"
                     min="0"
                     value={newProdQuantity || ''}
                     onChange={(e) => setNewProdQuantity(Number(e.target.value))}
                     placeholder="0"
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
-                <div className="flex items-center gap-2 pt-3">
+                <div className="flex items-center gap-3 pt-3">
                   <input
                     type="checkbox"
                     id="rx-flag"
                     checked={newProdRx}
                     onChange={(e) => setNewProdRx(e.target.checked)}
-                    className="rounded border-slate-300 text-[#2ea043] focus:ring-0"
+                    className="w-5 h-5 rounded border-slate-300 text-[#2ea043] focus:ring-0"
                   />
                   <label htmlFor="rx-flag" className={`font-semibold ${textTitle}`}>Rx Required</label>
                 </div>
               </div>
 
-              <div className={`flex justify-end gap-2 pt-4 border-t ${borderLine}`}>
+              <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                 <button
                   type="button"
                   onClick={() => setShowAddProductModal(false)}
-                  className={`px-4 py-2 rounded-xl font-bold ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                  className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                     }`}
                 >
                   Cancel
@@ -838,11 +843,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingProduct}
-                  className="px-5 py-2 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall"
                 >
                   {isSavingProduct ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Saving...</span>
                     </>
                   ) : (
@@ -855,55 +860,54 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Edit Product */}
+      {/* Modal: Edit Product - REMOVED border, full screen on mobile */}
       {showEditProductModal && editingProduct && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`border rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[90vh] shadow-2xl ${cardBg}`}>
-            <h3 className={`text-sm font-bold pb-2 border-b mb-3 ${borderLine} ${textTitle}`}>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
+            <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
               Edit Product: {editingProduct.name}
             </h3>
 
-            <form onSubmit={handleEditProduct} className="space-y-3 text-xs">
-              {/* Same fields as Add Product */}
+            <form onSubmit={handleEditProduct} className="space-y-3 text-sm">
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Product Name *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Product Name *</label>
                 <input
                   type="text"
                   required
                   value={newProdName}
                   onChange={(e) => setNewProdName(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg} ${touchTarget}`}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Generic Name</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Generic Name</label>
                   <input
                     type="text"
                     value={newProdGeneric}
                     onChange={(e) => setNewProdGeneric(e.target.value)}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Brand Name</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Brand Name</label>
                   <input
                     type="text"
                     value={newProdBrand}
                     onChange={(e) => setNewProdBrand(e.target.value)}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Dosage Form</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Dosage Form</label>
                   <select
                     value={newProdForm}
                     onChange={(e) => setNewProdForm(e.target.value as DosageFormType)}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   >
                     <option value="tablet">Tablet</option>
                     <option value="capsule">Capsule</option>
@@ -917,11 +921,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Category</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Category</label>
                   <select
                     value={newProdCategory}
                     onChange={(e) => setNewProdCategory(e.target.value)}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   >
                     <option value="">Select Category</option>
                     {categories.map(c => (
@@ -931,9 +935,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Selling Price *</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Selling Price *</label>
                   <input
                     type="number"
                     required
@@ -941,53 +945,53 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     step="0.01"
                     value={newProdPrice || ''}
                     onChange={(e) => setNewProdPrice(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Cost Price</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Cost Price</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={newProdCost || ''}
                     onChange={(e) => setNewProdCost(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Reorder Level</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Reorder Level</label>
                   <input
                     type="number"
                     value={newProdReorder}
                     onChange={(e) => setNewProdReorder(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Barcode / SKU</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Barcode / SKU</label>
                 <input
                   type="text"
                   value={newProdBarcode}
                   onChange={(e) => setNewProdBarcode(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none font-mono ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none font-mono ${inputBg} ${touchTargetSmall}`}
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-3 pt-2">
                 <input
                   type="checkbox"
                   id="edit-rx-flag"
                   checked={newProdRx}
                   onChange={(e) => setNewProdRx(e.target.checked)}
-                  className="rounded border-slate-300 text-[#2ea043] focus:ring-0"
+                  className="w-5 h-5 rounded border-slate-300 text-[#2ea043] focus:ring-0"
                 />
                 <label htmlFor="edit-rx-flag" className={`font-semibold ${textTitle}`}>Rx Required</label>
               </div>
 
-              <div className={`flex justify-end gap-2 pt-4 border-t ${borderLine}`}>
+              <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                 <button
                   type="button"
                   onClick={() => {
@@ -995,7 +999,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     setEditingProduct(null);
                     resetProductForm();
                   }}
-                  className={`px-4 py-2 rounded-xl font-bold ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                  className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                     }`}
                 >
                   Cancel
@@ -1003,11 +1007,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingProduct}
-                  className="px-5 py-2 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall"
                 >
                   {isSavingProduct ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Updating...</span>
                     </>
                   ) : (
@@ -1020,81 +1024,81 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Add Batch - Keep same as before */}
+      {/* Modal: Add Batch - REMOVED border, full screen on mobile */}
       {showAddBatchModal && selectedProductForBatch && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`border rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>
-            <h3 className={`text-sm font-bold pb-2 border-b mb-2 ${borderLine} ${textTitle}`}>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>
+            <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
               Receive New Batch: {selectedProductForBatch.name}
             </h3>
 
-            <form onSubmit={handleSaveBatch} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveBatch} className="space-y-3 text-sm">
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Batch Number *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Batch Number *</label>
                 <input
                   type="text"
                   required
                   value={newBatchNumber}
                   onChange={(e) => setNewBatchNumber(e.target.value)}
                   placeholder="e.g. BATCH-2026-X"
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none font-mono ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-mono ${inputBg} ${touchTarget}`}
                 />
               </div>
 
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Expiry Date *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Expiry Date *</label>
                 <input
                   type="date"
                   required
                   value={newBatchExpiry}
                   onChange={(e) => setNewBatchExpiry(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget}`}
                 />
               </div>
 
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Quantity *</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Quantity *</label>
                 <input
                   type="number"
                   required
                   min="1"
                   value={newBatchQty}
                   onChange={(e) => setNewBatchQty(Number(e.target.value))}
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none font-bold text-[#2ea043] ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-bold text-[#2ea043] ${inputBg} ${touchTarget}`}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Cost Price ({currency})</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Cost Price ({currency})</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={newBatchCost || selectedProductForBatch.default_cost_price || ''}
                     onChange={(e) => setNewBatchCost(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
                 <div>
-                  <label className={`block mb-1 font-bold ${textMuted}`}>Selling Price ({currency})</label>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Selling Price ({currency})</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={newBatchPrice || selectedProductForBatch.selling_price || ''}
                     onChange={(e) => setNewBatchPrice(Number(e.target.value))}
-                    className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className={`block mb-1 font-bold ${textMuted}`}>Supplier</label>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Supplier</label>
                 <select
                   value={newBatchSupplier}
                   onChange={(e) => setNewBatchSupplier(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 focus:outline-none ${inputBg}`}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget}`}
                 >
                   <option value="">Select Supplier (Optional)</option>
                   {suppliers.map(s => (
@@ -1103,11 +1107,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </select>
               </div>
 
-              <div className={`flex justify-end gap-2 pt-4 border-t ${borderLine}`}>
+              <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                 <button
                   type="button"
                   onClick={() => setShowAddBatchModal(false)}
-                  className={`px-4 py-2 rounded-xl font-bold ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                  className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                     }`}
                 >
                   Cancel
@@ -1115,11 +1119,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingBatch}
-                  className="px-5 py-2 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall"
                 >
                   {isSavingBatch ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Saving...</span>
                     </>
                   ) : (

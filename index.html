@@ -1,24 +1,73 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>MED P — Simple, Fast Mobile Pharmacy System</title>
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#020617" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  </head>
-  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-slate-950">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(console.error);
-        });
-      }
-    </script>
-  </body>
-</html>
 
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PHARMARAE KENYA — Precision in Every Prescription</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Icons - Multiple sizes for different devices -->
+  <link rel="icon" type="image/png" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.png" />
+
+  <!-- Meta Tags for SEO & Social Sharing -->
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="description"
+    content="PHARMARAE KENYA - Comprehensive pharmacy management system for modern pharmacies. POS, inventory management, staff management, and real-time analytics." />
+  <meta name="keywords" content="pharmacy management, POS, inventory, healthcare, Kenya, PHARMARAE" />
+  <meta name="author" content="MEDRAE NURSING KENYA" />
+
+  <!-- Open Graph / Social Media -->
+  <meta property="og:title" content="PHARMARAE KENYA — Pharmacy Management System" />
+  <meta property="og:description"
+    content="Precision in Every Prescription. Modern pharmacy management system with POS, inventory, staff management, and real-time analytics." />
+  <meta property="og:image" content="/pwa-192x192.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://pharmarae.com" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="PHARMARAE KENYA — Pharmacy Management System" />
+  <meta name="twitter:description" content="Precision in Every Prescription. Modern pharmacy management system." />
+  <meta name="twitter:image" content="/pwa-192x192.png" />
+
+  <!-- PWA / Mobile Meta Tags -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="PHARMARAE" />
+
+  <!-- Color Scheme for PWA -->
+  <meta name="color-scheme" content="light dark" />
+</head>
+
+<!-- ✅ REMOVED fixed background colors - let the app control them -->
+
+<body class="antialiased selection:bg-emerald-500 selection:text-white">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('✅ Service Worker registered successfully:', registration);
+          })
+          .catch(error => {
+            console.error('❌ Service Worker registration failed:', error);
+          });
+      });
+    }
+  </script>
+</body>
+
+</html>

@@ -1,21 +1,66 @@
 {
-  "short_name": "MED P",
-  "name": "MED P - Mobile Pharmacy System",
+  "short_name": "PHARMARAE",
+  "name": "PHARMARAE KENYA - Pharmacy Management System",
+  "description": "Precision in Every Prescription. Modern pharmacy management system with POS, inventory, and real-time analytics.",
   "icons": [
     {
       "src": "pwa-192x192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "pwa-512x512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
-  "background_color": "#020617",
-  "theme_color": "#020617",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "scope": "/",
+  "categories": [
+    "business",
+    "health",
+    "productivity"
+  ],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "New Sale",
+      "short_name": "Sell",
+      "description": "Start a new sale",
+      "url": "/?action=sell",
+      "icons": [
+        {
+          "src": "pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "short_name": "Stock",
+      "description": "View inventory",
+      "url": "/?action=stock",
+      "icons": [
+        {
+          "src": "pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "type": "image/png",
+      "sizes": "1080x1920"
+    }
+  ]
 }

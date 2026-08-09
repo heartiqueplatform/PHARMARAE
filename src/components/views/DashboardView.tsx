@@ -25,16 +25,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenAddStockModal,
   theme = 'dark',
 }) => {
-  const currency = pharmacy?.currency || 'KSh';
+  // Get pharmacy details from profile (since we store everything in profiles now)
+  const pharmacyName = profile?.pharmacy_name || pharmacy?.name || 'PHARMARAE KENYA';
+  const pharmacyCurrency = profile?.pharmacy_currency || pharmacy?.currency || 'KSh';
+  const pharmacyReceiptHeader = profile?.pharmacy_receipt_header || pharmacy?.receipt_header || 'Quality Medicines & Professional Care';
+  const pharmacyReceiptFooter = profile?.pharmacy_receipt_footer || pharmacy?.receipt_footer || 'Thank you for your visit. Get well soon!';
+
+  const currency = pharmacyCurrency;
   const isDark = theme === 'dark';
 
-  // Card & Text theme variables
-  const cardBg = isDark ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]' : 'bg-white border-[#d0d7de] text-[#1f2328] shadow-sm';
+  // Card & Theme variables - REMOVED ALL border-* classes
+  const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const cardHover = isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
-  const itemBg = isDark ? 'bg-[#21262d]/50 border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]';
+  const itemBg = isDark ? 'bg-[#21262d]/50' : 'bg-[#f6f8fa]';
 
   // Greeting
   const hour = new Date().getHours();
@@ -47,12 +53,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const canViewFinancials = role === 'owner' || role === 'admin' || role === 'pharmacist';
 
   return (
-    <div className="space-y-4 pb-20 md:pb-6">
+    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
+      {/* REMOVED padding on container for edge-to-edge on mobile */}
 
-      {/* Welcome Banner */}
-      <div className={`border rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden transition-colors ${isDark
-          ? 'bg-gradient-to-r from-[#161b22] via-[#21262d] to-[#161b22] border-[#30363d] text-white'
-          : 'bg-gradient-to-r from-[#0969da] via-[#1f883d] to-[#0969da] border-[#d0d7de] text-white'
+      {/* Welcome Banner - REMOVED border */}
+      <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden transition-colors mx-0 ${isDark
+        ? 'bg-gradient-to-r from-[#161b22] via-[#21262d] to-[#161b22] text-white'
+        : 'bg-gradient-to-r from-[#0969da] via-[#1f883d] to-[#0969da] text-white'
         }`}>
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -62,10 +69,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {greeting}, {profile?.full_name?.split(' ')[0] || 'Pharmacist'}
             </p>
             <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mt-0.5">
-              {pharmacy?.name || 'PHARMARAE KENYA'}
+              {pharmacyName}
             </h2>
             <p className="text-xs text-white/80 mt-1">
-              Ready for fast dispensing & stock auditing today.
+              {profile?.pharmacy_trading_name || pharmacy?.trading_name || 'Ready for fast dispensing & stock auditing today.'}
             </p>
           </div>
 
@@ -79,11 +86,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Key Metrics Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Key Metrics Grid - REMOVED border from all cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-0 md:px-0">
 
         {/* Today's Sales */}
-        <div className={`border rounded-2xl p-3.5 ${cardBg}`}>
+        <div className={`rounded-2xl p-3.5 ${cardBg}`}>
           <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
             <span>Today's Sales</span>
             <TrendingUp className="w-4 h-4 text-[#2ea043]" />
@@ -97,7 +104,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Transactions */}
-        <div className={`border rounded-2xl p-3.5 ${cardBg}`}>
+        <div className={`rounded-2xl p-3.5 ${cardBg}`}>
           <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
             <span>Transactions</span>
             <FileText className="w-4 h-4 text-[#58a6ff]" />
@@ -111,7 +118,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Low Stock Alert */}
         <button
           onClick={() => onNavigate('stock')}
-          className={`text-left border rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+          className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
         >
           <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
             <span>Low Stock</span>
@@ -126,7 +133,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Expiring Soon */}
         <button
           onClick={() => onNavigate('stock')}
-          className={`text-left border rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+          className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
         >
           <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
             <span>Expiring Soon</span>
@@ -140,8 +147,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       </div>
 
-      {/* Quick Action Hub */}
-      <div className={`border rounded-2xl p-4 ${cardBg}`}>
+      {/* Quick Action Hub - REMOVED border */}
+      <div className={`rounded-2xl p-4 ${cardBg}`}>
         <h3 className={`text-xs font-extrabold uppercase tracking-wider mb-3 ${textMuted}`}>
           Quick Actions
         </h3>
@@ -194,11 +201,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Smart Stock Alerts & Recent Sales Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Smart Stock Alerts & Recent Sales Section - REMOVED borders */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 px-0 md:px-0">
 
-        {/* Recent Transactions List */}
-        <div className={`border rounded-2xl p-4 flex flex-col ${cardBg}`}>
+        {/* Recent Transactions List - REMOVED border */}
+        <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
               Today's Recent Sales
@@ -222,7 +229,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {todaySales.slice(0, 5).map(sale => (
                 <div
                   key={sale.id}
-                  className={`flex items-center justify-between p-2.5 border rounded-xl text-xs transition-colors ${itemBg}`}
+                  className={`flex items-center justify-between p-2.5 rounded-xl text-xs transition-colors ${itemBg}`}
                 >
                   <div>
                     <div className={`font-bold ${textTitle}`}>#{sale.sale_number}</div>
@@ -245,8 +252,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </div>
 
-        {/* Low Stock & Expiry Warnings */}
-        <div className={`border rounded-2xl p-4 flex flex-col ${cardBg}`}>
+        {/* Low Stock & Expiry Warnings - REMOVED border */}
+        <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
               Stock Warnings & FEFO Alerts
