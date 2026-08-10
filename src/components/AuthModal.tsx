@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Profile, UserRole } from '../types';
-import { Building2, User, KeyRound, Phone, Mail, LogIn, UserPlus, CheckCircle2, Database, ShieldCheck, Sparkles, AlertCircle, Wifi, WifiOff, Users } from 'lucide-react';
+import { Building2, User, KeyRound, Phone, Mail, LogIn, UserPlus, CheckCircle2, Database, ShieldCheck, Sparkles, AlertCircle, Wifi, WifiOff, Users, Fingerprint } from 'lucide-react';
 import { db } from '../lib/db';
 import {
   queueOfflineMutation,
@@ -11,12 +11,16 @@ import {
 
 interface AuthModalProps {
   onAuthSuccess: (profile: Profile) => void;
+  theme?: 'dark' | 'light';
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'light' }) => {
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Use the passed theme or detect system preference
+  const isDark = theme === 'dark' || (theme === 'light' ? false : window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   // Supabase Config state
   const creds = getSupabaseCredentials();
@@ -35,9 +39,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // For staff login - show pharmacy name input
-  const [loginPharmacyName, setLoginPharmacyName] = useState('');
-
   // Network status listener
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -51,6 +52,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Auto-focus PIN input on login
+  useEffect(() => {
+    if (mode === 'login') {
+      const pinInput = document.getElementById('pin-login-input');
+      if (pinInput) setTimeout(() => pinInput.focus(), 100);
+    }
+  }, [mode]);
 
   const generateUUID = (): string => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -131,12 +140,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
         return;
       }
 
-      console.log('🚀 Starting registration...');
-      console.log('📧 Email:', email);
-      console.log('🏪 Pharmacy:', pharmacyName);
-
       // STEP 1: CREATE SUPABASE AUTH USER
-      console.log('📧 Creating Supabase Auth user...');
       const { data: authData, error: authErr } = await client.auth.signUp({
         email: email.trim(),
         password: password.trim(),
@@ -149,7 +153,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
       });
 
       if (authErr) {
-        console.error('❌ Auth error:', authErr);
         if (authErr.message.includes('User already registered')) {
           setError('This email is already registered. Please login instead.');
         } else {
@@ -166,11 +169,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
       }
 
       const authUserId = authData.user.id;
-      console.log('✅ Auth user created:', authUserId);
 
       // STEP 2: CREATE PROFILE
       const profileId = generateUUID();
-      console.log('📦 Creating profile...');
 
       const newProfile: Profile = {
         id: profileId,
@@ -211,44 +212,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
       };
 
       // STEP 3: SAVE TO SUPABASE
-      console.log('☁️ Saving profile to Supabase...');
       const { error: insertError } = await client
         .from('profiles')
         .insert(newProfile);
 
       if (insertError) {
-        console.error('❌ Insert error:', insertError);
         const { error: upsertError } = await client
           .from('profiles')
           .upsert(newProfile, { onConflict: 'id' });
 
         if (upsertError) {
-          console.error('❌ Upsert error:', upsertError);
           await db.profiles.put(newProfile);
           setSuccessMsg('⚠️ Account created locally but cloud sync failed.');
         } else {
-          console.log('✅ Profile upserted!');
           await db.profiles.put(newProfile);
           setSuccessMsg('✅ Account created and synced to cloud!');
         }
       } else {
-        console.log('✅ Profile inserted!');
         await db.profiles.put(newProfile);
         setSuccessMsg('✅ Account created and synced to cloud!');
       }
 
-      // STEP 4: SET AUTH STATE
       localStorage.setItem('medp_authenticated', 'true');
       localStorage.setItem('medp_current_user_id', newProfile.id);
       localStorage.setItem('medp_pharmacy_name', newProfile.pharmacy_name);
       localStorage.setItem('medp_user_role', newProfile.role);
 
-      console.log('🎉 Registration complete!');
       setTimeout(() => setSuccessMsg(''), 3000);
       onAuthSuccess(newProfile);
 
     } catch (err: any) {
-      console.error('❌ Registration error:', err);
       setError(err.message || 'Failed to complete registration.');
     } finally {
       setLoading(false);
@@ -263,18 +256,67 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
     try {
       const client = getSupabaseClient();
 
-      // OPTION 1: Email + Password Login (For users with Supabase Auth)
-      if (client && isOnline && email.trim() && password.trim()) {
-        console.log('📧 Logging in with email...');
+      // PRIORITY: PIN Login (Fastest for staff)
+      if (pinCode.trim()) {
+        console.log('🔑 Fast PIN Login...');
+        const allProfiles = await db.profiles.toArray();
+        let matched = allProfiles.find(p => p.pin_code === pinCode.trim());
+
+        if (!matched && client && isOnline) {
+          const { data: remoteProfiles } = await client
+            .from('profiles')
+            .select('*')
+            .eq('pin_code', pinCode.trim());
+
+          if (remoteProfiles && remoteProfiles.length > 0) {
+            for (const profile of remoteProfiles) {
+              await db.profiles.put(profile);
+            }
+            matched = remoteProfiles[0];
+          }
+        }
+
+        if (matched) {
+          if (!matched.is_active) {
+            setError('This account is deactivated. Please contact your administrator.');
+            setLoading(false);
+            return;
+          }
+
+          matched.last_login_at = new Date().toISOString();
+          await db.profiles.put(matched);
+
+          if (client && isOnline) {
+            try {
+              await client
+                .from('profiles')
+                .update({ last_login_at: matched.last_login_at })
+                .eq('id', matched.id);
+            } catch (updateError) {
+              console.warn('Failed to update last login in cloud:', updateError);
+            }
+          }
+
+          localStorage.setItem('medp_authenticated', 'true');
+          localStorage.setItem('medp_current_user_id', matched.id);
+          localStorage.setItem('medp_pharmacy_name', matched.pharmacy_name);
+          localStorage.setItem('medp_user_role', matched.role);
+
+          onAuthSuccess(matched);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // OPTION 2: Email + Password Login (For owners/admins)
+      if (email.trim() && password.trim() && client && isOnline) {
+        console.log('📧 Email Login...');
         const { data: authData, error: authErr } = await client.auth.signInWithPassword({
           email: email.trim(),
           password: password.trim()
         });
 
         if (!authErr && authData?.user) {
-          console.log('✅ Auth user found:', authData.user.id);
-
-          // Get profile from Supabase
           const { data: remoteProfile, error: profileError } = await client
             .from('profiles')
             .select('*')
@@ -282,7 +324,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
             .single();
 
           if (!profileError && remoteProfile) {
-            console.log('✅ Profile found!');
             await db.profiles.put(remoteProfile);
 
             localStorage.setItem('medp_authenticated', 'true');
@@ -297,78 +338,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
         }
       }
 
-      // OPTION 2: PIN Login (For all users - Fast Terminal Login)
-      if (!pinCode.trim()) {
-        setError('Please enter your 4-digit PIN code.');
-        setLoading(false);
-        return;
+      // If we get here, no login method worked
+      if (!pinCode.trim() && !email.trim()) {
+        setError('Please enter your PIN or Email + Password.');
+      } else if (pinCode.trim() && !email.trim()) {
+        setError('No account found for this PIN. Please check with your administrator.');
+      } else {
+        setError('Invalid credentials. Please check your Email, Password, or PIN.');
       }
-
-      console.log('🔑 Trying PIN login...');
-
-      // Get all profiles from local DB
-      const allProfiles = await db.profiles.toArray();
-      console.log(`📋 Found ${allProfiles.length} profiles locally`);
-
-      // Find profile by PIN
-      let matched = allProfiles.find(p => p.pin_code === pinCode.trim());
-
-      // If not found locally and online, try to fetch from Supabase
-      if (!matched && client && isOnline) {
-        console.log('🔍 Searching for profile in Supabase...');
-        const { data: remoteProfiles } = await client
-          .from('profiles')
-          .select('*')
-          .eq('pin_code', pinCode.trim());
-
-        if (remoteProfiles && remoteProfiles.length > 0) {
-          // Save all found profiles locally
-          for (const profile of remoteProfiles) {
-            await db.profiles.put(profile);
-          }
-          matched = remoteProfiles[0];
-          console.log('✅ Profile found in Supabase!');
-        }
-      }
-
-      if (!matched) {
-        setError('No account found for this PIN code. Please check with your administrator.');
-        setLoading(false);
-        return;
-      }
-
-      // Check if profile is active
-      if (!matched.is_active) {
-        setError('This account is deactivated. Please contact your administrator.');
-        setLoading(false);
-        return;
-      }
-
-      console.log(`✅ Login successful! Welcome ${matched.full_name} (${matched.role})`);
-
-      // Update last login
-      matched.last_login_at = new Date().toISOString();
-      await db.profiles.put(matched);
-
-      // If online, update in Supabase too
-      if (client && isOnline) {
-        try {
-          await client
-            .from('profiles')
-            .update({ last_login_at: matched.last_login_at })
-            .eq('id', matched.id);
-        } catch (updateError) {
-          console.warn('Failed to update last login in cloud:', updateError);
-        }
-      }
-
-      // Set local storage
-      localStorage.setItem('medp_authenticated', 'true');
-      localStorage.setItem('medp_current_user_id', matched.id);
-      localStorage.setItem('medp_pharmacy_name', matched.pharmacy_name);
-      localStorage.setItem('medp_user_role', matched.role);
-
-      onAuthSuccess(matched);
 
     } catch (err: any) {
       console.error('❌ Login error:', err);
@@ -378,99 +355,117 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
     }
   };
 
+  // Get theme-specific styles - Optimized for phone
+  const bgPrimary = isDark ? 'bg-slate-950' : 'bg-white';
+  const bgSecondary = isDark ? 'bg-slate-900' : 'bg-slate-50';
+  const bgCard = isDark ? 'bg-slate-900' : 'bg-white';
+  const bgInput = isDark ? 'bg-slate-800' : 'bg-slate-100';
+  const borderColor = isDark ? 'border-slate-800' : 'border-slate-200';
+  const borderLight = isDark ? 'border-slate-700/50' : 'border-slate-200/50';
+  const textPrimary = isDark ? 'text-slate-100' : 'text-slate-900';
+  const textSecondary = isDark ? 'text-slate-400' : 'text-slate-600';
+  const textMuted = isDark ? 'text-slate-500' : 'text-slate-400';
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto no-scrollbar">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 my-auto">
-        {/* Brand & Header */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-2xl mx-auto shadow-lg shadow-emerald-500/20">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-3 overflow-y-auto no-scrollbar ${isDark ? 'bg-slate-950/95' : 'bg-white/95'
+      } backdrop-blur-sm`}>
+      <div className={`${bgCard} ${borderColor} border rounded-2xl w-full max-w-md p-4 shadow-xl space-y-3 my-auto max-h-[96vh] overflow-y-auto no-scrollbar`}>
+
+        {/* Brand & Header - Smaller for phone */}
+        <div className="text-center space-y-1.5">
+          <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-emerald-500/20`}>
             P
           </div>
-          <h2 className="text-xl font-black tracking-tight text-slate-100">
-            PHARMIENTA KENYA POS
+          <h2 className={`text-lg font-black tracking-tight ${textPrimary}`}>
+            PHARMARAE POS
           </h2>
-          <p className="text-xs text-slate-400 flex items-center justify-center gap-2">
+          <p className={`text-[11px] ${textSecondary} flex items-center justify-center gap-1.5 flex-wrap`}>
             {showSupabaseConfig
               ? 'Configure your Supabase Cloud Database'
               : mode === 'register'
                 ? 'Create your Pharmacy Account'
-                : 'Sign in to access POS & Stock Management'}
+                : 'Sign in with PIN or Email'}
             {!showSupabaseConfig && (
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${isOnline ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/80' : 'bg-rose-950/80 text-rose-400 border border-rose-800/80'}`}>
-                {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium ${isOnline
+                ? isDark ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/80' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                : isDark ? 'bg-rose-950/80 text-rose-400 border border-rose-800/80' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                }`}>
+                {isOnline ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />}
                 {isOnline ? 'Online' : 'Offline'}
               </span>
             )}
           </p>
         </div>
 
-        {/* Supabase Config Toggle Bar */}
+        {/* Supabase Config Toggle - Compact */}
         <button
           type="button"
           onClick={() => setShowSupabaseConfig(!showSupabaseConfig)}
-          className="w-full py-2 px-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-semibold text-slate-300 flex items-center justify-between transition-colors"
+          className={`w-full py-2 px-3 ${isDark ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80' : 'bg-slate-100 hover:bg-slate-200 border-slate-300'} border rounded-xl text-[11px] font-semibold ${textSecondary} flex items-center justify-between transition-colors`}
         >
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-emerald-400" />
-            <span>Supabase Cloud Settings</span>
+          <div className="flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Supabase Cloud</span>
           </div>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${creds.url && !creds.url.includes('your-supabase-project') ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/80' : 'text-amber-400 bg-amber-950/80 border-amber-800/80'}`}>
-            {creds.url && !creds.url.includes('your-supabase-project') ? '✅ Connected' : '⚠️ Not Configured'}
+          <span className={`text-[9px] px-2 py-0.5 rounded-full border ${creds.url && !creds.url.includes('your-supabase-project')
+            ? isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/80' : 'text-emerald-700 bg-emerald-100 border-emerald-200'
+            : isDark ? 'text-amber-400 bg-amber-950/80 border-amber-800/80' : 'text-amber-700 bg-amber-100 border-amber-200'
+            }`}>
+            {creds.url && !creds.url.includes('your-supabase-project') ? '✅' : '⚠️'}
           </span>
         </button>
 
         {showSupabaseConfig ? (
-          <form onSubmit={handleSaveSupabase} className="space-y-3 text-xs bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            {/* ... Supabase config form ... */}
+          <form onSubmit={handleSaveSupabase} className={`space-y-2.5 text-[11px] ${isDark ? 'bg-slate-950/60' : 'bg-slate-50'} p-3 rounded-xl ${borderColor} border`}>
             <div>
-              <label className="block text-slate-400 mb-1 font-medium">Supabase Project URL</label>
+              <label className={`block ${textSecondary} mb-1 font-medium`}>Supabase URL</label>
               <input
                 type="url"
                 required
                 value={supabaseUrl}
                 onChange={(e) => setSupabaseUrl(e.target.value)}
                 placeholder="https://your-project.supabase.co"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
+                className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500 font-mono`}
               />
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-1 font-medium">Supabase Anon Key</label>
+              <label className={`block ${textSecondary} mb-1 font-medium`}>Anon Key</label>
               <textarea
                 required
-                rows={3}
+                rows={2}
                 value={supabaseKey}
                 onChange={(e) => setSupabaseKey(e.target.value)}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
+                className={`w-full ${bgInput} ${borderColor} border rounded-xl p-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500 font-mono`}
               />
             </div>
 
             {error && (
-              <div className="p-2.5 bg-rose-950/80 border border-rose-800 text-rose-300 rounded-xl text-center text-xs font-semibold flex items-center justify-center gap-2">
-                <AlertCircle className="w-4 h-4" />
+              <div className={`p-2 ${isDark ? 'bg-rose-950/80 border-rose-800' : 'bg-rose-100 border-rose-200'} border rounded-xl text-${isDark ? 'rose-300' : 'rose-700'} text-center text-[11px] font-semibold flex items-center justify-center gap-1.5`}>
+                <AlertCircle className="w-3.5 h-3.5" />
                 {error}
               </div>
             )}
 
             {successMsg && (
-              <div className="p-2.5 bg-emerald-950/80 border border-emerald-800 text-emerald-300 rounded-xl text-center text-xs font-semibold">
+              <div className={`p-2 ${isDark ? 'bg-emerald-950/80 border-emerald-800' : 'bg-emerald-100 border-emerald-200'} border rounded-xl text-${isDark ? 'emerald-300' : 'emerald-700'} text-center text-[11px] font-semibold`}>
                 {successMsg}
               </div>
             )}
 
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl transition-colors"
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-bold rounded-xl transition-colors text-[11px]"
               >
-                {loading ? 'Testing...' : 'Save & Test Connection'}
+                {loading ? 'Testing...' : 'Save & Test'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowSupabaseConfig(false)}
-                className="px-4 py-2.5 bg-slate-800 text-slate-300 font-medium rounded-xl hover:bg-slate-700 transition-colors"
+                className={`px-4 py-2.5 ${bgInput} ${textSecondary} font-medium rounded-xl hover:bg-opacity-80 transition-colors text-[11px]`}
               >
                 Back
               </button>
@@ -478,12 +473,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
           </form>
         ) : (
           <>
-            {/* Mode Selector Tabs */}
-            <div className="grid grid-cols-2 bg-slate-800/80 p-1 rounded-xl text-xs font-semibold">
+            {/* Mode Selector Tabs - Compact */}
+            <div className={`grid grid-cols-2 ${isDark ? 'bg-slate-800/80' : 'bg-slate-100'} p-1 rounded-xl text-[11px] font-semibold`}>
               <button
                 type="button"
                 onClick={() => { setMode('register'); setError(''); setSuccessMsg(''); }}
-                className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${mode === 'register' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${mode === 'register'
+                  ? 'bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/20'
+                  : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Register</span>
@@ -491,7 +489,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
               <button
                 type="button"
                 onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); }}
-                className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${mode === 'login' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors ${mode === 'login'
+                  ? 'bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/20'
+                  : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Sign In</span>
@@ -499,25 +500,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
             </div>
 
             {error && (
-              <div className="p-3 bg-rose-950/80 border border-rose-800/80 text-rose-300 text-xs rounded-xl font-medium flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div className={`p-2.5 ${isDark ? 'bg-rose-950/80 border-rose-800/80' : 'bg-rose-100 border-rose-200'} border rounded-xl text-${isDark ? 'rose-300' : 'rose-700'} text-[11px] font-medium flex items-start gap-1.5`}>
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 bg-emerald-950/80 border border-emerald-800/80 text-emerald-300 text-xs rounded-xl font-medium flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div className={`p-2.5 ${isDark ? 'bg-emerald-950/80 border-emerald-800/80' : 'bg-emerald-100 border-emerald-200'} border rounded-xl text-${isDark ? 'emerald-300' : 'emerald-700'} text-[11px] font-medium flex items-start gap-1.5`}>
+                <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span>{successMsg}</span>
               </div>
             )}
 
             {mode === 'register' ? (
-              <form onSubmit={handleRegister} className="space-y-3 text-xs">
-                {/* ... Registration form ... */}
+              <form onSubmit={handleRegister} className="space-y-2.5 text-[11px]">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">
-                    <Building2 className="w-3.5 h-3.5 inline mr-1.5" />
+                  <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                    <Building2 className="w-3 h-3 inline mr-1" />
                     Pharmacy / Chemist Name *
                   </label>
                   <input
@@ -526,13 +526,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                     value={pharmacyName}
                     onChange={(e) => setPharmacyName(e.target.value)}
                     placeholder="e.g. Apex Healthcare Pharmacy"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                    className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">
-                    <User className="w-3.5 h-3.5 inline mr-1.5" />
+                  <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                    <User className="w-3 h-3 inline mr-1" />
                     Your Full Name *
                   </label>
                   <input
@@ -541,14 +541,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Dr. John Kamau"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                    className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">
-                      <Mail className="w-3.5 h-3.5 inline mr-1" />
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                      <Mail className="w-3 h-3 inline mr-0.5" />
                       Email *
                     </label>
                     <input
@@ -557,13 +557,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="john@chemist.com"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">
-                      <KeyRound className="w-3.5 h-3.5 inline mr-1" />
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                      <KeyRound className="w-3 h-3 inline mr-0.5" />
                       Password *
                     </label>
                     <input
@@ -572,16 +572,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                       minLength={6}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="•••••••• (min 6 chars)"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                      placeholder="••••••••"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">
-                      <Phone className="w-3.5 h-3.5 inline mr-1" />
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                      <Phone className="w-3 h-3 inline mr-0.5" />
                       Phone
                     </label>
                     <input
@@ -589,19 +589,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+2547123..."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">
-                      <Users className="w-3.5 h-3.5 inline mr-1" />
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                      <Users className="w-3 h-3 inline mr-0.5" />
                       Role
                     </label>
                     <select
                       value={role}
                       onChange={(e) => setRole(e.target.value as UserRole)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-2 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     >
                       <option value="owner">Owner</option>
                       <option value="admin">Manager</option>
@@ -611,16 +611,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-medium">4-Digit PIN *</label>
+                  <div className="col-span-2">
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>4-Digit PIN *</label>
                     <input
                       type="password"
                       maxLength={4}
                       required
                       value={pinCode}
-                      onChange={(e) => setPinCode(e.target.value)}
+                      onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="1234"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono tracking-widest text-center"
+                      className={`w-full max-w-[120px] ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500 font-mono tracking-widest text-center`}
                     />
                   </div>
                 </div>
@@ -628,29 +628,62 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 flex items-center justify-center gap-2 mt-2"
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       <span>Creating Account...</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Register & Open App</span>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Register & Open</span>
                     </>
                   )}
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleLogin} className="space-y-3 text-xs">
-                {/* OPTION 1: Email Login */}
-                <div className="bg-slate-800/30 p-3 rounded-xl border border-slate-700/50">
-                  <p className="text-[10px] text-slate-500 text-center mb-2">CLOUD LOGIN</p>
+              <form onSubmit={handleLogin} className="space-y-3 text-[11px]">
+                {/* PIN Login - Primary */}
+                <div className={`p-3 rounded-xl ${isDark ? 'bg-emerald-950/20 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200'} border`}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Fingerprint className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                    <p className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                      FAST PIN LOGIN
+                    </p>
+                  </div>
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">
-                      <Mail className="w-3.5 h-3.5 inline mr-1.5" />
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px] text-center`}>Enter 4-Digit PIN</label>
+                    <input
+                      id="pin-login-input"
+                      type="password"
+                      maxLength={4}
+                      value={pinCode}
+                      onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••"
+                      className={`w-full max-w-[160px] mx-auto block ${bgInput} ${borderColor} border rounded-xl px-3 py-3 ${textPrimary} text-base focus:outline-none focus:border-emerald-500 font-mono tracking-[0.3em] text-center`}
+                      autoFocus
+                    />
+                    <p className={`text-[9px] text-center mt-1.5 ${textMuted}`}>
+                      Enter your 4-digit staff PIN to login instantly
+                    </p>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="relative flex py-0.5 items-center">
+                  <div className={`flex-grow border-t ${borderColor}`}></div>
+                  <span className={`flex-shrink mx-2 ${textMuted} text-[9px] font-medium`}>OR</span>
+                  <div className={`flex-grow border-t ${borderColor}`}></div>
+                </div>
+
+                {/* Email Login */}
+                <div className={`p-3 rounded-xl ${isDark ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'} border`}>
+                  <p className={`text-[9px] ${textMuted} text-center mb-2`}>CLOUD LOGIN</p>
+                  <div>
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                      <Mail className="w-3 h-3 inline mr-1" />
                       Email
                     </label>
                     <input
@@ -658,13 +691,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="john@chemist.com"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-medium">
-                      <KeyRound className="w-3.5 h-3.5 inline mr-1.5" />
+                  <div className="mt-2">
+                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
+                      <KeyRound className="w-3 h-3 inline mr-1" />
                       Password
                     </label>
                     <input
@@ -672,29 +705,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                {/* OPTION 2: PIN Login */}
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-slate-800"></div>
-                  <span className="flex-shrink mx-3 text-slate-500 text-[10px]">OR FAST PIN LOGIN</span>
-                  <div className="flex-grow border-t border-slate-800"></div>
-                </div>
-
-                <div className="bg-emerald-950/20 p-3 rounded-xl border border-emerald-800/30">
-                  <p className="text-[10px] text-emerald-400 text-center mb-2">TERMINAL PIN LOGIN</p>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-medium text-center">4-Digit PIN Code</label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      value={pinCode}
-                      onChange={(e) => setPinCode(e.target.value)}
-                      placeholder="••••"
-                      className="w-full max-w-[180px] mx-auto block bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono tracking-widest text-center text-base"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     />
                   </div>
                 </div>
@@ -702,16 +713,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       <span>Authenticating...</span>
                     </>
                   ) : (
                     <>
-                      <LogIn className="w-4 h-4" />
+                      <LogIn className="w-3.5 h-3.5" />
                       <span>Sign In</span>
                     </>
                   )}
@@ -721,11 +732,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
           </>
         )}
 
-        <div className="text-[11px] text-slate-500 text-center border-t border-slate-800/80 pt-3 flex items-center justify-center gap-1.5 flex-wrap">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+        <div className={`text-[10px] ${textMuted} text-center border-t ${borderColor} pt-2.5 flex items-center justify-center gap-1.5 flex-wrap`}>
+          <ShieldCheck className="w-3 h-3 text-emerald-500" />
           <span>Supabase Auth • Offline First</span>
-          <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-          <span className="text-slate-600">v2.0</span>
+          <span className={`w-0.5 h-0.5 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></span>
+          <span className="text-[9px]">v2.0</span>
         </div>
       </div>
     </div>
