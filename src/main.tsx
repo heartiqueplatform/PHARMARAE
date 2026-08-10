@@ -4,7 +4,7 @@ import App from './App.tsx';
 import './index.css';
 
 // App version - update this when you release new versions
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.1.0';
 const APP_NAME = 'PHARMIENTA KENYA';
 
 // Store current version in localStorage for comparison
