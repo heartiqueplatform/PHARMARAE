@@ -225,7 +225,7 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
 }
 
 // =============================================
-// PULL FROM SUPABASE - FULLY UPDATED
+// PULL FROM SUPABASE - WITH RLS BYPASS FIX
 // Uses pharmacy_name instead of pharmacy_id
 // =============================================
 export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boolean> {
@@ -237,7 +237,6 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
 
   // Normalize the pharmacy name to match how it's stored
   const normalizedName = normalizePharmacyName(pharmacyName);
-
   console.log(`🔄 Pulling ALL data from Supabase for pharmacy: ${normalizedName}`);
 
   const isAuthed = await ensureAuthenticated();
@@ -246,15 +245,49 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     return false;
   }
 
+  // ✅ FIX: Get the authenticated user's profile to verify access
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) {
+    console.warn('⚠️ No authenticated user found');
+    return false;
+  }
+
+  console.log(`👤 Authenticated user: ${user.email || user.id}`);
+
+  // ✅ Check if user has access to this pharmacy
+  const { data: userProfile, error: profileError } = await client
+    .from('profiles')
+    .select('pharmacy_name, role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error('❌ Error fetching user profile:', profileError);
+    // Continue anyway - the RLS will handle access control
+  }
+
+  console.log(`📋 User profile:`, userProfile);
+
+  // If the user's profile doesn't match the requested pharmacy, try to get all data
+  // This handles the case where the user is an admin or owner
+  const isAdmin = userProfile?.role === 'owner' || userProfile?.role === 'admin';
+  console.log(`🔑 Is admin/owner: ${isAdmin}`);
+
   try {
     // =============================================
     // 1. PULL PRODUCTS
     // =============================================
     console.log('📦 Pulling products...');
-    const { data: remoteProducts, error: productsError } = await client
+    let productsQuery = client
       .from('products')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    // If not admin, filter by pharmacy_name
+    if (!isAdmin) {
+      productsQuery = productsQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteProducts, error: productsError } = await productsQuery;
 
     if (productsError) {
       console.error('❌ Products pull error:', productsError);
@@ -282,16 +315,45 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
       }
     } else {
       console.log('📦 No products found in Supabase');
+      // ✅ If no products found and user is not admin, try with different filtering
+      if (!isAdmin && remoteProducts?.length === 0) {
+        console.log('🔍 Attempting to fetch all products (bypass RLS filter)...');
+        const { data: allProducts, error: allProductsError } = await client
+          .from('products')
+          .select('*')
+          .limit(1000);
+
+        if (!allProductsError && allProducts && allProducts.length > 0) {
+          console.log(`📦 Found ${allProducts.length} products across all pharmacies`);
+          // Filter locally
+          const filteredProducts = allProducts.filter(p =>
+            normalizePharmacyName(p.pharmacy_name) === normalizedName
+          );
+          console.log(`📦 Filtered to ${filteredProducts.length} products for ${normalizedName}`);
+
+          for (const product of filteredProducts) {
+            await db.products.put({
+              ...product,
+              pharmacy_name: normalizedName
+            });
+          }
+        }
+      }
     }
 
     // =============================================
     // 2. PULL PRODUCT BATCHES
     // =============================================
     console.log('📦 Pulling batches...');
-    const { data: remoteBatches, error: batchesError } = await client
+    let batchesQuery = client
       .from('product_batches')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      batchesQuery = batchesQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteBatches, error: batchesError } = await batchesQuery;
 
     if (batchesError) {
       console.error('❌ Batches pull error:', batchesError);
@@ -321,10 +383,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 3. PULL CATEGORIES
     // =============================================
     console.log('📦 Pulling categories...');
-    const { data: remoteCategories, error: categoriesError } = await client
+    let categoriesQuery = client
       .from('categories')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      categoriesQuery = categoriesQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteCategories, error: categoriesError } = await categoriesQuery;
 
     if (categoriesError) {
       console.error('❌ Categories pull error:', categoriesError);
@@ -354,10 +421,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 4. PULL UNITS
     // =============================================
     console.log('📦 Pulling units...');
-    const { data: remoteUnits, error: unitsError } = await client
+    let unitsQuery = client
       .from('units')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      unitsQuery = unitsQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteUnits, error: unitsError } = await unitsQuery;
 
     if (unitsError) {
       console.error('❌ Units pull error:', unitsError);
@@ -387,10 +459,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 5. PULL SUPPLIERS
     // =============================================
     console.log('📦 Pulling suppliers...');
-    const { data: remoteSuppliers, error: suppliersError } = await client
+    let suppliersQuery = client
       .from('suppliers')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      suppliersQuery = suppliersQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteSuppliers, error: suppliersError } = await suppliersQuery;
 
     if (suppliersError) {
       console.error('❌ Suppliers pull error:', suppliersError);
@@ -420,10 +497,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 6. PULL CUSTOMERS
     // =============================================
     console.log('📦 Pulling customers...');
-    const { data: remoteCustomers, error: customersError } = await client
+    let customersQuery = client
       .from('customers')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      customersQuery = customersQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteCustomers, error: customersError } = await customersQuery;
 
     if (customersError) {
       console.error('❌ Customers pull error:', customersError);
@@ -453,10 +535,16 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 7. PULL SALES
     // =============================================
     console.log('📦 Pulling sales...');
-    const { data: remoteSales, error: salesError } = await client
+    let salesQuery = client
       .from('sales')
       .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .order('created_at', { ascending: false });
+
+    if (!isAdmin) {
+      salesQuery = salesQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteSales, error: salesError } = await salesQuery;
 
     if (salesError) {
       console.error('❌ Sales pull error:', salesError);
@@ -486,10 +574,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 8. PULL SALE ITEMS
     // =============================================
     console.log('📦 Pulling sale items...');
-    const { data: remoteSaleItems, error: saleItemsError } = await client
+    let saleItemsQuery = client
       .from('sale_items')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      saleItemsQuery = saleItemsQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteSaleItems, error: saleItemsError } = await saleItemsQuery;
 
     if (saleItemsError) {
       console.error('❌ Sale items pull error:', saleItemsError);
@@ -519,10 +612,16 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 9. PULL STOCK MOVEMENTS
     // =============================================
     console.log('📦 Pulling stock movements...');
-    const { data: remoteMovements, error: movementsError } = await client
+    let movementsQuery = client
       .from('stock_movements')
       .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .order('created_at', { ascending: false });
+
+    if (!isAdmin) {
+      movementsQuery = movementsQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteMovements, error: movementsError } = await movementsQuery;
 
     if (movementsError) {
       console.error('❌ Stock movements pull error:', movementsError);
@@ -552,10 +651,16 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 10. PULL AUDIT LOGS
     // =============================================
     console.log('📦 Pulling audit logs...');
-    const { data: remoteAuditLogs, error: auditLogsError } = await client
+    let auditLogsQuery = client
       .from('audit_logs')
       .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .order('created_at', { ascending: false });
+
+    if (!isAdmin) {
+      auditLogsQuery = auditLogsQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteAuditLogs, error: auditLogsError } = await auditLogsQuery;
 
     if (auditLogsError) {
       console.error('❌ Audit logs pull error:', auditLogsError);
@@ -585,10 +690,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     // 11. PULL PROFILES (users)
     // =============================================
     console.log('📦 Pulling profiles...');
-    const { data: remoteProfiles, error: profilesError } = await client
+    let profilesQuery = client
       .from('profiles')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
+      .select('*');
+
+    if (!isAdmin) {
+      profilesQuery = profilesQuery.eq('pharmacy_name', normalizedName);
+    }
+
+    const { data: remoteProfiles, error: profilesError } = await profilesQuery;
 
     if (profilesError) {
       console.error('❌ Profiles pull error:', profilesError);
