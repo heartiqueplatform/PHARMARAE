@@ -11,7 +11,6 @@ import {
   Unit,
   Customer,
   Sale,
-  SaleItem,
   StockMovement,
   AuditLog,
   Pharmacy
@@ -54,7 +53,6 @@ export default function App() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
@@ -62,7 +60,6 @@ export default function App() {
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
-  const [receiptSaleItems, setReceiptSaleItems] = useState<SaleItem[]>([]);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('medp_authenticated') === 'true';
@@ -73,11 +70,13 @@ export default function App() {
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
   const [currentVersion, setCurrentVersion] = useState(APP_VERSION);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     localStorage.setItem('medp_theme', next);
   };
+
   // =============================================
   // CHECK FOR APP UPDATES
   // =============================================
@@ -114,6 +113,7 @@ export default function App() {
   }, []);
 
   const isDark = theme === 'dark';
+
   // =============================================
   // HANDLE APP UPDATE
   // =============================================
@@ -135,6 +135,7 @@ export default function App() {
   const handleDismissUpdate = useCallback(() => {
     setShowUpdateNotification(false);
   }, []);
+
   // =============================================
   // NORMALIZE PHARMACY NAME HELPER
   // =============================================
@@ -197,6 +198,7 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isOnline, currentProfile]);
+
   // =============================================
   // CHECK FOR UPDATES ON MOUNT
   // =============================================
@@ -252,6 +254,7 @@ export default function App() {
       }
     };
   }, [checkForUpdates]);
+
   // Helper function to convert Profile to Pharmacy
   const getPharmacyFromProfile = (profile: Profile | null): Pharmacy | null => {
     if (!profile) return null;
@@ -278,6 +281,7 @@ export default function App() {
       updated_at: profile.updated_at
     };
   };
+
   // =============================================
   // LOAD DATA - WITH FORCED SUPABASE PULL & MINIMUM LOADING TIME
   // =============================================
@@ -367,16 +371,12 @@ export default function App() {
             normalizePharmacyName(c.pharmacy_name) === pharmacyName
           ));
 
-          // Sales
+          // Sales - Now includes ALL product details in the sale record
           const allSales = await db.sales.toArray();
           const filteredSales = allSales.filter(s =>
             normalizePharmacyName(s.pharmacy_name) === pharmacyName
           );
           setSales(filteredSales);
-
-          // Sale Items
-          const allSaleItems = await db.sale_items.toArray();
-          setSaleItems(allSaleItems);
 
           // Movements
           const allMovements = await db.stock_movements.toArray();
@@ -409,6 +409,7 @@ export default function App() {
       console.log('✅ Loading complete, isLoading set to false');
     }
   }, [isOnline]);
+
   // Add this useEffect in your App component (around line 100)
   useEffect(() => {
     // Update body background when theme changes
@@ -422,6 +423,7 @@ export default function App() {
       document.documentElement.style.backgroundColor = '#f6f8fa';
     }
   }, [isDark]);
+
   useEffect(() => {
     loadDatabaseData();
   }, [loadDatabaseData]);
@@ -530,206 +532,252 @@ export default function App() {
 
   // =============================================
   // PROCESS SALE - COMPLETE WITH STOCK UPDATES
+  // ✅ UPDATED: Single table design - NO sale_items
   // =============================================
   const handleCompleteSale = async (saleData: Partial<Sale>, cartItems: any[]) => {
     if (!currentProfile) {
-      console.error('No profile found');
+      console.error('❌ No profile found');
       return;
     }
 
     const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
     if (!pharmacyName) {
-      console.error('No pharmacy name found');
+      console.error('❌ No pharmacy name found');
       return;
     }
 
-    // STEP 1: Validate Stock
-    for (const item of cartItems) {
-      const product = await db.products.get(item.product.id);
-      if (!product) {
-        throw new Error(`Product ${item.product.name} not found`);
-      }
-      if ((product.quantity || 0) < item.quantity) {
-        throw new Error(`Not enough stock for ${product.name}. Available: ${product.quantity || 0}`);
-      }
+    // Since we sell ONE item at a time, cart should have exactly 1 item
+    if (cartItems.length !== 1) {
+      throw new Error('This POS only supports one item per sale. Please clear cart and try again.');
     }
 
-    // STEP 2: Create Sale Record
+    const item = cartItems[0]; // Get the single item
+
+    // STEP 1: Validate Stock
+    const product = await db.products.get(item.product.id);
+    if (!product) {
+      throw new Error(`Product ${item.product.name} not found`);
+    }
+    if ((product.quantity || 0) < item.quantity) {
+      throw new Error(`Not enough stock for ${product.name}. Available: ${product.quantity || 0}`);
+    }
+
+    // STEP 2: Create Sale Record - ALL IN ONE TABLE
     const now = new Date();
     const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-    const countToday = sales.filter(s => s.created_at.startsWith(now.toISOString().substring(0, 10))).length + 1;
+    const countToday = sales.filter(s => s.sale_date?.startsWith(now.toISOString().substring(0, 10)) || s.created_at?.startsWith(now.toISOString().substring(0, 10))).length + 1;
     const saleNumber = `INV-${yearMonth}-${countToday.toString().padStart(4, '0')}`;
     const saleId = genUUID();
 
+    // ✅ Get batch info if available
+    const usedBatch = item.batch || null;
+
+    // ✅ Build the complete sale record with ALL product details
     const newSale: Sale = {
       id: saleId,
       pharmacy_name: pharmacyName,
       sale_number: saleNumber,
-      customer_id: saleData.customer_id,
-      customer_name: saleData.customer_name,
-      sold_by: currentProfile?.id,
-      sold_by_name: currentProfile?.full_name,
-      subtotal: saleData.subtotal || 0,
+
+      // Customer info
+      customer_id: saleData.customer_id || null,
+      customer_name: saleData.customer_name || 'Cash Customer',
+
+      // Staff info
+      sold_by: currentProfile?.id || null,
+      sold_by_name: currentProfile?.full_name || 'System User',
+
+      // ✅ PRODUCT DETAILS (Single Item)
+      product_id: item.product.id,
+      product_name: item.product.name,
+      product_barcode: item.product.barcode || null,
+      product_sku: item.product.sku || null,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      subtotal: item.subtotal,
+
+      // Batch info
+      batch_id: usedBatch?.id || null,
+      batch_number: usedBatch?.batch_number || null,
+
+      // Financials
       discount: saleData.discount || 0,
-      tax: 0,
-      total: saleData.total || 0,
+      discount_reason: saleData.discount_reason || null,
+      tax: saleData.tax || 0,
+      total: saleData.total || item.subtotal,
+
+      // Payment
+      payment_method: saleData.payment_method || 'cash',
       payment_status: 'paid',
+      payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+
+      // Status
       status: 'completed',
+
+      // ✅ Extra product details as JSON
+      product_details: {
+        generic_name: item.product.generic_name || null,
+        brand: item.product.brand || null,
+        form: item.product.form || null,
+        strength: item.product.strength || null,
+        category: item.product.category_name || null,
+        category_id: item.product.category_id || null,
+        manufacturer: item.product.manufacturer || null,
+        prescription_required: item.product.prescription_required || false,
+        is_controlled: item.product.is_controlled || false,
+        selling_price: item.product.selling_price,
+        cost_price: item.product.default_cost_price || 0,
+        unit: item.product.base_unit_name || null,
+      },
+
+      // Additional info
+      notes: `Sale of ${item.product.name} x${item.quantity}`,
+      sale_date: now.toISOString(),
       created_at: now.toISOString(),
-      updated_at: now.toISOString()
+      updated_at: now.toISOString(),
+      offline_id: null
     };
 
+    console.log('🟢 Saving sale with product details:', newSale);
+
+    // STEP 3: Save to local database (Dexie)
     await db.sales.put(newSale);
 
+    // STEP 4: Queue for Supabase sync
     const supabaseSale = {
       id: saleId,
       pharmacy_name: pharmacyName,
       sale_number: saleNumber,
       customer_id: saleData.customer_id || null,
+      customer_name: saleData.customer_name || 'Cash Customer',
       sold_by: currentProfile?.id || null,
-      subtotal: saleData.subtotal || 0,
+      sold_by_name: currentProfile?.full_name || 'System User',
+      product_id: item.product.id,
+      product_name: item.product.name,
+      product_barcode: item.product.barcode || null,
+      product_sku: item.product.sku || null,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      subtotal: item.subtotal,
+      batch_id: usedBatch?.id || null,
+      batch_number: usedBatch?.batch_number || null,
       discount: saleData.discount || 0,
-      tax: 0,
-      total: saleData.total || 0,
+      discount_reason: saleData.discount_reason || null,
+      tax: saleData.tax || 0,
+      total: saleData.total || item.subtotal,
+      payment_method: saleData.payment_method || 'cash',
       payment_status: 'paid',
+      payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
       status: 'completed',
+      product_details: {
+        generic_name: item.product.generic_name || null,
+        brand: item.product.brand || null,
+        form: item.product.form || null,
+        strength: item.product.strength || null,
+        category: item.product.category_name || null,
+        category_id: item.product.category_id || null,
+        manufacturer: item.product.manufacturer || null,
+        prescription_required: item.product.prescription_required || false,
+        is_controlled: item.product.is_controlled || false,
+        selling_price: item.product.selling_price,
+        cost_price: item.product.default_cost_price || 0,
+        unit: item.product.base_unit_name || null,
+      },
+      notes: `Sale of ${item.product.name} x${item.quantity}`,
+      sale_date: now.toISOString(),
       offline_id: null,
       created_at: now.toISOString(),
       updated_at: now.toISOString()
     };
+
     await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'INSERT', supabaseSale);
 
-    // STEP 3: Process Sale Items & Update Stock
-    const newSaleItems: SaleItem[] = [];
+    // STEP 5: Process Stock - Update Batch & Product
     const todayStr = now.toISOString().split('T')[0];
+    const quantitySold = item.quantity;
 
-    for (const item of cartItems) {
-      const prod = item.product;
-      const quantitySold = item.quantity;
+    // Find available batches
+    const availableBatches = batches
+      .filter(b => b.product_id === item.product.id && b.quantity_base > 0 && b.expiry_date >= todayStr)
+      .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
 
-      const availableBatches = batches
-        .filter(b => b.product_id === prod.id && b.quantity_base > 0 && b.expiry_date >= todayStr)
-        .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
+    let remainingToDeduct = quantitySold;
 
-      let remainingToDeduct = quantitySold;
-      let usedBatch: any = null;
+    for (const batch of availableBatches) {
+      if (remainingToDeduct <= 0) break;
 
-      for (const batch of availableBatches) {
-        if (remainingToDeduct <= 0) break;
+      const deductFromBatch = Math.min(remainingToDeduct, batch.quantity_base);
+      const newBatchQty = batch.quantity_base - deductFromBatch;
 
-        const deductFromBatch = Math.min(remainingToDeduct, batch.quantity_base);
-        const newBatchQty = batch.quantity_base - deductFromBatch;
+      await db.product_batches.update(batch.id, {
+        quantity_base: newBatchQty,
+        updated_at: now.toISOString()
+      });
 
-        await db.product_batches.update(batch.id, {
-          quantity_base: newBatchQty,
-          updated_at: now.toISOString()
-        });
+      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+        id: batch.id,
+        quantity_base: newBatchQty,
+        updated_at: now.toISOString()
+      });
 
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
-          id: batch.id,
-          quantity_base: newBatchQty,
-          updated_at: now.toISOString()
-        });
-
-        remainingToDeduct -= deductFromBatch;
-
-        if (!usedBatch) {
-          usedBatch = batch;
-        }
-      }
-
-      const product = await db.products.get(prod.id);
-      if (product) {
-        const newQuantity = Math.max(0, (product.quantity || 0) - quantitySold);
-        await db.products.update(prod.id, {
-          quantity: newQuantity,
-          updated_at: now.toISOString()
-        });
-
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
-          id: prod.id,
-          quantity: newQuantity,
-          updated_at: now.toISOString()
-        });
-
-        if (newQuantity <= (product.reorder_level || 10)) {
-          console.log(`⚠️ LOW STOCK ALERT: ${product.name} has ${newQuantity} units left. Reorder level: ${product.reorder_level}`);
-        }
-      }
-
-      const saleItemId = genUUID();
-      const sItem: SaleItem = {
-        id: saleItemId,
-        sale_id: saleId,
-        product_id: prod.id,
-        product_name: prod.name,
-        batch_id: usedBatch?.id || null,
-        batch_number: usedBatch?.batch_number || null,
-        quantity: quantitySold,
-        quantity_base: quantitySold,
-        unit_id: null,
-        unit_name: null,
-        unit_price: item.unitPrice,
-        discount: 0,
-        subtotal: item.subtotal,
-        created_at: now.toISOString()
-      };
-
-      await db.sale_items.put(sItem);
-      newSaleItems.push(sItem);
-
-      const supabaseSaleItem = {
-        id: saleItemId,
-        sale_id: saleId,
-        product_id: prod.id,
-        batch_id: usedBatch?.id || null,
-        unit_id: null,
-        quantity: quantitySold,
-        unit_price: item.unitPrice,
-        discount: 0,
-        subtotal: item.subtotal,
-        created_at: now.toISOString(),
-        pharmacy_name: pharmacyName
-      };
-      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale_item', 'INSERT', supabaseSaleItem);
-
-      const movId = genUUID();
-      const movement: StockMovement = {
-        id: movId,
-        pharmacy_name: pharmacyName,
-        product_id: prod.id,
-        product_name: prod.name,
-        batch_id: usedBatch?.id || null,
-        batch_number: usedBatch?.batch_number || null,
-        movement_type: 'sale',
-        quantity_base: -quantitySold,
-        reference_type: 'sale',
-        reference_id: saleId,
-        performed_by: currentProfile?.id,
-        performed_by_name: currentProfile?.full_name,
-        reason: `Sale transaction #${saleNumber}`,
-        created_at: now.toISOString()
-      };
-
-      await db.stock_movements.put(movement);
-
-      const supabaseMovement = {
-        id: movId,
-        pharmacy_name: pharmacyName,
-        product_id: prod.id,
-        batch_id: usedBatch?.id || null,
-        movement_type: 'sale',
-        quantity_base: -quantitySold,
-        reference_type: 'sale',
-        reference_id: saleId,
-        performed_by: currentProfile?.id || null,
-        reason: `Sale transaction #${saleNumber}`,
-        created_at: now.toISOString()
-      };
-      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', supabaseMovement);
+      remainingToDeduct -= deductFromBatch;
     }
 
-    // STEP 4: Record Audit Log
+    // Update product quantity
+    if (product) {
+      const newQuantity = Math.max(0, (product.quantity || 0) - quantitySold);
+      await db.products.update(item.product.id, {
+        quantity: newQuantity,
+        updated_at: now.toISOString()
+      });
+
+      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
+        id: item.product.id,
+        quantity: newQuantity,
+        updated_at: now.toISOString()
+      });
+
+      if (newQuantity <= (product.reorder_level || 10)) {
+        console.log(`⚠️ LOW STOCK ALERT: ${product.name} has ${newQuantity} units left. Reorder level: ${product.reorder_level}`);
+      }
+    }
+
+    // STEP 6: Record Stock Movement
+    const movId = genUUID();
+    const movement: StockMovement = {
+      id: movId,
+      pharmacy_name: pharmacyName,
+      product_id: item.product.id,
+      product_name: item.product.name,
+      batch_id: usedBatch?.id || null,
+      batch_number: usedBatch?.batch_number || null,
+      movement_type: 'sale',
+      quantity_base: -quantitySold,
+      reference_type: 'sale',
+      reference_id: saleId,
+      performed_by: currentProfile?.id,
+      performed_by_name: currentProfile?.full_name,
+      reason: `Sale transaction #${saleNumber}`,
+      created_at: now.toISOString()
+    };
+
+    await db.stock_movements.put(movement);
+
+    const supabaseMovement = {
+      id: movId,
+      pharmacy_name: pharmacyName,
+      product_id: item.product.id,
+      batch_id: usedBatch?.id || null,
+      movement_type: 'sale',
+      quantity_base: -quantitySold,
+      reference_type: 'sale',
+      reference_id: saleId,
+      performed_by: currentProfile?.id || null,
+      reason: `Sale transaction #${saleNumber}`,
+      created_at: now.toISOString()
+    };
+    await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', supabaseMovement);
+
+    // STEP 7: Record Audit Log
     const auditId = genUUID();
     await db.audit_logs.put({
       id: auditId,
@@ -739,16 +787,13 @@ export default function App() {
       action: 'SALE_COMPLETED',
       entity_type: 'SALE',
       entity_id: saleId,
-      old_data: null,
-      new_data: null,
-      metadata: null,
+      details: `Sale #${saleNumber}: ${item.product.name} x${item.quantity} for ${saleData.total || item.subtotal}`,
       created_at: now.toISOString()
     });
 
-    // STEP 5: Refresh & Show Receipt
+    // STEP 8: Refresh & Show Receipt
     await loadDatabaseData();
     setReceiptSale(newSale);
-    setReceiptSaleItems(newSaleItems);
     setIsReceiptModalOpen(true);
 
     console.log('✅ Sale completed successfully!');
@@ -1020,6 +1065,7 @@ export default function App() {
       throw err;
     }
   };
+
   // =============================================
   // ADD BATCH - FIXED VERSION (No Double Counting)
   // =============================================
@@ -1293,7 +1339,7 @@ export default function App() {
           product_name: product.name,
           batch_id: batchId,
           batch_number: updatedBatch.batch_number,
-          movement_type: quantityChange > 0 ? 'adjustment_add' : 'adjustment_subtract',
+          movement_type: quantityChange > 0 ? 'adjustment_in' : 'adjustment_out',
           quantity_base: quantityChange,
           performed_by: currentProfile?.id,
           performed_by_name: currentProfile?.full_name,
@@ -1397,6 +1443,7 @@ export default function App() {
       throw err;
     }
   };
+
   // =============================================
   // ADD SUPPLIER
   // =============================================
@@ -1544,7 +1591,6 @@ export default function App() {
       await db.products.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
       await db.product_batches.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
       await db.sales.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
-      await db.sale_items.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
       await db.stock_movements.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
       await db.customers.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
       await db.suppliers.where('pharmacy_name').equals(oldName).modify({ pharmacy_name: newName });
@@ -1621,7 +1667,7 @@ export default function App() {
 
   // Filter today's sales for dashboard
   const todayStr = new Date().toISOString().split('T')[0];
-  const todaySales = sales.filter(s => s.created_at.startsWith(todayStr));
+  const todaySales = sales.filter(s => s.sale_date?.startsWith(todayStr) || s.created_at?.startsWith(todayStr));
 
   // Low stock & expiring calculation
   const lowStockProducts = products.filter(p => (p.quantity || 0) <= p.reorder_level);
@@ -1629,7 +1675,6 @@ export default function App() {
   expiryCutoff.setDate(expiryCutoff.getDate() + 90);
   const expiryCutoffStr = expiryCutoff.toISOString().split('T')[0];
   const expiringBatches = batches.filter(b => b.expiry_date <= expiryCutoffStr && b.quantity_base > 0);
-
 
   return (
     <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
@@ -1696,7 +1741,7 @@ export default function App() {
               onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
               scannedBarcode={scannedBarcode}
               theme={theme}
-              isLoading={isLoading}  // ← Add this line
+              isLoading={isLoading}
             />
           )}
 
@@ -1714,7 +1759,7 @@ export default function App() {
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
               onUpdateBatch={handleUpdateBatch}
-              isLoading={isLoading}  // ← Use the isLoading state directly
+              isLoading={isLoading}
               theme={theme}
             />
           )}
@@ -1724,7 +1769,6 @@ export default function App() {
               pharmacy={getPharmacyFromProfile(currentProfile)}
               role={currentRole}
               sales={sales}
-              saleItems={saleItems}
               products={products}
               batches={batches}
               movements={movements}
@@ -1754,7 +1798,6 @@ export default function App() {
                   await db.products.clear();
                   await db.product_batches.clear();
                   await db.sales.clear();
-                  await db.sale_items.clear();
                   await db.stock_movements.clear();
                   await db.customers.clear();
                   await db.categories.clear();
@@ -1774,6 +1817,7 @@ export default function App() {
           )}
         </main>
       </div>
+
       {/* =============================================
           APP UPDATE NOTIFICATION
           ============================================ */}
@@ -1816,6 +1860,7 @@ export default function App() {
           </div>
         </div>
       )}
+
       <BarcodeScannerModal
         isOpen={isBarcodeScannerOpen}
         onClose={() => setIsBarcodeScannerOpen(false)}
@@ -1833,7 +1878,21 @@ export default function App() {
         pharmacyReceiptHeader={currentProfile?.pharmacy_receipt_header || ''}
         pharmacyReceiptFooter={currentProfile?.pharmacy_receipt_footer || ''}
         sale={receiptSale}
-        saleItems={receiptSaleItems}
+        saleItems={receiptSale ? [{
+          id: receiptSale.id,
+          sale_id: receiptSale.id,
+          product_id: receiptSale.product_id,
+          product_name: receiptSale.product_name,
+          batch_id: receiptSale.batch_id || null,
+          batch_number: receiptSale.batch_number || null,
+          quantity: receiptSale.quantity,
+          unit_id: null,
+          unit_name: null,
+          unit_price: receiptSale.unit_price,
+          discount: 0,
+          subtotal: receiptSale.subtotal,
+          created_at: receiptSale.created_at
+        }] : []}
       />
 
       {!isAuthenticated && (

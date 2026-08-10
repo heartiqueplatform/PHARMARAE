@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pharmacy, Sale, SaleItem, Product, ProductBatch, StockMovement, UserRole } from '../../types';
+import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
 import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -7,48 +7,43 @@ interface ReportsViewProps {
   pharmacy: Pharmacy | null;
   role: UserRole;
   sales: Sale[];
-  saleItems: SaleItem[];
   products: Product[];
   batches: ProductBatch[];
   movements: StockMovement[];
   onProcessReturn?: (saleId: string, reason: string) => Promise<void>;
   theme?: 'dark' | 'light';
-  isLoading?: boolean; // ← ADD THIS
+  isLoading?: boolean;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   pharmacy,
   role,
   sales,
-  saleItems,
   products,
   batches,
   movements,
   onProcessReturn,
   theme = 'dark',
-  isLoading = false, // ← ADD THIS WITH DEFAULT
+  isLoading = false,
 }) => {
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
 
-  // REMOVED ALL borders from card styles
+  // Base card styles
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
 
-  // Large touch targets for mobile
   const touchTarget = 'min-h-[44px] min-w-[44px]';
   const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
 
-  const [activeReportTab, setActiveReportTab] = useState<'daily' | 'monthly' | 'history'>('daily');
-  const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
-
-  // ✅ FIXED: Theme-aware skeleton colors (add these near other theme variables)
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
-  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
+
+  const [activeReportTab, setActiveReportTab] = useState<'daily' | 'monthly' | 'history'>('daily');
+  const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
 
   // Date pickers
   const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -60,18 +55,33 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   if (!pharmacy) return null;
 
+  // ✅ Helper: Get product details from sale
+  const getSaleProductDetails = (sale: Sale) => {
+    return {
+      productName: sale.product_name || 'Unknown Product',
+      productId: sale.product_id,
+      quantity: sale.quantity || 0,
+      unitPrice: sale.unit_price || 0,
+      subtotal: sale.subtotal || 0,
+      batchNumber: sale.batch_number || null,
+      batchId: sale.batch_id || null,
+      productDetails: sale.product_details || null,
+    };
+  };
+
   // Filter Daily Sales
-  const filteredDailySales = sales.filter(s => s.created_at.startsWith(dailyDate));
+  const filteredDailySales = sales.filter(s => {
+    const date = s.sale_date || s.created_at;
+    return date?.startsWith(dailyDate);
+  });
   const dailyTotalRevenue = filteredDailySales.reduce((acc, s) => acc + s.total, 0);
 
   // Filter Monthly Sales
-  const filteredMonthlySales = sales.filter(s => s.created_at.startsWith(monthlyPeriod));
+  const filteredMonthlySales = sales.filter(s => {
+    const date = s.sale_date || s.created_at;
+    return date?.startsWith(monthlyPeriod);
+  });
   const monthlyTotalRevenue = filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
-
-  // Get items for a sale
-  const getSaleItems = (saleId: string) => {
-    return saleItems.filter(item => item.sale_id === saleId);
-  };
 
   // Toggle expanded sale
   const toggleExpanded = (saleId: string) => {
@@ -91,26 +101,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const todayStr = new Date().toISOString().split('T')[0];
   const expiringBatches = batches.filter(b => b.expiry_date <= todayStr && b.quantity_base > 0);
 
-  // Trigger Daily PDF Download
+  // ✅ FIXED: Trigger Daily PDF Download - matches PDF function signature
   const handleDownloadDailyPdf = () => {
     generateDailyReportPdf(
       pharmacy,
       dailyDate,
       filteredDailySales,
-      saleItems,
       movements,
       lowStockProducts,
       expiringBatches
     );
   };
 
-  // Trigger Monthly PDF Download
+  // ✅ FIXED: Trigger Monthly PDF Download - matches PDF function signature
   const handleDownloadMonthlyPdf = () => {
     generateMonthlyReportPdf(
       pharmacy,
       monthlyPeriod,
       filteredMonthlySales,
-      saleItems,
       batches,
       products
     );
@@ -122,7 +130,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setSelectedSaleForReturn(null);
   };
 
-  // ✅ FIXED: Theme-aware Skeleton Row for tables
+  // Skeleton Components
   const SkeletonRow = ({ cols = 6 }) => (
     <tr className="animate-pulse">
       {Array.from({ length: cols }).map((_, i) => (
@@ -133,7 +141,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </tr>
   );
 
-  // ✅ FIXED: Theme-aware Skeleton Stats Card
   const SkeletonStat = () => (
     <div className={`p-4 rounded-2xl animate-pulse ${cardBg}`}>
       <div className={`h-4 ${skeletonBg} rounded w-20 mb-2`}></div>
@@ -141,7 +148,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </div>
   );
 
-  // ✅ FIXED: Theme-aware Skeleton Table
   const SkeletonTable = ({ rows = 5, cols = 6 }) => (
     <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
       <div className={`p-4 ${borderLine}`}>
@@ -169,10 +175,153 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </div>
   );
 
+  // ✅ Render a sale row with product details from the sale record
+  const renderSaleRow = (sale: Sale) => {
+    const isExpanded = expandedSales.has(sale.id);
+    const productDetails = getSaleProductDetails(sale);
+
+    return (
+      <React.Fragment key={sale.id}>
+        {/* Main Sale Row */}
+        <tr
+          className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
+            }`}
+          onClick={() => toggleExpanded(sale.id)}
+        >
+          <td className="p-3">
+            {productDetails.productName && (
+              isExpanded ?
+                <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
+                <ChevronRight className="w-4 h-4 text-[#2ea043]" />
+            )}
+          </td>
+          <td className="p-3 font-mono font-bold text-[#2ea043]">#{sale.sale_number}</td>
+          <td className={`p-3 ${textMuted}`}>
+            {new Date(sale.sale_date || sale.created_at).toLocaleDateString()}
+            {new Date(sale.sale_date || sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </td>
+          <td className={`p-3 font-semibold ${textTitle}`}>{sale.customer_name || 'Guest'}</td>
+          <td className={`p-3 ${textMuted}`}>
+            <span className="font-medium">{productDetails.productName}</span>
+            <span className="text-[11px] text-[#2ea043] ml-1">(×{productDetails.quantity})</span>
+            {productDetails.batchNumber && (
+              <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded ${isDark ? 'bg-[#30363d]' : 'bg-slate-200'}`}>
+                Batch: {productDetails.batchNumber}
+              </span>
+            )}
+          </td>
+          <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {sale.total.toFixed(2)}</td>
+          <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Create a temporary sale items array from the sale record
+                const tempItems = [{
+                  id: sale.id,
+                  sale_id: sale.id,
+                  product_id: sale.product_id,
+                  product_name: sale.product_name,
+                  batch_id: sale.batch_id || null,
+                  batch_number: sale.batch_number || null,
+                  quantity: sale.quantity || 0,
+                  unit_id: null,
+                  unit_name: null,
+                  unit_price: sale.unit_price || 0,
+                  discount: 0,
+                  subtotal: sale.subtotal || 0,
+                  created_at: sale.created_at
+                }];
+                generateReceiptPdf(pharmacy, sale, tempItems, 'print');
+              }}
+              className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
+                }`}
+            >
+              Print
+            </button>
+            {onProcessReturn && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedSaleForReturn(sale);
+                }}
+                className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
+              >
+                Return
+              </button>
+            )}
+          </td>
+        </tr>
+
+        {/* Expanded Product Details Row */}
+        {isExpanded && productDetails.productName && (
+          <tr>
+            <td colSpan={7} className="p-0">
+              <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Product</p>
+                    <p className={`font-semibold ${textTitle}`}>{productDetails.productName}</p>
+                    {productDetails.productDetails?.generic_name && (
+                      <p className={`text-xs ${textMuted}`}>{productDetails.productDetails.generic_name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Quantity</p>
+                    <p className={`font-bold ${textTitle}`}>{productDetails.quantity}</p>
+                  </div>
+                  <div>
+                    <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Unit Price</p>
+                    <p className={`font-bold ${textTitle}`}>{currency} {productDetails.unitPrice.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Subtotal</p>
+                    <p className={`font-extrabold text-[#2ea043]`}>{currency} {productDetails.subtotal.toFixed(2)}</p>
+                  </div>
+                  {productDetails.batchNumber && (
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Batch</p>
+                      <p className={`text-xs font-mono ${textTitle}`}>{productDetails.batchNumber}</p>
+                    </div>
+                  )}
+                  {sale.discount > 0 && (
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Discount</p>
+                      <p className={`text-amber-500 font-bold`}>-{currency} {sale.discount.toFixed(2)}</p>
+                      {sale.discount_reason && (
+                        <p className={`text-xs ${textMuted}`}>{sale.discount_reason}</p>
+                      )}
+                    </div>
+                  )}
+                  {sale.payment_method && (
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Payment</p>
+                      <p className={`capitalize font-semibold ${textTitle}`}>{sale.payment_method}</p>
+                    </div>
+                  )}
+                  {sale.payment_reference && (
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Reference</p>
+                      <p className={`text-xs font-mono ${textMuted}`}>{sale.payment_reference}</p>
+                    </div>
+                  )}
+                  {sale.notes && (
+                    <div className="col-span-2">
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Notes</p>
+                      <p className={`text-xs ${textMuted}`}>{sale.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
+
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
-
-      {/* Header - REMOVED border */}
+      {/* Header */}
       <div className={`p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cardBg}`}>
         <div>
           <h2 className={`text-base font-extrabold flex items-center gap-2 ${textTitle}`}>
@@ -184,7 +333,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </p>
         </div>
 
-        {/* Subtabs - Larger touch targets */}
+        {/* Subtabs */}
         <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'
           }`}>
           <button
@@ -214,8 +363,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Daily Report View */}
       {activeReportTab === 'daily' && (
         <div className="space-y-4">
-
-          {/* Controls Bar - REMOVED border */}
+          {/* Controls Bar */}
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
@@ -237,10 +385,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </button>
           </div>
 
-          {/* Daily Stats Grid - REMOVED borders */}
+          {/* Daily Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {isLoading ? (
-              // Show skeleton stats
               <>
                 <SkeletonStat />
                 <SkeletonStat />
@@ -264,10 +411,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <div className={`p-4 rounded-2xl ${cardBg}`}>
                   <p className={`text-sm font-semibold ${textMuted}`}>Items Sold</p>
                   <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                    {filteredDailySales.reduce((acc, s) => {
-                      const items = getSaleItems(s.id);
-                      return acc + items.reduce((sum, item) => sum + item.quantity, 0);
-                    }, 0)}
+                    {filteredDailySales.reduce((acc, s) => acc + (s.quantity || 0), 0)}
                   </p>
                 </div>
                 <div className={`p-4 rounded-2xl ${cardBg}`}>
@@ -280,7 +424,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             )}
           </div>
 
-          {/* Daily Transactions with Items - REMOVED border */}
+          {/* Daily Transactions */}
           {isLoading ? (
             <SkeletonTable rows={5} cols={6} />
           ) : (
@@ -297,7 +441,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <th className="p-3">Receipt #</th>
                       <th className="p-3">Time</th>
                       <th className="p-3">Staff</th>
-                      <th className="p-3">Items</th>
+                      <th className="p-3">Item</th>
                       <th className="p-3">Total</th>
                     </tr>
                   </thead>
@@ -309,73 +453,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         </td>
                       </tr>
                     ) : (
-                      filteredDailySales.map(s => {
-                        const items = getSaleItems(s.id);
-                        const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
-                        const isExpanded = expandedSales.has(s.id);
-
-                        return (
-                          <React.Fragment key={s.id}>
-                            {/* Main Sale Row */}
-                            <tr
-                              className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
-                                }`}
-                              onClick={() => toggleExpanded(s.id)}
-                            >
-                              <td className="p-3">
-                                {items.length > 0 && (
-                                  isExpanded ?
-                                    <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
-                                    <ChevronRight className="w-4 h-4 text-[#2ea043]" />
-                                )}
-                              </td>
-                              <td className="p-3 font-mono font-bold text-[#2ea043]">#{s.sale_number}</td>
-                              <td className={`p-3 ${textMuted}`}>{new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                              <td className={`p-3 font-semibold ${textTitle}`}>{s.sold_by_name || 'Staff'}</td>
-                              <td className={`p-3 ${textMuted}`}>
-                                {items.map((item, idx) => (
-                                  <span key={idx} className="inline-block mr-1">
-                                    {item.product_name}
-                                    {idx < items.length - 1 && ', '}
-                                  </span>
-                                ))}
-                                <span className="text-[11px] text-[#2ea043] ml-1">({itemCount} units)</span>
-                              </td>
-                              <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {s.total.toFixed(2)}</td>
-                            </tr>
-
-                            {/* Expanded Items Row */}
-                            {isExpanded && items.length > 0 && (
-                              <tr>
-                                <td colSpan={6} className="p-0">
-                                  <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
-                                    <table className="w-full text-left text-sm">
-                                      <thead className={`text-[10px] uppercase font-bold ${textMuted}`}>
-                                        <tr>
-                                          <th className="p-2">Product</th>
-                                          <th className="p-2">Qty</th>
-                                          <th className="p-2">Price</th>
-                                          <th className="p-2">Subtotal</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {items.map((item, idx) => (
-                                          <tr key={idx} className={`${borderLine}`}>
-                                            <td className="p-2 font-medium">{item.product_name}</td>
-                                            <td className="p-2">{item.quantity}</td>
-                                            <td className="p-2">{currency} {item.unit_price.toFixed(2)}</td>
-                                            <td className="p-2 font-bold">{currency} {item.subtotal.toFixed(2)}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })
+                      filteredDailySales.map(s => renderSaleRow(s))
                     )}
                   </tbody>
                 </table>
@@ -383,7 +461,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           )}
 
-          {/* Low Stock Alert - REMOVED border */}
+          {/* Low Stock Alert */}
           {!isLoading && lowStockProducts.length > 0 && (
             <div className={`rounded-2xl p-4 ${isDark ? 'bg-amber-950/20' : 'bg-amber-50'}`}>
               <div className="flex items-center gap-2 text-amber-500">
@@ -407,7 +485,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* Monthly Audit View - REMOVED borders */}
+      {/* Monthly Audit View */}
       {activeReportTab === 'monthly' && (
         <div className="space-y-4">
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
@@ -459,19 +537,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </p>
                 </div>
                 <div className={`p-4 rounded-2xl ${cardBg}`}>
-                  <p className={`text-sm font-semibold ${textMuted}`}>Products Sold</p>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Total Items</p>
                   <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                    {saleItems.filter(item => {
-                      const sale = sales.find(s => s.id === item.sale_id);
-                      return sale && sale.created_at.startsWith(monthlyPeriod);
-                    }).reduce((acc, item) => acc + item.quantity, 0)}
+                    {filteredMonthlySales.reduce((acc, s) => acc + (s.quantity || 0), 0)}
                   </p>
                 </div>
               </>
             )}
           </div>
 
-          {/* Top Products - REMOVED border */}
+          {/* Top Products */}
           {isLoading ? (
             <SkeletonTable rows={5} cols={3} />
           ) : (
@@ -492,21 +567,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <tbody className={`divide-y ${borderLine}`}>
                     {(() => {
                       const productSales: Record<string, { quantity: number; revenue: number; name: string }> = {};
-                      saleItems.forEach(item => {
-                        const sale = sales.find(s => s.id === item.sale_id);
-                        if (sale && sale.created_at.startsWith(monthlyPeriod)) {
-                          if (!productSales[item.product_id]) {
-                            productSales[item.product_id] = {
-                              quantity: 0,
-                              revenue: 0,
-                              name: item.product_name || 'Unknown'
-                            };
-                          }
-                          productSales[item.product_id].quantity += item.quantity;
-                          productSales[item.product_id].revenue += item.subtotal;
+
+                      filteredMonthlySales.forEach(sale => {
+                        if (!sale.product_name) return;
+                        if (!productSales[sale.product_id]) {
+                          productSales[sale.product_id] = {
+                            quantity: 0,
+                            revenue: 0,
+                            name: sale.product_name
+                          };
                         }
+                        productSales[sale.product_id].quantity += (sale.quantity || 0);
+                        productSales[sale.product_id].revenue += (sale.subtotal || 0);
                       });
-                      const sorted = Object.values(productSales).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+
+                      const sorted = Object.values(productSales)
+                        .sort((a, b) => b.quantity - a.quantity)
+                        .slice(0, 10);
+
                       return sorted.length === 0 ? (
                         <tr>
                           <td colSpan={3} className={`p-8 text-center ${textMuted}`}>No sales data for this month.</td>
@@ -529,7 +607,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* Sales Log View - REMOVED border */}
+      {/* Sales Log View */}
       {activeReportTab === 'history' && (
         isLoading ? (
           <SkeletonTable rows={5} cols={7} />
@@ -544,7 +622,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     <th className="p-3">Receipt #</th>
                     <th className="p-3">Date</th>
                     <th className="p-3">Customer</th>
-                    <th className="p-3">Items</th>
+                    <th className="p-3">Item</th>
                     <th className="p-3">Total</th>
                     <th className="p-3 text-right">Actions</th>
                   </tr>
@@ -557,107 +635,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    sales.slice(0, 50).map(s => {
-                      const items = getSaleItems(s.id);
-                      const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
-                      const isExpanded = expandedSales.has(s.id);
-
-                      return (
-                        <React.Fragment key={s.id}>
-                          {/* Main Sale Row */}
-                          <tr
-                            className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
-                              }`}
-                            onClick={() => toggleExpanded(s.id)}
-                          >
-                            <td className="p-3">
-                              {items.length > 0 && (
-                                isExpanded ?
-                                  <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
-                                  <ChevronRight className="w-4 h-4 text-[#2ea043]" />
-                              )}
-                            </td>
-                            <td className="p-3 font-mono font-bold text-[#2ea043]">#{s.sale_number}</td>
-                            <td className={`p-3 ${textMuted}`}>
-                              {new Date(s.created_at).toLocaleDateString()} {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </td>
-                            <td className={`p-3 font-semibold ${textTitle}`}>{s.customer_name || 'Guest'}</td>
-                            <td className={`p-3 ${textMuted}`}>
-                              {items.slice(0, 3).map((item, idx) => (
-                                <span key={idx} className="inline-block mr-1">
-                                  {item.product_name}
-                                  {idx < Math.min(items.length, 3) - 1 && ', '}
-                                </span>
-                              ))}
-                              {items.length > 3 && <span className="text-[#2ea043]">+{items.length - 3} more</span>}
-                              <span className="text-[11px] text-[#2ea043] ml-1">({itemCount} units)</span>
-                            </td>
-                            <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {s.total.toFixed(2)}</td>
-                            <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  generateReceiptPdf(pharmacy, s, items, 'print');
-                                }}
-                                className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
-                                  }`}
-                              >
-                                Print
-                              </button>
-                              {onProcessReturn && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedSaleForReturn(s);
-                                  }}
-                                  className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
-                                >
-                                  Return
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-
-                          {/* Expanded Items Row */}
-                          {isExpanded && items.length > 0 && (
-                            <tr>
-                              <td colSpan={7} className="p-0">
-                                <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
-                                  <table className="w-full text-left text-sm">
-                                    <thead className={`text-[10px] uppercase font-bold ${textMuted}`}>
-                                      <tr>
-                                        <th className="p-2">#</th>
-                                        <th className="p-2">Product</th>
-                                        <th className="p-2">Qty</th>
-                                        <th className="p-2">Unit Price</th>
-                                        <th className="p-2">Subtotal</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {items.map((item, idx) => (
-                                        <tr key={idx} className={`${borderLine}`}>
-                                          <td className="p-2 text-muted">{idx + 1}</td>
-                                          <td className="p-2 font-medium">{item.product_name}</td>
-                                          <td className="p-2">{item.quantity}</td>
-                                          <td className="p-2">{currency} {item.unit_price.toFixed(2)}</td>
-                                          <td className="p-2 font-bold">{currency} {item.subtotal.toFixed(2)}</td>
-                                        </tr>
-                                      ))}
-                                      {/* Show totals row */}
-                                      <tr className={`${borderLine}`}>
-                                        <td colSpan={3}></td>
-                                        <td className="p-2 font-bold">Total:</td>
-                                        <td className="p-2 font-extrabold text-[#2ea043]">{currency} {s.total.toFixed(2)}</td>
-                                      </tr>
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })
+                    sales.slice(0, 50).map(s => renderSaleRow(s))
                   )}
                 </tbody>
               </table>
@@ -666,7 +644,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         )
       )}
 
-      {/* Return Modal - REMOVED border, full screen on mobile */}
+      {/* Return Modal */}
       {selectedSaleForReturn && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
@@ -674,7 +652,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               Process Sale Return #{selectedSaleForReturn.sale_number}
             </h3>
             <p className={`text-sm mb-3 ${textMuted}`}>
-              This will restore stock and log a return entry.
+              Return product: <strong>{selectedSaleForReturn.product_name}</strong> (×{selectedSaleForReturn.quantity})
             </p>
             <div className="space-y-3 text-sm">
               <div>

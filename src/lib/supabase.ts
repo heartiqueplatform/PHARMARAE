@@ -119,13 +119,13 @@ export async function queueOfflineMutation(
 
   const item: OfflineSyncItem = {
     sync_id: syncId,
-    pharmacy_name: normalizedName, // ✅ Use pharmacy_name, not pharmacy_id
+    pharmacy_name: normalizedName,
     user_id: userId,
     entity_type: entityType,
     operation,
     payload: {
       ...payload,
-      pharmacy_name: normalizedName // Ensure payload has normalized name
+      pharmacy_name: normalizedName
     },
     created_at: new Date().toISOString(),
     status: 'pending',
@@ -228,6 +228,7 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
 
 // =============================================
 // PULL FROM SUPABASE - ✅ NO AUTH CHECKS
+// ✅ UPDATED: Removed sale_items (single table design)
 // =============================================
 export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boolean> {
   const client = getSupabaseClient();
@@ -252,32 +253,24 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
   const normalizedName = normalizePharmacyName(pharmacyName);
   console.log(`🔄 Pulling ALL data from Supabase for pharmacy: ${normalizedName}`);
 
-  // ✅ NO AUTH CHECKS - just try to pull data
-  // ✅ NO USER PROFILE CHECK - just try to pull data
-
   try {
     // =============================================
     // 1. PULL PRODUCTS
     // =============================================
     console.log('📦 Pulling products...');
-
-    // First try with pharmacy_name filter
     let { data: remoteProducts, error: productsError } = await client
       .from('products')
       .select('*')
       .eq('pharmacy_name', normalizedName);
 
-    // If error, try without filter (RLS bypass)
     if (productsError) {
       console.warn('⚠️ Products query with filter failed, trying without filter:', productsError.message);
-
       const { data: allProducts, error: allError } = await client
         .from('products')
         .select('*')
         .limit(1000);
 
       if (!allError && allProducts && allProducts.length > 0) {
-        // Filter locally
         remoteProducts = allProducts.filter(p =>
           normalizePharmacyName(p.pharmacy_name) === normalizedName
         );
@@ -290,8 +283,6 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
 
     if (remoteProducts && remoteProducts.length > 0) {
       console.log(`📦 Pulled ${remoteProducts.length} products`);
-
-      // Clear existing products for this pharmacy
       const existingProducts = await db.products
         .where('pharmacy_name')
         .equals(normalizedName)
@@ -301,7 +292,6 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
         await db.products.delete(p.id);
       }
 
-      // Add new products
       for (const product of remoteProducts) {
         await db.products.put({
           ...product,
@@ -534,7 +524,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     }
 
     // =============================================
-    // 7. PULL SALES
+    // 7. PULL SALES - ✅ Single table design (all product details included)
     // =============================================
     console.log('📦 Pulling sales...');
     let { data: remoteSales, error: salesError } = await client
@@ -579,51 +569,12 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     }
 
     // =============================================
-    // 8. PULL SALE ITEMS
+    // ❌ REMOVED: 8. PULL SALE ITEMS - No longer needed
+    // All product details are now in the sales table
     // =============================================
-    console.log('📦 Pulling sale items...');
-    let { data: remoteSaleItems, error: saleItemsError } = await client
-      .from('sale_items')
-      .select('*')
-      .eq('pharmacy_name', normalizedName);
-
-    if (saleItemsError) {
-      console.warn('⚠️ Sale items query with filter failed, trying without filter');
-      const { data: allSaleItems } = await client
-        .from('sale_items')
-        .select('*')
-        .limit(1000);
-
-      if (allSaleItems && allSaleItems.length > 0) {
-        remoteSaleItems = allSaleItems.filter(si =>
-          normalizePharmacyName(si.pharmacy_name) === normalizedName
-        );
-      } else {
-        remoteSaleItems = [];
-      }
-    }
-
-    if (remoteSaleItems && remoteSaleItems.length > 0) {
-      console.log(`📦 Pulled ${remoteSaleItems.length} sale items`);
-      const existing = await db.sale_items
-        .where('pharmacy_name')
-        .equals(normalizedName)
-        .toArray();
-
-      for (const si of existing) {
-        await db.sale_items.delete(si.id);
-      }
-
-      for (const saleItem of remoteSaleItems) {
-        await db.sale_items.put({
-          ...saleItem,
-          pharmacy_name: normalizedName
-        });
-      }
-    }
 
     // =============================================
-    // 9. PULL STOCK MOVEMENTS
+    // 8. PULL STOCK MOVEMENTS (renumbered)
     // =============================================
     console.log('📦 Pulling stock movements...');
     let { data: remoteMovements, error: movementsError } = await client
@@ -668,7 +619,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     }
 
     // =============================================
-    // 10. PULL AUDIT LOGS
+    // 9. PULL AUDIT LOGS (renumbered)
     // =============================================
     console.log('📦 Pulling audit logs...');
     let { data: remoteAuditLogs, error: auditLogsError } = await client
@@ -713,7 +664,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     }
 
     // =============================================
-    // 11. PULL PROFILES (users)
+    // 10. PULL PROFILES (users) (renumbered)
     // =============================================
     console.log('📦 Pulling profiles...');
     let { data: remoteProfiles, error: profilesError } = await client
@@ -770,7 +721,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
 function mapEntityTypeToTable(entityType: string): string {
   switch (entityType) {
     case 'sale': return 'sales';
-    case 'sale_item': return 'sale_items';
+    case 'sale_item': return 'sale_items'; // Still kept for backward compatibility
     case 'product': return 'products';
     case 'batch': return 'product_batches';
     case 'purchase': return 'purchases';
@@ -800,7 +751,7 @@ export async function clearPharmacyData(pharmacyName: string): Promise<void> {
 
   const tables = [
     'products', 'product_batches', 'categories', 'units',
-    'suppliers', 'customers', 'sales', 'sale_items',
+    'suppliers', 'customers', 'sales', // ✅ Removed sale_items
     'stock_movements', 'audit_logs'
   ];
 

@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Pharmacy, Sale, SaleItem, Product, ProductBatch, StockMovement } from '../types';
+import { Pharmacy, Sale, Product, ProductBatch, StockMovement } from '../types';
 
 // Branding footer helper
 const addBrandingFooter = (doc: jsPDF, y?: number) => {
@@ -26,11 +26,12 @@ const addBrandingFooter = (doc: jsPDF, y?: number) => {
 
 /**
  * Generate Professional Sales Receipt PDF
+ * ✅ UPDATED: Uses single sale record (no sale_items array)
  */
 export function generateReceiptPdf(
   pharmacy: Pharmacy,
   sale: Sale,
-  saleItems: SaleItem[],
+  saleItems: any[], // Kept for backward compatibility, but we use sale directly
   action: 'download' | 'print' = 'download'
 ) {
   const doc = new jsPDF({
@@ -40,7 +41,7 @@ export function generateReceiptPdf(
 
   const currency = pharmacy.currency || 'KSh';
 
-  // Header - PHARMIENTA KENYA (properly positioned)
+  // Header - PHARMIENTA KENYA
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
 
@@ -51,15 +52,11 @@ export function generateReceiptPdf(
   const rWidth = doc.getTextWidth(rText);
   const startX = 40 - ((pWidth + rWidth) / 2);
 
-  // "PHARMA" in navy blue
   doc.setTextColor(0, 51, 102);
   doc.text(pText, startX, 6);
-
-  // "RAE" in crimson red
   doc.setTextColor(180, 0, 0);
   doc.text(rText, startX + pWidth, 6);
 
-  // Reset and add KENYA below
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(7);
   doc.text('KENYA', 40, 10, { align: 'center' });
@@ -102,7 +99,7 @@ export function generateReceiptPdf(
   doc.text(`RECEIPT #: ${sale.sale_number}`, 5, yPos);
   yPos += 4;
   doc.setFont('helvetica', 'normal');
-  doc.text(`Date: ${new Date(sale.created_at).toLocaleString()}`, 5, yPos);
+  doc.text(`Date: ${new Date(sale.sale_date || sale.created_at).toLocaleString()}`, 5, yPos);
   yPos += 4;
   doc.text(`Served By: ${sale.sold_by_name || 'Cashier'}`, 5, yPos);
   if (sale.customer_name) {
@@ -114,13 +111,18 @@ export function generateReceiptPdf(
   doc.line(5, yPos, 75, yPos);
   yPos += 5;
 
-  // Table Items
-  const tableRows = saleItems.map(item => [
-    `${item.product_name || 'Item'}`,
-    item.quantity.toString(),
-    `${currency} ${item.unit_price.toFixed(2)}`,
-    `${currency} ${item.subtotal.toFixed(2)}`
-  ]);
+  // ✅ Single Item from Sale (since we sell one item at a time)
+  const itemName = sale.product_name || 'Unknown Product';
+  const itemQty = sale.quantity || 1;
+  const itemPrice = sale.unit_price || 0;
+  const itemSubtotal = sale.subtotal || 0;
+
+  const tableRows = [[
+    itemName,
+    itemQty.toString(),
+    `${currency} ${itemPrice.toFixed(2)}`,
+    `${currency} ${itemSubtotal.toFixed(2)}`
+  ]];
 
   autoTable(doc, {
     startY: yPos,
@@ -160,10 +162,15 @@ export function generateReceiptPdf(
   ty += 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  const paymentMethod = sale.payments && sale.payments.length > 0
-    ? sale.payments[0].method
-    : 'cash';
+
+  const paymentMethod = sale.payment_method || 'cash';
   doc.text(`Payment Method: ${paymentMethod.toUpperCase()}`, 5, ty);
+
+  if (sale.payment_reference) {
+    ty += 4;
+    doc.text(`Ref: ${sale.payment_reference}`, 5, ty);
+  }
+
   // Footer
   ty += 6;
   doc.setLineWidth(0.2);
@@ -188,12 +195,12 @@ export function generateReceiptPdf(
 
 /**
  * Generate Professional Daily Report PDF
+ * ✅ UPDATED: Uses single sale record with product details directly
  */
 export function generateDailyReportPdf(
   pharmacy: Pharmacy,
   dateStr: string,
   sales: Sale[],
-  saleItems: SaleItem[],
   movements: StockMovement[],
   lowStockItems: Product[],
   expiringItems: ProductBatch[]
@@ -205,22 +212,17 @@ export function generateDailyReportPdf(
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
 
-  // "PHARMA" in navy blue
   const pTitle = 'PHARM';
   const rTitle = 'IENTA';
   const pTitleWidth = doc.getTextWidth(pTitle);
   const rTitleWidth = doc.getTextWidth(rTitle);
   const startXTitle = 105 - ((pTitleWidth + rTitleWidth) / 2);
 
-  // "PHARMA" in navy blue
   doc.setTextColor(0, 51, 102);
   doc.text(pTitle, startXTitle, 15);
-
-  // "IENTA" in crimson red
   doc.setTextColor(180, 0, 0);
   doc.text(rTitle, startXTitle + pTitleWidth, 15);
 
-  // Reset and add KENYA below
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(11);
   doc.text('KENYA', 105, 22, { align: 'center' });
@@ -242,10 +244,10 @@ export function generateDailyReportPdf(
   doc.setLineWidth(0.5);
   doc.line(14, 51, 196, 51);
 
-  // Summary Cards Data
+  // Summary Cards Data - ✅ Using sale fields directly
   const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
   const totalTransactions = sales.length;
-  const totalItemsSold = saleItems.reduce((sum, i) => sum + i.quantity, 0);
+  const totalItemsSold = sales.reduce((sum, s) => sum + (s.quantity || 0), 0);
   const totalDiscounts = sales.reduce((sum, s) => sum + (s.discount || 0), 0);
 
   doc.setFontSize(11);
@@ -259,18 +261,11 @@ export function generateDailyReportPdf(
   doc.text(`Total Drug Items Dispensed: ${totalItemsSold}`, 110, 66);
   doc.text(`Total Discount Granted: ${currency} ${totalDiscounts.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, 71);
 
-  // Payment Breakdown
-  // Payment Breakdown
+  // Payment Breakdown - ✅ Using sale.payment_method directly
   const paymentMethodTotals: Record<string, number> = {};
   sales.forEach(s => {
-    if (s.payments && s.payments.length > 0) {
-      s.payments.forEach(p => {
-        paymentMethodTotals[p.method] = (paymentMethodTotals[p.method] || 0) + p.amount;
-      });
-    } else {
-      // Fallback: if no payments recorded, use total as cash
-      paymentMethodTotals['cash'] = (paymentMethodTotals['cash'] || 0) + s.total;
-    }
+    const method = s.payment_method || 'cash';
+    paymentMethodTotals[method] = (paymentMethodTotals[method] || 0) + s.total;
   });
 
   const paymentRows = Object.entries(paymentMethodTotals).map(([method, val]) => [
@@ -290,7 +285,7 @@ export function generateDailyReportPdf(
 
   let nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // Detailed Transactions
+  // Detailed Transactions - ✅ Using sale fields directly
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Detailed Transactions & Items Sold', 14, nextY);
@@ -307,49 +302,45 @@ export function generateDailyReportPdf(
       nextY += 6;
     }
 
-    const items = saleItems.filter(item => item.sale_id === sale.id);
-    const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
-
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(14, 116, 144);
-    doc.text(`Receipt #${sale.sale_number} | ${new Date(sale.created_at).toLocaleTimeString()} | ${sale.sold_by_name || 'Cashier'} | ${currency} ${sale.total.toFixed(2)}`, 14, nextY);
+    doc.text(`Receipt #${sale.sale_number} | ${new Date(sale.sale_date || sale.created_at).toLocaleTimeString()} | ${sale.sold_by_name || 'Cashier'} | ${currency} ${sale.total.toFixed(2)}`, 14, nextY);
     doc.setTextColor(0, 0, 0);
     nextY += 4;
 
-    if (items.length > 0) {
-      const itemRows = items.map(item => [
-        item.product_name || 'Unknown',
-        item.quantity.toString(),
-        `${currency} ${item.unit_price.toFixed(2)}`,
-        `${currency} ${item.subtotal.toFixed(2)}`
-      ]);
+    // ✅ Single item from sale
+    const itemRows = [[
+      sale.product_name || 'Unknown',
+      (sale.quantity || 1).toString(),
+      `${currency} ${(sale.unit_price || 0).toFixed(2)}`,
+      `${currency} ${(sale.subtotal || 0).toFixed(2)}`
+    ]];
 
-      autoTable(doc, {
-        startY: nextY,
-        head: [['Product', 'Qty', 'Unit Price', 'Subtotal']],
-        body: itemRows,
-        theme: 'plain',
-        styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
-        columnStyles: {
-          0: { cellWidth: 70 },
-          1: { cellWidth: 20, halign: 'center' },
-          2: { cellWidth: 30, halign: 'right' },
-          3: { cellWidth: 30, halign: 'right' }
-        },
-        margin: { left: 18, right: 14 }
-      });
+    autoTable(doc, {
+      startY: nextY,
+      head: [['Product', 'Qty', 'Unit Price', 'Subtotal']],
+      body: itemRows,
+      theme: 'plain',
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 20, halign: 'center' },
+        2: { cellWidth: 30, halign: 'right' },
+        3: { cellWidth: 30, halign: 'right' }
+      },
+      margin: { left: 18, right: 14 }
+    });
 
-      nextY = (doc as any).lastAutoTable.finalY + 2;
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Total items: ${itemCount} units`, 18, nextY);
-      nextY += 4;
-      doc.setLineWidth(0.1);
-      doc.line(18, nextY, 190, nextY);
-      nextY += 3;
-    }
+    nextY = (doc as any).lastAutoTable.finalY + 2;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Total items: ${sale.quantity || 0} units`, 18, nextY);
+    nextY += 4;
+    doc.setLineWidth(0.1);
+    doc.line(18, nextY, 190, nextY);
+    nextY += 3;
   }
 
   nextY += 4;
@@ -417,12 +408,12 @@ export function generateDailyReportPdf(
 
 /**
  * Generate Professional Monthly Audit Report PDF
+ * ✅ UPDATED: Uses single sale record with product details directly
  */
 export function generateMonthlyReportPdf(
   pharmacy: Pharmacy,
   monthYearStr: string,
   monthlySales: Sale[],
-  monthlyItems: SaleItem[],
   batches: ProductBatch[],
   products: Product[]
 ) {
@@ -433,22 +424,17 @@ export function generateMonthlyReportPdf(
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
 
-  // "PHARMA" in navy blue
   const pMonth = 'PHARM';
   const rMonth = 'IENTA';
   const pMonthWidth = doc.getTextWidth(pMonth);
   const rMonthWidth = doc.getTextWidth(rMonth);
   const startXMonth = 105 - ((pMonthWidth + rMonthWidth) / 2);
 
-  // "PHARMA" in navy blue
   doc.setTextColor(0, 51, 102);
   doc.text(pMonth, startXMonth, 15);
-
-  // "IENTA" in crimson red
   doc.setTextColor(180, 0, 0);
   doc.text(rMonth, startXMonth + pMonthWidth, 15);
 
-  // Reset and add KENYA below
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(11);
   doc.text('KENYA', 105, 22, { align: 'center' });
@@ -469,7 +455,7 @@ export function generateMonthlyReportPdf(
   doc.setLineWidth(0.5);
   doc.line(14, 46, 196, 46);
 
-  // Financial Metrics
+  // Financial Metrics - ✅ Using sale fields directly
   const totalRevenue = monthlySales.reduce((sum, s) => sum + s.total, 0);
   const avgSale = monthlySales.length > 0 ? totalRevenue / monthlySales.length : 0;
 
@@ -501,33 +487,22 @@ export function generateMonthlyReportPdf(
 
   let nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // ============================================
-  // ADD THIS: Payment Method Breakdown Section
-  // ============================================
+  // Payment Method Breakdown - ✅ Using sale.payment_method directly
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Payment Method Breakdown', 14, nextY);
 
-  // Calculate totals by payment method
-  // Calculate totals by payment method
   const monthlyPaymentTotals: Record<string, number> = {};
   monthlySales.forEach(s => {
-    if (s.payments && s.payments.length > 0) {
-      s.payments.forEach(p => {
-        monthlyPaymentTotals[p.method] = (monthlyPaymentTotals[p.method] || 0) + p.amount;
-      });
-    } else {
-      // Fallback: if no payments recorded, use total as cash
-      monthlyPaymentTotals['cash'] = (monthlyPaymentTotals['cash'] || 0) + s.total;
-    }
+    const method = s.payment_method || 'cash';
+    monthlyPaymentTotals[method] = (monthlyPaymentTotals[method] || 0) + s.total;
   });
-  // Format rows for the table
+
   const monthlyPaymentRows = Object.entries(monthlyPaymentTotals).map(([method, val]) => [
     method.toUpperCase(),
     `${currency} ${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   ]);
 
-  // Add payment breakdown table
   autoTable(doc, {
     startY: nextY + 4,
     head: [['Payment Method', 'Amount']],
@@ -538,21 +513,25 @@ export function generateMonthlyReportPdf(
     margin: { left: 14, right: 14 }
   });
 
-  // Update nextY for the next section
   nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // Top Selling Products
+  // Top Selling Products - ✅ Using sale fields directly
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Top Moving Medicines & Products', 14, nextY);
 
   const productQtyMap: Record<string, { name: string; qty: number; revenue: number }> = {};
-  monthlyItems.forEach(item => {
-    if (!productQtyMap[item.product_id]) {
-      productQtyMap[item.product_id] = { name: item.product_name || 'Drug', qty: 0, revenue: 0 };
+  monthlySales.forEach(sale => {
+    if (!sale.product_id) return;
+    if (!productQtyMap[sale.product_id]) {
+      productQtyMap[sale.product_id] = {
+        name: sale.product_name || 'Drug',
+        qty: 0,
+        revenue: 0
+      };
     }
-    productQtyMap[item.product_id].qty += item.quantity;
-    productQtyMap[item.product_id].revenue += item.subtotal;
+    productQtyMap[sale.product_id].qty += (sale.quantity || 0);
+    productQtyMap[sale.product_id].revenue += (sale.subtotal || 0);
   });
 
   const topProducts = Object.values(productQtyMap)
@@ -586,7 +565,7 @@ export function generateMonthlyReportPdf(
 
   const dailyTotals: Record<string, { count: number; revenue: number }> = {};
   monthlySales.forEach(s => {
-    const day = s.created_at.substring(0, 10);
+    const day = (s.sale_date || s.created_at).substring(0, 10);
     if (!dailyTotals[day]) {
       dailyTotals[day] = { count: 0, revenue: 0 };
     }

@@ -53,8 +53,6 @@ export interface PharmacySettings {
 // =============================================
 // PROFILE (Single Table - Contains Everything)
 // =============================================
-// src/types.ts
-
 export interface Profile {
   id: string;
   auth_user_id?: string | null; // Link to Supabase Auth user
@@ -90,12 +88,13 @@ export interface Profile {
   created_at: string;
   updated_at: string;
 }
+
 // =============================================
 // INVENTORY - CATEGORIES & UNITS
 // =============================================
 export interface Category {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   name: string;
   description?: string;
   active: boolean;
@@ -104,7 +103,7 @@ export interface Category {
 
 export interface Unit {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   name: string;
   abbreviation: string;
   is_base_unit: boolean;
@@ -128,7 +127,7 @@ export interface ProductUnit {
 
 export interface Product {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   category_id?: string;
   category_name?: string;
   name: string;
@@ -158,7 +157,7 @@ export interface Product {
 
 export interface ProductBatch {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   product_id: string;
   supplier_id?: string;
   batch_number: string;
@@ -179,7 +178,7 @@ export interface ProductBatch {
 // =============================================
 export interface Supplier {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   name: string;
   contact_person?: string;
   phone: string;
@@ -193,7 +192,7 @@ export interface Supplier {
 
 export interface Purchase {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   supplier_id: string;
   supplier_name?: string;
   purchase_number: string;
@@ -226,11 +225,11 @@ export interface PurchaseItem {
 }
 
 // =============================================
-// CUSTOMERS & SALES
+// CUSTOMERS & SALES (UPDATED - Single Table Design)
 // =============================================
 export interface Customer {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   name: string;
   phone?: string;
   email?: string;
@@ -240,27 +239,78 @@ export interface Customer {
   updated_at: string;
 }
 
+/**
+ * SALE - Single Table Design
+ * Since we sell ONE item at a time, all product details are stored directly
+ * in the sales table. No separate sale_items table needed.
+ */
 export interface Sale {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   sale_number: string;
+
+  // Customer Information
   customer_id?: string;
   customer_name?: string;
+
+  // Staff Information
   sold_by?: string;
   sold_by_name?: string;
+
+  // ✅ PRODUCT DETAILS (Single Item per Sale)
+  product_id: string;
+  product_name: string;
+  product_barcode?: string;
+  product_sku?: string;
+  quantity: number;
+  unit_price: number;
   subtotal: number;
+
+  // Batch Information (Optional)
+  batch_id?: string;
+  batch_number?: string;
+
+  // Financial Details
   discount: number;
+  discount_reason?: string;
   tax: number;
   total: number;
+
+  // Payment Details
+  payment_method?: PaymentMethod;
   payment_status: PaymentStatus;
-  status: 'completed' | 'returned' | 'voided';
+  payment_reference?: string;
+
+  // Sale Status
+  status: 'completed' | 'returned' | 'voided' | 'pending';
+
+  // ✅ Extra Product Metadata (Stored as JSON)
+  product_details?: {
+    generic_name?: string;
+    brand?: string;
+    form?: string;
+    strength?: string;
+    category?: string;
+    category_id?: string;
+    manufacturer?: string;
+    prescription_required?: boolean;
+    is_controlled?: boolean;
+    selling_price?: number;
+    cost_price?: number;
+    unit?: string;
+  };
+
+  // Additional Info
+  notes?: string;
   offline_id?: string;
+  sale_date: string;
   created_at: string;
   updated_at: string;
-  items?: SaleItem[];
-  payments?: Payment[];
 }
 
+// ⚠️ DEPRECATED - SaleItem is no longer used
+// We now store everything in the Sale table directly
+// Keeping this for backward compatibility only
 export interface SaleItem {
   id: string;
   sale_id: string;
@@ -278,11 +328,11 @@ export interface SaleItem {
 }
 
 // =============================================
-// PAYMENTS
+// PAYMENTS (Now Optional - Can use sale.payment_method)
 // =============================================
 export interface Payment {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   sale_id: string;
   method: PaymentMethod;
   amount: number;
@@ -296,7 +346,7 @@ export interface Payment {
 // =============================================
 export interface StockMovement {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   product_id: string;
   product_name?: string;
   batch_id?: string;
@@ -313,7 +363,7 @@ export interface StockMovement {
 
 export interface Stocktake {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   started_by: string;
   started_by_name?: string;
   status: 'in_progress' | 'completed' | 'cancelled';
@@ -341,7 +391,7 @@ export interface StocktakeItem {
 // =============================================
 export interface SaleReturn {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   sale_id?: string;
   sale_number?: string;
   processed_by?: string;
@@ -368,7 +418,7 @@ export interface SaleReturnItem {
 // =============================================
 export interface Discount {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   sale_id: string;
   approved_by?: string;
   approved_by_name?: string;
@@ -383,7 +433,7 @@ export interface Discount {
 // =============================================
 export interface AuditLog {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   user_id?: string;
   user_name?: string;
   action: string;
@@ -397,7 +447,7 @@ export interface AuditLog {
 
 export interface Notification {
   id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   user_id: string;
   type: string;
   title: string;
@@ -412,7 +462,7 @@ export interface Notification {
 export interface OfflineSyncItem {
   id?: number;
   sync_id: string;
-  pharmacy_name: string; // Changed from pharmacy_id
+  pharmacy_name: string;
   user_id: string;
   entity_type: 'profile' | 'product' | 'batch' | 'purchase' | 'purchase_item' | 'sale' | 'sale_item' | 'payment' | 'customer' | 'supplier' | 'category' | 'unit' | 'stock_movement' | 'return' | 'return_item' | 'discount' | 'audit_log' | 'notification';
   operation: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -474,7 +524,7 @@ export interface RegisterFormData {
   pharmacyName: string;
   fullName: string;
   email: string;
-  password: string; // Made required
+  password: string;
   phone?: string;
   pinCode: string;
   role: UserRole;
@@ -536,9 +586,14 @@ export interface ProductSearchParams extends SearchParams {
 
 export interface SaleSearchParams extends SearchParams {
   customer_id?: string;
+  customer_name?: string;
+  product_id?: string;
+  product_name?: string;
   date_from?: string;
   date_to?: string;
   status?: string;
+  payment_method?: string;
+  payment_status?: string;
 }
 
 export interface UserSearchParams extends SearchParams {
@@ -547,15 +602,22 @@ export interface UserSearchParams extends SearchParams {
 }
 
 // =============================================
-// REPORT TYPES
+// REPORT TYPES (UPDATED for Single Table Sales)
 // =============================================
 export interface SalesReport {
   period: string;
   totalSales: number;
   totalTransactions: number;
   averageTicket: number;
-  topProducts: { name: string; quantity: number; revenue: number }[];
+  topProducts: {
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    revenue: number;
+    total_sales: number;
+  }[];
   paymentMethods: { method: PaymentMethod; count: number; amount: number }[];
+  dailySales: { date: string; count: number; total: number }[];
 }
 
 export interface StockReport {

@@ -13,7 +13,6 @@ import {
   PurchaseItem,
   Customer,
   Sale,
-  SaleItem,
   StockMovement,
   Stocktake,
   StocktakeItem,
@@ -39,8 +38,7 @@ export class MedPDatabase extends Dexie {
   purchases!: Table<Purchase, string>;
   purchase_items!: Table<PurchaseItem, string>;
   customers!: Table<Customer, string>;
-  sales!: Table<Sale, string>;
-  sale_items!: Table<SaleItem, string>;
+  sales!: Table<Sale, string>;  // ✅ Now contains ALL product details (single table design)
   payments!: Table<Payment, string>;
   stock_movements!: Table<StockMovement, string>;
   stocktakes!: Table<Stocktake, string>;
@@ -71,7 +69,7 @@ export class MedPDatabase extends Dexie {
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_id, name, phone, created_at',
       sales: 'id, pharmacy_id, sale_number, customer_id, status, created_at',
-      sale_items: 'id, sale_id, product_id, batch_id',
+      sale_items: 'id, sale_id, product_id, pharmacy_name, batch_id',
       payments: 'id, pharmacy_id, sale_id, method, status',
       stock_movements: 'id, pharmacy_id, product_id, batch_id, movement_type, created_at',
       stocktakes: 'id, pharmacy_id, status, started_at',
@@ -100,7 +98,7 @@ export class MedPDatabase extends Dexie {
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_name, name, phone, created_at',
       sales: 'id, pharmacy_name, sale_number, customer_id, status, created_at',
-      sale_items: 'id, sale_id, product_id, batch_id',
+      sale_items: 'id, sale_id, product_id, pharmacy_name, batch_id',
       payments: 'id, pharmacy_name, sale_id, method, status',
       stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
       stocktakes: 'id, pharmacy_name, status, started_at',
@@ -176,7 +174,7 @@ export class MedPDatabase extends Dexie {
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_name, name, phone, created_at',
       sales: 'id, pharmacy_name, sale_number, customer_id, status, created_at',
-      sale_items: 'id, sale_id, product_id, batch_id',
+      sale_items: 'id, sale_id, product_id, pharmacy_name, batch_id',
       payments: 'id, pharmacy_name, sale_id, method, status',
       stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
       stocktakes: 'id, pharmacy_name, status, started_at',
@@ -254,7 +252,7 @@ export class MedPDatabase extends Dexie {
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_name, name, phone, created_at',
       sales: 'id, pharmacy_name, sale_number, customer_id, status, created_at',
-      sale_items: 'id, sale_id, product_id, batch_id',
+      sale_items: 'id, sale_id, product_id, pharmacy_name, batch_id',
       payments: 'id, pharmacy_name, sale_id, method, status',
       stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
       stocktakes: 'id, pharmacy_name, status, started_at',
@@ -326,7 +324,7 @@ export class MedPDatabase extends Dexie {
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_name, name, phone, created_at',
       sales: 'id, pharmacy_name, sale_number, customer_id, status, created_at',
-      sale_items: 'id, sale_id, product_id, batch_id',
+      sale_items: 'id, sale_id, product_id, pharmacy_name, batch_id',
       payments: 'id, pharmacy_name, sale_id, method, status',
       stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
       stocktakes: 'id, pharmacy_name, status, started_at',
@@ -393,6 +391,126 @@ export class MedPDatabase extends Dexie {
         throw error;
       }
     });
+
+    // =============================================
+    // VERSION 6: 🚀 SINGLE TABLE DESIGN - Remove sale_items table
+    // All product details now stored directly in sales table
+    // =============================================
+    this.version(6).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
+      categories: 'id, pharmacy_name, name, active',
+      units: 'id, pharmacy_name, name, abbreviation',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at',
+      // ✅ UPDATED sales table with all product details
+      sales: 'id, pharmacy_name, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at',
+      // ❌ REMOVED sale_items table - no longer needed
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
+    }).upgrade(async (tx) => {
+      console.log('🔄 Migrating to version 6 - Single Table Design...');
+      console.log('⚠️ WARNING: This migration removes the sale_items table!');
+      console.log('⚠️ All product details will be stored directly in the sales table.');
+
+      try {
+        // 1. Check if sale_items table exists and has data
+        const saleItems = await tx.table('sale_items').toArray();
+        console.log(`📊 Found ${saleItems.length} sale_items records to migrate`);
+
+        if (saleItems.length > 0) {
+          console.log('🔄 Migrating sale_items data into sales table...');
+
+          // Group sale_items by sale_id
+          const itemsBySale: { [saleId: string]: any[] } = {};
+          for (const item of saleItems) {
+            if (!itemsBySale[item.sale_id]) {
+              itemsBySale[item.sale_id] = [];
+            }
+            itemsBySale[item.sale_id].push(item);
+          }
+
+          console.log(`📊 Found ${Object.keys(itemsBySale).length} sales with items`);
+
+          // For each sale, update the sale record with product details
+          for (const [saleId, items] of Object.entries(itemsBySale)) {
+            // Get the sale record
+            const sale = await tx.table('sales').get(saleId);
+            if (!sale) {
+              console.warn(`⚠️ Sale ${saleId} not found, skipping`);
+              continue;
+            }
+
+            // Since we sell ONE item at a time, take the first item
+            const item = items[0];
+            if (!item) continue;
+
+            // ✅ Update sale with product details
+            const updatedSale = {
+              ...sale,
+              product_id: item.product_id,
+              product_name: item.product_name || 'Unknown Product',
+              product_barcode: item.barcode || null,
+              product_sku: null,
+              quantity: item.quantity || 1,
+              unit_price: item.unit_price || 0,
+              subtotal: item.subtotal || 0,
+              batch_id: item.batch_id || null,
+              batch_number: item.batch_number || null,
+              // Preserve existing fields
+              customer_name: sale.customer_name || 'Cash Customer',
+              payment_method: sale.payment_method || 'cash',
+              payment_status: sale.payment_status || 'paid',
+              status: sale.status || 'completed',
+              // Update timestamp
+              updated_at: new Date().toISOString()
+            };
+
+            await tx.table('sales').put(updatedSale);
+            console.log(`✅ Migrated sale ${sale.sale_number} with product: ${item.product_name}`);
+          }
+        }
+
+        // 2. Drop the sale_items table
+        console.log('🗑️ Dropping sale_items table...');
+        // Dexie doesn't have a direct drop table, but we can clear it
+        await tx.table('sale_items').clear();
+        console.log('✅ sale_items table cleared');
+
+        // 3. Clean up any sale_items references in sync_queue
+        const syncItems = await tx.table('sync_queue')
+          .where('entity_type')
+          .equals('sale_item')
+          .toArray();
+
+        if (syncItems.length > 0) {
+          console.log(`🧹 Cleaning up ${syncItems.length} sale_item sync_queue entries`);
+          for (const item of syncItems) {
+            await tx.table('sync_queue').delete(item.id);
+          }
+          console.log('✅ Cleaned up sale_item sync_queue entries');
+        }
+
+        console.log('✅ Version 6 migration complete!');
+        console.log('📊 Sales table now contains ALL product details (single table design)');
+        console.log('💡 To query sales with product details, simply query the sales table directly.');
+
+      } catch (error) {
+        console.error('❌ Error during version 6 migration:', error);
+        throw error;
+      }
+    });
   }
 
   // Helper method to clear all data
@@ -410,7 +528,7 @@ export class MedPDatabase extends Dexie {
     await this.purchase_items.clear();
     await this.customers.clear();
     await this.sales.clear();
-    await this.sale_items.clear();
+    // sale_items removed in version 6
     await this.payments.clear();
     await this.stock_movements.clear();
     await this.stocktakes.clear();
@@ -433,7 +551,7 @@ export class MedPDatabase extends Dexie {
 
     const tables = [
       'products', 'product_batches', 'categories', 'units',
-      'suppliers', 'customers', 'sales', 'sale_items',
+      'suppliers', 'customers', 'sales', // sale_items removed
       'stock_movements', 'audit_logs', 'sync_queue'
     ];
 
@@ -462,8 +580,8 @@ export const db = new MedPDatabase();
 // Utility for initializing database schema
 export async function seedInitialDataIfNeeded() {
   try {
-    if (localStorage.getItem('medp_schema_v5_clean') !== 'true') {
-      console.log('🧹 Running schema cleanup v5...');
+    if (localStorage.getItem('medp_schema_v6_clean') !== 'true') {
+      console.log('🧹 Running schema cleanup v6 (Single Table Design)...');
 
       const profiles = await db.profiles.toArray();
 
@@ -522,8 +640,10 @@ export async function seedInitialDataIfNeeded() {
         }
       }
 
-      localStorage.setItem('medp_schema_v5_clean', 'true');
+      // Mark schema as clean
+      localStorage.setItem('medp_schema_v6_clean', 'true');
       console.log('✅ Database cleanup complete!');
+      console.log('📊 Using SINGLE TABLE design for sales (all product details in sales table)');
     }
   } catch (err) {
     console.warn('Error during schema initialization:', err);

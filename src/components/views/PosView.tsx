@@ -57,7 +57,6 @@ export const PosView: React.FC<PosViewProps> = ({
   const cartItemBorder = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const selectBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-white text-[#1f2328]';
 
-  // ✅ Theme-aware skeleton colors - FIXED
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
   const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
@@ -174,9 +173,11 @@ export const PosView: React.FC<PosViewProps> = ({
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.subtotal, 0), [cart]);
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
+  // ✅ UPDATED: Complete sale with ALL product details for single table design
   const handleCheckout = async () => {
     if (cart.length === 0 || isSubmitting) return;
 
+    // Validate stock
     for (const item of cart) {
       const availableQty = getAvailableQuantity(item.product);
       if (item.quantity > availableQty) {
@@ -187,25 +188,80 @@ export const PosView: React.FC<PosViewProps> = ({
 
     setIsSubmitting(true);
     try {
+      // ✅ Since we sell ONE item at a time, get the first (and only) item
+      const item = cart[0];
+
+      // ✅ Build complete sale data with ALL product details
       const saleData: Partial<Sale> = {
-        customer_id: selectedCustomer?.id,
-        customer_name: selectedCustomer?.name,
-        sold_by: currentProfile?.id,
-        sold_by_name: currentProfile?.full_name,
-        subtotal,
+        // Customer info
+        customer_id: selectedCustomer?.id || null,
+        customer_name: selectedCustomer?.name || 'Cash Customer',
+
+        // Staff info
+        sold_by: currentProfile?.id || null,
+        sold_by_name: currentProfile?.full_name || 'System User',
+
+        // ✅ PRODUCT DETAILS (Single Item - stored directly in sales table)
+        product_id: item.product.id,
+        product_name: item.product.name,
+        product_barcode: item.product.barcode || null,
+        product_sku: item.product.sku || null,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        subtotal: item.subtotal,
+
+        // Batch info
+        batch_id: item.batch?.id || null,
+        batch_number: item.batch?.batch_number || null,
+
+        // Financials
         discount: discountAmount,
+        discount_reason: discountReason || null,
         tax: 0,
         total: finalTotal,
+
+        // Payment
+        payment_method: paymentMethod,
         payment_status: 'paid',
-        status: 'completed'
+        payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+
+        // Status
+        status: 'completed',
+
+        // ✅ Extra product details as JSON (for historical reference)
+        product_details: {
+          generic_name: item.product.generic_name || null,
+          brand: item.product.brand || null,
+          form: item.product.form || null,
+          strength: item.product.strength || null,
+          category: item.product.category_name || null,
+          category_id: item.product.category_id || null,
+          manufacturer: item.product.manufacturer || null,
+          prescription_required: item.product.prescription_required || false,
+          is_controlled: item.product.is_controlled || false,
+          selling_price: item.product.selling_price,
+          cost_price: item.product.default_cost_price || 0,
+          unit: item.product.base_unit_name || null,
+        },
+
+        // Additional info
+        notes: `Sale of ${item.product.name} x${item.quantity}`,
+        sale_date: new Date().toISOString(),
+        pharmacy_name: pharmacyName || 'Unknown Pharmacy'
       };
 
+      console.log('🟢 Completing sale with product details:', saleData);
+
+      // ✅ Send to parent to save to database
       await onCompleteSale(saleData, cart);
 
+      // ✅ Clear cart after successful sale
       setCart([]);
       setDiscountAmount(0);
       setDiscountReason('');
       setSelectedCustomer(null);
+      setPaymentMethod('cash');
+
     } catch (err: any) {
       alert('Error completing sale: ' + (err.message || err));
     } finally {
@@ -213,7 +269,7 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   };
 
-  // ✅ FIXED: Theme-aware Skeleton Product Card
+  // Skeleton Product Card
   const SkeletonCard = () => (
     <div className={`p-4 rounded-2xl animate-pulse ${cardBg}`}>
       <div className="space-y-2">
@@ -228,7 +284,7 @@ export const PosView: React.FC<PosViewProps> = ({
     </div>
   );
 
-  // ✅ FIXED: Theme-aware Skeleton Cart Item
+  // Skeleton Cart Item
   const SkeletonCartItem = () => (
     <div className={`${cartItemBg} rounded-xl p-3 animate-pulse`}>
       <div className="flex items-start justify-between">
@@ -319,7 +375,6 @@ export const PosView: React.FC<PosViewProps> = ({
         {/* Product Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[550px] overflow-y-auto pr-1">
           {isLoading ? (
-            // Show 6 skeleton loaders
             <>
               <SkeletonCard />
               <SkeletonCard />
