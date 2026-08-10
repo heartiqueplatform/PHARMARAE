@@ -31,9 +31,9 @@ import { PrivacyPolicyView } from '@/components/views/PrivacyPolicyView';
 import { TermsConditionsView } from '@/components/views/TermsConditionsView';
 
 const APP_VERSION = '1.0.0';
-const APP_NAME = 'PHARMARAE KENYA';
-const VERSION_KEY = 'pharmarae_app_version';
-const LAST_UPDATE_CHECK = 'pharmarae_last_update_check';
+const APP_NAME = 'PHARMIENTA KENYA';
+const VERSION_KEY = 'PHARMIENTA_app_version';
+const LAST_UPDATE_CHECK = 'PHARMIENTA_last_update_check';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('home');

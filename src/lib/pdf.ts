@@ -40,13 +40,13 @@ export function generateReceiptPdf(
 
   const currency = pharmacy.currency || 'KSh';
 
-  // Header - PHARMARAE KENYA (properly positioned)
+  // Header - PHARMIENTA KENYA (properly positioned)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
 
   // "PHARMA" in navy blue
-  const pText = 'PHARMA';
-  const rText = 'RAE';
+  const pText = 'PHARM';
+  const rText = 'IENTA';
   const pWidth = doc.getTextWidth(pText);
   const rWidth = doc.getTextWidth(rText);
   const startX = 40 - ((pWidth + rWidth) / 2);
@@ -67,7 +67,7 @@ export function generateReceiptPdf(
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(5);
   doc.setTextColor(80, 80, 80);
-  doc.text('Precision in Every Prescription', 40, 14, { align: 'center' });
+  doc.text('Oriented To Care ', 40, 14, { align: 'center' });
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'normal');
 
@@ -201,13 +201,13 @@ export function generateDailyReportPdf(
   const doc = new jsPDF();
   const currency = pharmacy.currency || 'KSh';
 
-  // Title & Header - PHARMARAE together
+  // Title & Header - PHARMIENTA together
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
 
   // "PHARMA" in navy blue
-  const pTitle = 'PHARMA';
-  const rTitle = 'RAE';
+  const pTitle = 'PHARM';
+  const rTitle = 'IENTA';
   const pTitleWidth = doc.getTextWidth(pTitle);
   const rTitleWidth = doc.getTextWidth(rTitle);
   const startXTitle = 105 - ((pTitleWidth + rTitleWidth) / 2);
@@ -216,7 +216,7 @@ export function generateDailyReportPdf(
   doc.setTextColor(0, 51, 102);
   doc.text(pTitle, startXTitle, 15);
 
-  // "RAE" in crimson red
+  // "IENTA" in crimson red
   doc.setTextColor(180, 0, 0);
   doc.text(rTitle, startXTitle + pTitleWidth, 15);
 
@@ -228,7 +228,7 @@ export function generateDailyReportPdf(
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text('Precision in Every Prescription', 105, 28, { align: 'center' });
+  doc.text('Oriented To Care ', 105, 28, { align: 'center' });
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
@@ -429,13 +429,13 @@ export function generateMonthlyReportPdf(
   const doc = new jsPDF();
   const currency = pharmacy.currency || 'KSh';
 
-  // Title - PHARMARAE together
+  // Title - PHARMIENTA together
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
 
   // "PHARMA" in navy blue
-  const pMonth = 'PHARMA';
-  const rMonth = 'RAE';
+  const pMonth = 'PHARM';
+  const rMonth = 'IENTA';
   const pMonthWidth = doc.getTextWidth(pMonth);
   const rMonthWidth = doc.getTextWidth(rMonth);
   const startXMonth = 105 - ((pMonthWidth + rMonthWidth) / 2);
@@ -444,7 +444,7 @@ export function generateMonthlyReportPdf(
   doc.setTextColor(0, 51, 102);
   doc.text(pMonth, startXMonth, 15);
 
-  // "RAE" in crimson red
+  // "IENTA" in crimson red
   doc.setTextColor(180, 0, 0);
   doc.text(rMonth, startXMonth + pMonthWidth, 15);
 
@@ -456,7 +456,7 @@ export function generateMonthlyReportPdf(
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text('Precision in Every Prescription', 105, 28, { align: 'center' });
+  doc.text('Oriented To Care ', 105, 28, { align: 'center' });
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);

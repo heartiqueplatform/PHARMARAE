@@ -123,21 +123,21 @@ export const Navigation: React.FC<NavigationProps> = ({
           }`}>
           <img
             src="/pwa-192x192.png"
-            alt="PHARMARAE KENYA"
+            alt="PHARMIENTA KENYA"
             className="w-9 h-9 rounded-xl flex-shrink-0 object-cover border border-[#2ea043]/30"
           />
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 truncate">
             <div className="flex items-center gap-1.5">
               <h1 className="font-extrabold text-sm tracking-tight truncate">
-                <span style={{ color: '#003366' }}>PHARMA</span>
-                <span style={{ color: '#B30000' }}>RAE</span>
+                <span style={{ color: '#003366' }}>PHARM</span>
+                <span style={{ color: '#B30000' }}>IENTA</span>
               </h1>
               <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
                 PRO
               </span>
             </div>
             <p className={`text-[11px] truncate ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-              Precision in Every Prescription
+              Oriented To Care
             </p>
           </div>
         </div>

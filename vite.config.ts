@@ -13,8 +13,8 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
-          name: 'PHARMARAE KENYA',
-          short_name: 'PHARMARAE',
+          name: 'PHARMIENTA KENYA',
+          short_name: 'PHARMIENTA',
           description: 'Precision in Every Prescription. Pharmacy Management System',
           theme_color: '#ffffff',
           background_color: '#ffffff',

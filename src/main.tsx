@@ -4,12 +4,12 @@ import App from './App.tsx';
 import './index.css';
 
 // App version - update this when you release new versions
-const APP_VERSION = '1.0.0';
-const APP_NAME = 'PHARMARAE KENYA';
+const APP_VERSION = '1.1.0';
+const APP_NAME = 'PHARMIENTA KENYA';
 
 // Store current version in localStorage for comparison
-const VERSION_KEY = 'pharmarae_app_version';
-const LAST_UPDATE_CHECK = 'pharmarae_last_update_check';
+const VERSION_KEY = 'PHARMIENTA_app_version';
+const LAST_UPDATE_CHECK = 'PHARMIENTA_last_update_check';
 
 // Check for updates function
 const checkForUpdates = () => {

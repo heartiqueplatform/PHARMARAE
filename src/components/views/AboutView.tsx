@@ -14,7 +14,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
             <div className="flex items-center gap-3 mb-8">
                 <img
                     src="/pwa-192x192.png"
-                    alt="PHARMARAE KENYA"
+                    alt="PHARMIENTA KENYA"
                     className="w-16 h-16 rounded-xl object-cover border-2 border-[#2ea043]/30"
                 />
                 <div>
@@ -26,8 +26,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                         </span>
                     </h1>
                     <p className={`text-sm font-medium ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                        Precision in Every Prescription
-                    </p>
+                        Oriented To Care                     </p>
                 </div>
             </div>
 
@@ -40,7 +39,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <p className="text-sm leading-relaxed">
-                            PHARMARAE Pro is dedicated to revolutionizing pharmacy management in Kenya and beyond.
+                            PHARMIENTA Pro is dedicated to revolutionizing pharmacy management in Kenya and beyond.
                             We empower pharmacies with cutting-edge technology to streamline operations, improve patient care,
                             and drive business growth. Our mission is to make pharmacy management simple, efficient, and accessible
                             to every pharmacy in Africa.
@@ -84,7 +83,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <Heart className="w-5 h-5 text-[#2ea043]" />
-                        Why Choose PHARMARAE?
+                        Why Choose PHARMIENTA?
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <ul className="space-y-2 text-sm">
@@ -127,7 +126,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Mail className="w-4 h-4 text-[#2ea043]" />
-                                    <span>info@pharmarae.com</span>
+                                    <span>info@PHARMIENTA.com</span>
                                 </p>
                             </div>
                             <div className="space-y-2">

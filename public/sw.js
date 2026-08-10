@@ -1,8 +1,8 @@
-// Service Worker for PHARMARAE KENYA - Pharmacy Management System
+// Service Worker for PHARMIENTA KENYA - Pharmacy Management System
 // Version: 1.0.0 - Update this when releasing new versions
 const APP_VERSION = '1.0.0';
-const CACHE_NAME = `pharmarae-${APP_VERSION}`;
-const PRECACHE_NAME = `pharmarae-precache-${APP_VERSION}`;
+const CACHE_NAME = `PHARMIENTA-${APP_VERSION}`;
+const PRECACHE_NAME = `PHARMIENTA-precache-${APP_VERSION}`;
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -63,7 +63,7 @@ self.addEventListener('activate', (event) => {
             // Delete old caches that don't match current version
             if (cacheName !== PRECACHE_NAME &&
               cacheName !== CACHE_NAME &&
-              cacheName.startsWith('pharmarae-')) {
+              cacheName.startsWith('PHARMIENTA-')) {
               console.log(`🗑️ Service Worker: Removing old cache:`, cacheName);
               return caches.delete(cacheName);
             }
@@ -294,7 +294,7 @@ self.addEventListener('push', (event) => {
 
   const data = event.data ? event.data.json() : {};
   const options = {
-    body: data.body || 'New update available for PHARMARAE',
+    body: data.body || 'New update available for PHARMIENTA',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     vibrate: [200, 100, 200],
@@ -316,7 +316,7 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(
     self.registration.showNotification(
-      data.title || 'PHARMARAE KENYA',
+      data.title || 'PHARMIENTA KENYA',
       options
     )
   );

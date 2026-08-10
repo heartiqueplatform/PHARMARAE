@@ -106,12 +106,12 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onClose, theme }) 
 
                             <div>
                                 <h3 className="font-bold text-base mb-2">5. Intellectual Property</h3>
-                                <p className="text-slate-300">The system, including all code and design, is the property of PHARMARAE KENYA and may not be copied or distributed without permission.</p>
+                                <p className="text-slate-300">The system, including all code and design, is the property of PHARMIENTA KENYA and may not be copied or distributed without permission.</p>
                             </div>
 
                             <div>
                                 <h3 className="font-bold text-base mb-2">6. Limitation of Liability</h3>
-                                <p className="text-slate-300">PHARMARAE KENYA is not liable for any damages arising from the use or inability to use this system, including but not limited to data loss or business interruption.</p>
+                                <p className="text-slate-300">PHARMIENTA KENYA is not liable for any damages arising from the use or inability to use this system, including but not limited to data loss or business interruption.</p>
                             </div>
 
                             <div>
@@ -126,11 +126,11 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onClose, theme }) 
             case 'about':
                 return (
                     <>
-                        <h2 className="text-xl font-bold mb-4">About PHARMARAE KENYA</h2>
+                        <h2 className="text-xl font-bold mb-4">About PHARMIENTA KENYA</h2>
 
                         <div className="space-y-4 text-sm">
                             <div className="flex justify-center mb-4">
-                                <img src="/pwa-192x192.png" alt="PHARMARAE KENYA" className="w-24 h-24 rounded-2xl" />
+                                <img src="/pwa-192x192.png" alt="PHARMIENTA KENYA" className="w-24 h-24 rounded-2xl" />
                             </div>
 
                             <div>
@@ -140,7 +140,7 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onClose, theme }) 
 
                             <div>
                                 <h3 className="font-bold text-base mb-2">What We Do</h3>
-                                <p className="text-slate-300">PHARMARAE KENYA is a comprehensive pharmacy management system designed for modern pharmacies. Our platform offers:</p>
+                                <p className="text-slate-300">PHARMIENTA KENYA is a comprehensive pharmacy management system designed for modern pharmacies. Our platform offers:</p>
                                 <ul className="list-disc pl-5 space-y-1 text-slate-300 mt-2">
                                     <li>Point of Sale (POS) with barcode scanning</li>
                                     <li>Inventory management with batch tracking</li>
@@ -170,7 +170,7 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onClose, theme }) 
                             </div>
 
                             <div className="pt-4 border-t border-slate-700 text-center text-slate-400 text-xs">
-                                <p>© 2024 PHARMARAE KENYA. All rights reserved.</p>
+                                <p>© 2024 PHARMIENTA KENYA. All rights reserved.</p>
                                 <p className="mt-1">Powered by MEDRAE NURSING KENYA</p>
                             </div>
                         </div>
@@ -185,8 +185,8 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onClose, theme }) 
                 }`}>
                 <div className="flex justify-between items-center mb-4 sticky top-0 bg-inherit py-2">
                     <div className="flex items-center gap-3">
-                        <img src="/pwa-192x192.png" alt="PHARMARAE" className="w-8 h-8 rounded-lg" />
-                        <span className="font-bold">PHARMARAE</span>
+                        <img src="/pwa-192x192.png" alt="PHARMIENTA" className="w-8 h-8 rounded-lg" />
+                        <span className="font-bold">PHARMIENTA</span>
                     </div>
                     <button onClick={onClose} className="text-rose-500 hover:text-rose-400 text-xl font-bold p-2 hover:bg-rose-500/10 rounded-lg transition-colors">
                         ✕

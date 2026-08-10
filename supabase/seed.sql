@@ -14,7 +14,7 @@ INSERT INTO pharmacies (
 VALUES (
     '22222222-2222-2222-2222-222222222222',
     '11111111-1111-1111-1111-111111111111',
-    'PHARMARAE KENYA & Pharmacy',
+    'PHARMIENTA KENYA & Pharmacy',
     'MED P Nairobi Central',
     '+254712345678',
     'info@medpchemist.co.ke',
@@ -22,7 +22,7 @@ VALUES (
     'Nairobi',
     'Nairobi',
     'KSh',
-    'PHARMARAE KENYA - NAIROBI BRANCH\nTel: +254 712 345 678',
+    'PHARMIENTA KENYA - NAIROBI BRANCH\nTel: +254 712 345 678',
     'Thank you for trusting MED P Pharmacy. Get well soon!'
 )
 ON CONFLICT DO NOTHING;

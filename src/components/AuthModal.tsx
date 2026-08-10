@@ -387,7 +387,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
             P
           </div>
           <h2 className="text-xl font-black tracking-tight text-slate-100">
-            PHARMARAE KENYA POS
+            PHARMIENTA KENYA POS
           </h2>
           <p className="text-xs text-slate-400 flex items-center justify-center gap-2">
             {showSupabaseConfig

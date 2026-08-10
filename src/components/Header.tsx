@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isDark = theme === 'dark';
 
   // Get the pharmacy name from current profile or pharmacy object
-  const pharmacyName = currentProfile?.pharmacy_name || pharmacy?.name || 'PHARMARAE KENYA';
+  const pharmacyName = currentProfile?.pharmacy_name || pharmacy?.name || 'PHARMIENTA KENYA';
   const pharmacyTown = currentProfile?.pharmacy_town || pharmacy?.town || '';
 
   // Filter profiles to only show those from the SAME pharmacy
@@ -91,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Check for app update (simplified)
   const checkForAppUpdate = () => {
-    const storedVersion = localStorage.getItem('pharmarae_app_version');
+    const storedVersion = localStorage.getItem('PHARMIENTA_app_version');
     if (storedVersion && storedVersion !== appVersion) {
       return true;
     }
@@ -368,7 +368,7 @@ export const Header: React.FC<HeaderProps> = ({
                       </span>
                     </div>
                     <div className={`text-[8px] mt-0.5 flex items-center justify-between ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                      <span>PHARMARAE KENYA</span>
+                      <span>PHARMIENTA KENYA</span>
                       <span>{new Date().getFullYear()}</span>
                     </div>
                   </div>
@@ -406,7 +406,7 @@ export const Header: React.FC<HeaderProps> = ({
           ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
           : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
           }`}>
-          <p className="font-mono font-bold">PHARMARAE KENYA</p>
+          <p className="font-mono font-bold">PHARMIENTA KENYA</p>
           <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
             Version: <span className="font-mono text-emerald-500">{appVersion}</span>
           </p>

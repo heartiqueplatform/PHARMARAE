@@ -27,7 +27,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <p className="text-sm">
-                            By using PHARMARAE Pro, you agree to these Terms & Conditions. If you do not agree, please do not use the application.
+                            By using PHARMIENTA Pro, you agree to these Terms & Conditions. If you do not agree, please do not use the application.
                             These terms apply to all users, including pharmacy owners, staff, and administrators.
                         </p>
                     </div>
@@ -69,7 +69,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                         <ul className="space-y-2 text-sm">
                             <li className="flex items-start gap-2">
                                 <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>PHARMARAE Pro is licensed per pharmacy location</span>
+                                <span>PHARMIENTA Pro is licensed per pharmacy location</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-[#2ea043] mt-0.5">•</span>
@@ -104,7 +104,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>PHARMARAE does not share your data with third parties without consent</span>
+                                <span>PHARMIENTA does not share your data with third parties without consent</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-[#2ea043] mt-0.5">•</span>
@@ -123,7 +123,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                         <ul className="space-y-2 text-sm">
                             <li className="flex items-start gap-2">
                                 <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>PHARMARAE Pro is provided "as is" without warranties of any kind</span>
+                                <span>PHARMIENTA Pro is provided "as is" without warranties of any kind</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-[#2ea043] mt-0.5">•</span>
