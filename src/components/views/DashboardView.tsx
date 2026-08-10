@@ -12,7 +12,7 @@ interface DashboardViewProps {
   onNavigate: (tab: any) => void;
   onOpenAddStockModal: () => void;
   theme?: 'dark' | 'light';
-  isLoading?: boolean; // ← ADD THIS
+  isLoading?: boolean;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -25,7 +25,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigate,
   onOpenAddStockModal,
   theme = 'dark',
-  isLoading = false, // ← ADD THIS WITH DEFAULT
+  isLoading = false,
 }) => {
   // Get pharmacy details from profile (since we store everything in profiles now)
   const pharmacyName = profile?.pharmacy_name || pharmacy?.name || 'PHARMIENTA KENYA';
@@ -44,6 +44,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const itemBg = isDark ? 'bg-[#21262d]/50' : 'bg-[#f6f8fa]';
 
+  // ✅ FIXED: Theme-aware skeleton colors
+  const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
+  const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
+  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
+
   // Greeting
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
@@ -54,27 +59,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const canViewFinancials = role === 'owner' || role === 'admin' || role === 'pharmacist';
 
-  // Skeleton Components
+  // ✅ FIXED: Theme-aware Skeleton Components
   const SkeletonMetric = () => (
     <div className={`rounded-2xl p-3.5 animate-pulse ${cardBg}`}>
       <div className="flex items-center justify-between mb-1">
-        <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
-        <div className="w-4 h-4 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        <div className={`h-3 ${skeletonBg} rounded w-16`}></div>
+        <div className={`w-4 h-4 ${skeletonBg} rounded`}></div>
       </div>
-      <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-20 mt-1"></div>
-      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+      <div className={`h-6 ${skeletonBg} rounded w-20 mt-1`}></div>
+      <div className={`h-3 ${skeletonLight} rounded w-16 mt-1`}></div>
     </div>
   );
 
   const SkeletonSaleItem = () => (
     <div className={`flex items-center justify-between p-2.5 rounded-xl animate-pulse ${itemBg}`}>
       <div>
-        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-20"></div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+        <div className={`h-4 ${skeletonBg} rounded w-20`}></div>
+        <div className={`h-3 ${skeletonLight} rounded w-16 mt-1`}></div>
       </div>
       <div className="text-right">
-        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-12 mt-1"></div>
+        <div className={`h-4 ${skeletonBg} rounded w-16`}></div>
+        <div className={`h-3 ${skeletonLight} rounded w-12 mt-1`}></div>
       </div>
     </div>
   );
@@ -83,10 +88,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div className={`p-2.5 rounded-xl animate-pulse ${isDark ? 'bg-amber-950/20' : 'bg-amber-50'}`}>
       <div className="flex items-center justify-between">
         <div>
-          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-24"></div>
-          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+          <div className={`h-4 ${skeletonBg} rounded w-24`}></div>
+          <div className={`h-3 ${skeletonLight} rounded w-16 mt-1`}></div>
         </div>
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-16`}></div>
+      </div>
+    </div>
+  );
+
+  // ✅ FIXED: Theme-aware Banner Skeleton
+  const SkeletonBanner = () => (
+    <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden animate-pulse mx-0 ${isDark
+      ? 'bg-[#161b22]'
+      : 'bg-[#0969da]'
+      }`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className={`h-4 ${isDark ? 'bg-[#21262d]' : 'bg-white/30'} rounded w-32`}></div>
+          <div className={`h-6 ${isDark ? 'bg-[#21262d]' : 'bg-white/30'} rounded w-48 mt-2`}></div>
+          <div className={`h-3 ${isDark ? 'bg-[#30363d]' : 'bg-white/20'} rounded w-64 mt-2`}></div>
+        </div>
+        <div className={`h-10 ${isDark ? 'bg-[#21262d]' : 'bg-white/30'} rounded-xl w-32`}></div>
       </div>
     </div>
   );
@@ -97,19 +119,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Welcome Banner - REMOVED border */}
       {isLoading ? (
-        <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden animate-pulse mx-0 ${isDark
-          ? 'bg-[#161b22]'
-          : 'bg-[#0969da]'
-          }`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-32"></div>
-              <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-48 mt-2"></div>
-              <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-64 mt-2"></div>
-            </div>
-            <div className="h-10 bg-gray-300 dark:bg-gray-700 rounded-xl w-32"></div>
-          </div>
-        </div>
+        <SkeletonBanner />
       ) : (
         <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden transition-colors mx-0 ${isDark
           ? 'bg-gradient-to-r from-[#161b22] via-[#21262d] to-[#161b22] text-white'

@@ -413,11 +413,13 @@ export default function App() {
   useEffect(() => {
     // Update body background when theme changes
     if (isDark) {
-      document.body.style.backgroundColor = '#0d1117';
+      document.body.style.backgroundColor = '#161b22';
       document.body.style.color = '#c9d1d9';
+      document.documentElement.style.backgroundColor = '#161b22';
     } else {
       document.body.style.backgroundColor = '#f6f8fa';
       document.body.style.color = '#1f2328';
+      document.documentElement.style.backgroundColor = '#f6f8fa';
     }
   }, [isDark]);
   useEffect(() => {

@@ -45,6 +45,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [activeReportTab, setActiveReportTab] = useState<'daily' | 'monthly' | 'history'>('daily');
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
 
+  // ✅ FIXED: Theme-aware skeleton colors (add these near other theme variables)
+  const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
+  const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
+  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
+
   // Date pickers
   const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [monthlyPeriod, setMonthlyPeriod] = useState<string>(new Date().toISOString().substring(0, 7));
@@ -117,30 +122,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setSelectedSaleForReturn(null);
   };
 
-  // Skeleton Row for tables
+  // ✅ FIXED: Theme-aware Skeleton Row for tables
   const SkeletonRow = ({ cols = 6 }) => (
     <tr className="animate-pulse">
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="p-3">
-          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+          <div className={`h-4 ${skeletonBg} rounded w-16`}></div>
         </td>
       ))}
     </tr>
   );
 
-  // Skeleton Stats Card
+  // ✅ FIXED: Theme-aware Skeleton Stats Card
   const SkeletonStat = () => (
     <div className={`p-4 rounded-2xl animate-pulse ${cardBg}`}>
-      <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-20 mb-2"></div>
-      <div className="h-7 bg-gray-300 dark:bg-gray-700 rounded w-24"></div>
+      <div className={`h-4 ${skeletonBg} rounded w-20 mb-2`}></div>
+      <div className={`h-7 ${skeletonBg} rounded w-24`}></div>
     </div>
   );
 
-  // Skeleton Table
+  // ✅ FIXED: Theme-aware Skeleton Table
   const SkeletonTable = ({ rows = 5, cols = 6 }) => (
     <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
       <div className={`p-4 ${borderLine}`}>
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-48"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-48`}></div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
@@ -149,7 +154,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <tr>
               {Array.from({ length: cols }).map((_, i) => (
                 <th key={i} className="p-3">
-                  <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-12"></div>
+                  <div className={`h-3 ${skeletonBg} rounded w-12`}></div>
                 </th>
               ))}
             </tr>

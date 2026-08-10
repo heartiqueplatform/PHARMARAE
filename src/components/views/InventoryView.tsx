@@ -88,6 +88,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [newProdAbsorbency, setNewProdAbsorbency] = useState('');
   const [newProdFragrance, setNewProdFragrance] = useState('');
 
+  // Skeleton Loader Component - Matches the product card layout
+  // ✅ FIXED: Theme-aware skeleton colors (add these near other theme variables)
+  const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
+  const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
+  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]'
   const handleSelectCommonDrug = (drug: CommonDrug) => {
     setNewProdName(drug.name);
     setNewProdGeneric(drug.generic_name);
@@ -412,31 +417,32 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const matchesQ = !q || p.name.toLowerCase().includes(q) || (p.generic_name && p.generic_name.toLowerCase().includes(q)) || (p.barcode && p.barcode.includes(q));
     return matchesCat && matchesQ;
   });
+  ;
 
-  // Skeleton Loader Component - Matches the product card layout
+  // ✅ FIXED: Theme-aware Skeleton Loader
   const SkeletonRow = () => (
     <tr className="animate-pulse">
       <td className="p-3">
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-32"></div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24 mt-1"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-32`}></div>
+        <div className={`h-3 ${skeletonLight} rounded w-24 mt-1`}></div>
       </td>
       <td className="p-3">
-        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-20"></div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+        <div className={`h-4 ${skeletonBg} rounded w-20`}></div>
+        <div className={`h-3 ${skeletonLight} rounded w-16 mt-1`}></div>
       </td>
       <td className="p-3">
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-16`}></div>
       </td>
       <td className="p-3">
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-12"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-12`}></div>
       </td>
       <td className="p-3">
-        <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-20"></div>
+        <div className={`h-6 ${skeletonBg} rounded w-20`}></div>
       </td>
       <td className="p-3 text-right">
         <div className="flex justify-end gap-2">
-          <div className="h-8 w-8 bg-gray-300 dark:bg-gray-700 rounded-xl"></div>
-          <div className="h-8 w-8 bg-gray-300 dark:bg-gray-700 rounded-xl"></div>
+          <div className={`h-8 w-8 ${skeletonBg} rounded-xl`}></div>
+          <div className={`h-8 w-8 ${skeletonBg} rounded-xl`}></div>
         </div>
       </td>
     </tr>

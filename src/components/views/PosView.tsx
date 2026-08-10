@@ -21,7 +21,7 @@ interface PosViewProps {
   onOpenBarcodeScanner: () => void;
   scannedBarcode?: string | null;
   theme?: 'dark' | 'light';
-  isLoading?: boolean; // ← ADD THIS
+  isLoading?: boolean;
 }
 
 export const PosView: React.FC<PosViewProps> = ({
@@ -35,9 +35,9 @@ export const PosView: React.FC<PosViewProps> = ({
   onOpenBarcodeScanner,
   scannedBarcode,
   theme = 'dark',
-  isLoading = false, // ← ADD THIS WITH DEFAULT
+  isLoading = false,
 }) => {
-  const currency = 'KSh'; // or from pharmacy
+  const currency = 'KSh';
   const isDark = theme === 'dark';
 
   // Base card styles
@@ -56,6 +56,11 @@ export const PosView: React.FC<PosViewProps> = ({
   const cartItemSubText = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const cartItemBorder = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const selectBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-white text-[#1f2328]';
+
+  // ✅ Theme-aware skeleton colors - FIXED
+  const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
+  const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
+  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -208,38 +213,38 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   };
 
-  // Skeleton Product Card
+  // ✅ FIXED: Theme-aware Skeleton Product Card
   const SkeletonCard = () => (
     <div className={`p-4 rounded-2xl animate-pulse ${cardBg}`}>
       <div className="space-y-2">
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
-        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-2/3"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-3/4`}></div>
+        <div className={`h-3 ${skeletonLight} rounded w-1/2`}></div>
+        <div className={`h-3 ${skeletonLight} rounded w-2/3`}></div>
         <div className={`pt-3 mt-2 flex items-center justify-between ${borderLine}`}>
-          <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
-          <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-14"></div>
+          <div className={`h-5 ${skeletonBg} rounded w-16`}></div>
+          <div className={`h-6 ${skeletonBg} rounded w-14`}></div>
         </div>
       </div>
     </div>
   );
 
-  // Skeleton Cart Item
+  // ✅ FIXED: Theme-aware Skeleton Cart Item
   const SkeletonCartItem = () => (
     <div className={`${cartItemBg} rounded-xl p-3 animate-pulse`}>
       <div className="flex items-start justify-between">
         <div className="flex-1 pr-2 space-y-2">
-          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+          <div className={`h-4 ${skeletonBg} rounded w-3/4`}></div>
+          <div className={`h-3 ${skeletonLight} rounded w-1/2`}></div>
         </div>
-        <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        <div className={`w-8 h-8 ${skeletonBg} rounded`}></div>
       </div>
       <div className={`flex items-center justify-between pt-2 ${cartItemBorder}`}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
-          <div className="w-12 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
-          <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
+          <div className={`w-8 h-8 ${skeletonBg} rounded`}></div>
+          <div className={`w-12 h-8 ${skeletonBg} rounded`}></div>
+          <div className={`w-8 h-8 ${skeletonBg} rounded`}></div>
         </div>
-        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+        <div className={`h-5 ${skeletonBg} rounded w-16`}></div>
       </div>
     </div>
   );
