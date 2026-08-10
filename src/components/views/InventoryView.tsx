@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Pharmacy, Product, ProductBatch, Category, Supplier, Unit, StockMovement, DosageFormType } from '../../types';
-import { Package, Plus, Search, Filter, AlertTriangle, Clock, Layers, ArrowUpRight, ArrowDownRight, Tag, PlusCircle, RefreshCw, Sparkles, CheckCircle, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { Package, Plus, Search, Filter, AlertTriangle, Clock, Layers, ArrowUpRight, ArrowDownRight, Tag, PlusCircle, RefreshCw, Sparkles, CheckCircle, Loader2, Edit2, Trash2, MinusCircle, Save } from 'lucide-react';
 import { COMMON_DRUGS_LIST, CommonDrug } from '../../data/commonDrugs';
 
 interface InventoryViewProps {
@@ -15,7 +15,9 @@ interface InventoryViewProps {
   onAddBatch: (batchData: Partial<ProductBatch>) => Promise<void>;
   onUpdateProduct?: (productId: string, productData: Partial<Product>) => Promise<void>;
   onDeleteProduct?: (productId: string) => Promise<void>;
+  onUpdateBatch?: (batchId: string, batchData: Partial<ProductBatch>) => Promise<void>;
   theme?: 'dark' | 'light';
+  isLoading?: boolean;
 }
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
@@ -30,7 +32,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   onAddBatch,
   onUpdateProduct,
   onDeleteProduct,
+  onUpdateBatch,
   theme = 'dark',
+  isLoading = false,
 }) => {
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
@@ -57,6 +61,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [isSavingBatch, setIsSavingBatch] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // State for batch quantity adjustment
+  const [showAdjustBatchModal, setShowAdjustBatchModal] = useState(false);
+  const [adjustingBatch, setAdjustingBatch] = useState<ProductBatch | null>(null);
+  const [adjustBatchQty, setAdjustBatchQty] = useState<number>(0);
+  const [adjustBatchReason, setAdjustBatchReason] = useState<string>('');
+  const [isAdjustingBatch, setIsAdjustingBatch] = useState(false);
+
   const [newProdName, setNewProdName] = useState('');
   const [newProdGeneric, setNewProdGeneric] = useState('');
   const [newProdBrand, setNewProdBrand] = useState('');
@@ -71,7 +82,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [newProdQuantity, setNewProdQuantity] = useState<number>(0);
   const [showDrugSuggestions, setShowDrugSuggestions] = useState(false);
 
-  // New state for product sub-category and attributes
   const [newProdSubCategory, setNewProdSubCategory] = useState('');
   const [newProdMaterial, setNewProdMaterial] = useState('');
   const [newProdSize, setNewProdSize] = useState('');
@@ -147,7 +157,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         prescription_required: newProdRx,
         quantity: Number(newProdQuantity) || 0,
         active: true,
-        // Add custom attributes for sanitary products
         sub_category: newProdSubCategory || null,
         material: newProdMaterial || null,
         size: newProdSize || null,
@@ -202,6 +211,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         reorder_level: Number(newProdReorder) || 10,
         prescription_required: newProdRx,
         active: true,
+        // Include quantity - this allows editing product quantity directly
+        quantity: Number(newProdQuantity) || 0,
         sub_category: newProdSubCategory || null,
         material: newProdMaterial || null,
         size: newProdSize || null,
@@ -256,7 +267,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdCost(product.default_cost_price || 0);
     setNewProdReorder(product.reorder_level || 10);
     setNewProdRx(product.prescription_required || false);
-    setNewProdQuantity(product.quantity || 0);
+    setNewProdQuantity(product.quantity || 0); // Load current quantity
     setNewProdSubCategory((product as any).sub_category || '');
     setNewProdMaterial((product as any).material || '');
     setNewProdSize((product as any).size || '');
@@ -346,12 +357,96 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
+  // Handle batch quantity adjustment (add/subtract)
+  const handleAdjustBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!adjustingBatch || !onUpdateBatch) {
+      alert('No batch selected or update function not available.');
+      return;
+    }
+
+    if (adjustBatchQty === 0) {
+      alert('Please enter a quantity to adjust.');
+      return;
+    }
+
+    if (!adjustBatchReason.trim()) {
+      alert('Please provide a reason for the adjustment.');
+      return;
+    }
+
+    // Check if subtracting more than available
+    if (adjustBatchQty < 0 && Math.abs(adjustBatchQty) > adjustingBatch.quantity_base) {
+      alert(`Cannot subtract ${Math.abs(adjustBatchQty)} units. Only ${adjustingBatch.quantity_base} units available.`);
+      return;
+    }
+
+    setIsAdjustingBatch(true);
+    try {
+      const newQuantity = adjustingBatch.quantity_base + adjustBatchQty;
+
+      await onUpdateBatch(adjustingBatch.id, {
+        quantity_base: newQuantity
+      });
+
+      setShowAdjustBatchModal(false);
+      setAdjustingBatch(null);
+      setAdjustBatchQty(0);
+      setAdjustBatchReason('');
+
+      // Show success message
+      const action = adjustBatchQty > 0 ? 'added' : 'subtracted';
+      alert(`✅ Successfully ${action} ${Math.abs(adjustBatchQty)} units from batch ${adjustingBatch.batch_number}`);
+
+    } catch (err: any) {
+      alert('Error adjusting batch: ' + (err.message || err));
+    } finally {
+      setIsAdjustingBatch(false);
+    }
+  };
+
   const filteredProducts = products.filter(p => {
     const matchesCat = selectedCategory === 'all' || p.category_id === selectedCategory || p.category_name === selectedCategory;
     const q = searchQuery.toLowerCase().trim();
     const matchesQ = !q || p.name.toLowerCase().includes(q) || (p.generic_name && p.generic_name.toLowerCase().includes(q)) || (p.barcode && p.barcode.includes(q));
     return matchesCat && matchesQ;
   });
+
+  // Skeleton Loader Component - Matches the product card layout
+  const SkeletonRow = () => (
+    <tr className="animate-pulse">
+      <td className="p-3">
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-32"></div>
+        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-24 mt-1"></div>
+      </td>
+      <td className="p-3">
+        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-20"></div>
+        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+      </td>
+      <td className="p-3">
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+      </td>
+      <td className="p-3">
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-12"></div>
+      </td>
+      <td className="p-3">
+        <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-20"></div>
+      </td>
+      <td className="p-3 text-right">
+        <div className="flex justify-end gap-2">
+          <div className="h-8 w-8 bg-gray-300 dark:bg-gray-700 rounded-xl"></div>
+          <div className="h-8 w-8 bg-gray-300 dark:bg-gray-700 rounded-xl"></div>
+        </div>
+      </td>
+    </tr>
+  );
+
+  // Get product name for batch display
+  const getProductName = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    return product?.name || 'Unknown Product';
+  };
 
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
@@ -450,10 +545,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${borderLine}`}>
-                  {filteredProducts.length === 0 ? (
+                  {isLoading ? (
+                    // Show 5 skeleton rows
+                    <>
+                      <SkeletonRow />
+                      <SkeletonRow />
+                      <SkeletonRow />
+                      <SkeletonRow />
+                      <SkeletonRow />
+                    </>
+                  ) : filteredProducts.length === 0 ? (
                     <tr>
                       <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
-                        No products found in catalog.
+                        {products.length === 0 ? 'No products found. Add your first product!' : 'No products match your search.'}
                       </td>
                     </tr>
                   ) : (
@@ -504,7 +608,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 onClick={() => openEditModal(p)}
                                 className={`p-2 text-blue-400 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
                                   }`}
-                                title="Edit Product"
+                                title="Edit Product (including quantity)"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
@@ -559,12 +663,22 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   <th className="p-3">Expiry Date</th>
                   <th className="p-3">Remaining Stock</th>
                   <th className="p-3">Cost / Selling ({currency})</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className={`divide-y ${borderLine}`}>
-                {batches.length === 0 ? (
+                {isLoading ? (
                   <tr>
-                    <td colSpan={5} className={`p-8 text-center ${textMuted}`}>
+                    <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
+                      <div className="flex items-center justify-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin text-[#2ea043]" />
+                        <span>Loading batches...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : batches.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
                       No batch inventory records found.
                     </td>
                   </tr>
@@ -572,12 +686,29 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   [...batches].sort((a, b) => a.expiry_date.localeCompare(b.expiry_date)).map(b => (
                     <tr key={b.id} className={`transition-colors ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
                       }`}>
-                      <td className={`p-3 font-bold ${textTitle}`}>{b.product_name || 'Product'}</td>
+                      <td className={`p-3 font-bold ${textTitle}`}>{getProductName(b.product_id)}</td>
                       <td className="p-3 font-mono font-bold text-[#2ea043]">{b.batch_number}</td>
                       <td className="p-3 font-bold text-amber-500">{b.expiry_date}</td>
                       <td className={`p-3 font-bold ${textTitle}`}>{b.quantity_base} units</td>
                       <td className="p-3">
                         <span className={textMuted}>{currency} {b.cost_price}</span> / <span className="text-[#2ea043] font-bold">{currency} {b.selling_price}</span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setAdjustingBatch(b);
+                              setAdjustBatchQty(0);
+                              setAdjustBatchReason('');
+                              setShowAdjustBatchModal(true);
+                            }}
+                            className={`p-2 text-amber-500 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
+                              }`}
+                            title="Adjust Batch Quantity"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -604,7 +735,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </tr>
               </thead>
               <tbody className={`divide-y ${borderLine}`}>
-                {movements.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
+                      <div className="flex items-center justify-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin text-[#2ea043]" />
+                        <span>Loading movements...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : movements.length === 0 ? (
                   <tr>
                     <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
                       No stock movements logged.
@@ -815,7 +955,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              {/* Sub-Category field - appears for all products */}
               <div>
                 <label className={`block mb-1.5 font-bold ${textMuted}`}>Sub-Category</label>
                 <select
@@ -837,7 +976,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </select>
               </div>
 
-              {/* Sanitary Product Specific Attributes */}
               {(newProdForm === 'sanitary_pad' || newProdForm === 'cotton_wool') && (
                 <div className={`p-4 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
                   <h4 className={`text-sm font-bold ${textTitle}`}>Product Specifications</h4>
@@ -1020,7 +1158,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Edit Product */}
+      {/* Modal: Edit Product - WITH QUANTITY EDIT */}
       {showEditProductModal && editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
@@ -1245,6 +1383,24 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
+              {/* QUANTITY EDIT - Highlighted */}
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>
+                  Stock Quantity
+                  <span className="ml-2 text-xs font-normal text-emerald-500">(Edit directly)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newProdQuantity}
+                  onChange={(e) => setNewProdQuantity(Number(e.target.value))}
+                  className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-bold text-emerald-600 dark:text-emerald-400 ${inputBg} ${touchTargetSmall}`}
+                />
+                <p className="text-[10px] text-emerald-500/70 mt-1">
+                  ⚠️ Changing this directly will override the calculated stock from batches.
+                </p>
+              </div>
+
               <div className="flex items-center gap-3 pt-2">
                 <input
                   type="checkbox"
@@ -1393,6 +1549,136 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     </>
                   ) : (
                     <span>Save Batch</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Adjust Batch Quantity */}
+      {showAdjustBatchModal && adjustingBatch && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+          <div className={`rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>
+            <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
+              Adjust Batch Quantity
+            </h3>
+
+            <div className={`mb-4 p-3 rounded-xl ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
+              <div className="text-sm">
+                <div className="flex justify-between">
+                  <span className={textMuted}>Product:</span>
+                  <span className={textTitle}>{getProductName(adjustingBatch.product_id)}</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className={textMuted}>Batch Number:</span>
+                  <span className="font-mono text-[#2ea043]">{adjustingBatch.batch_number}</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className={textMuted}>Current Stock:</span>
+                  <span className={`font-bold ${textTitle}`}>{adjustingBatch.quantity_base} units</span>
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className={textMuted}>Expiry Date:</span>
+                  <span className="text-amber-500">{adjustingBatch.expiry_date}</span>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleAdjustBatch} className="space-y-3 text-sm">
+              <div>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>
+                  Quantity Adjustment <span className="text-xs font-normal">(positive = add, negative = subtract)</span>
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={adjustBatchQty}
+                  onChange={(e) => setAdjustBatchQty(Number(e.target.value))}
+                  placeholder="e.g. 10 or -5"
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-bold ${inputBg} ${touchTarget}`}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustBatchQty(1)}
+                    className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}
+                  >
+                    +1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustBatchQty(5)}
+                    className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}
+                  >
+                    +5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustBatchQty(10)}
+                    className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustBatchQty(-1)}
+                    className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}
+                  >
+                    -1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustBatchQty(-5)}
+                    className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}
+                  >
+                    -5
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block mb-1.5 font-bold ${textMuted}`}>Reason for Adjustment *</label>
+                <input
+                  type="text"
+                  required
+                  value={adjustBatchReason}
+                  onChange={(e) => setAdjustBatchReason(e.target.value)}
+                  placeholder="e.g. Damaged goods, Stock correction, Return"
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none ${inputBg} ${touchTarget}`}
+                />
+              </div>
+
+              <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustBatchModal(false)}
+                  className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAdjustingBatch}
+                  className={`px-6 py-3 rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall ${adjustBatchQty > 0
+                    ? 'bg-[#2ea043] hover:bg-[#3fb950] text-white'
+                    : adjustBatchQty < 0
+                      ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                      : 'bg-gray-500 text-white cursor-not-allowed'
+                    }`}
+                >
+                  {isAdjustingBatch ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>{adjustBatchQty > 0 ? 'Add' : adjustBatchQty < 0 ? 'Subtract' : 'Adjust'} Quantity</span>
+                    </>
                   )}
                 </button>
               </div>

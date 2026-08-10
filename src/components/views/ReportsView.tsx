@@ -13,6 +13,7 @@ interface ReportsViewProps {
   movements: StockMovement[];
   onProcessReturn?: (saleId: string, reason: string) => Promise<void>;
   theme?: 'dark' | 'light';
+  isLoading?: boolean; // ← ADD THIS
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -25,6 +26,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   movements,
   onProcessReturn,
   theme = 'dark',
+  isLoading = false, // ← ADD THIS WITH DEFAULT
 }) => {
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
@@ -115,6 +117,53 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setSelectedSaleForReturn(null);
   };
 
+  // Skeleton Row for tables
+  const SkeletonRow = ({ cols = 6 }) => (
+    <tr className="animate-pulse">
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="p-3">
+          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+        </td>
+      ))}
+    </tr>
+  );
+
+  // Skeleton Stats Card
+  const SkeletonStat = () => (
+    <div className={`p-4 rounded-2xl animate-pulse ${cardBg}`}>
+      <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-20 mb-2"></div>
+      <div className="h-7 bg-gray-300 dark:bg-gray-700 rounded w-24"></div>
+    </div>
+  );
+
+  // Skeleton Table
+  const SkeletonTable = ({ rows = 5, cols = 6 }) => (
+    <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+      <div className={`p-4 ${borderLine}`}>
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-48"></div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+            }`}>
+            <tr>
+              {Array.from({ length: cols }).map((_, i) => (
+                <th key={i} className="p-3">
+                  <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-12"></div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className={`divide-y ${borderLine}`}>
+            {Array.from({ length: rows }).map((_, i) => (
+              <SkeletonRow key={i} cols={cols} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
@@ -185,136 +234,152 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           {/* Daily Stats Grid - REMOVED borders */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Revenue</p>
-              <p className="text-xl font-extrabold text-[#2ea043] mt-1">
-                {currency} {dailyTotalRevenue.toFixed(2)}
-              </p>
-            </div>
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Transactions</p>
-              <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                {filteredDailySales.length}
-              </p>
-            </div>
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Items Sold</p>
-              <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                {filteredDailySales.reduce((acc, s) => {
-                  const items = getSaleItems(s.id);
-                  return acc + items.reduce((sum, item) => sum + item.quantity, 0);
-                }, 0)}
-              </p>
-            </div>
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Low Stock</p>
-              <p className={`text-xl font-extrabold mt-1 ${lowStockProducts.length > 0 ? 'text-amber-500' : textTitle}`}>
-                {lowStockProducts.length}
-              </p>
-            </div>
+            {isLoading ? (
+              // Show skeleton stats
+              <>
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+              </>
+            ) : (
+              <>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Revenue</p>
+                  <p className="text-xl font-extrabold text-[#2ea043] mt-1">
+                    {currency} {dailyTotalRevenue.toFixed(2)}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Transactions</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {filteredDailySales.length}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Items Sold</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {filteredDailySales.reduce((acc, s) => {
+                      const items = getSaleItems(s.id);
+                      return acc + items.reduce((sum, item) => sum + item.quantity, 0);
+                    }, 0)}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Low Stock</p>
+                  <p className={`text-xl font-extrabold mt-1 ${lowStockProducts.length > 0 ? 'text-amber-500' : textTitle}`}>
+                    {lowStockProducts.length}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Daily Transactions with Items - REMOVED border */}
-          <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-            <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
-              Transactions for {dailyDate}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
-                  }`}>
-                  <tr>
-                    <th className="p-3 w-8"></th>
-                    <th className="p-3">Receipt #</th>
-                    <th className="p-3">Time</th>
-                    <th className="p-3">Staff</th>
-                    <th className="p-3">Items</th>
-                    <th className="p-3">Total</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${borderLine}`}>
-                  {filteredDailySales.length === 0 ? (
+          {isLoading ? (
+            <SkeletonTable rows={5} cols={6} />
+          ) : (
+            <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+              <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
+                Transactions for {dailyDate}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+                    }`}>
                     <tr>
-                      <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
-                        No transactions recorded on this date.
-                      </td>
+                      <th className="p-3 w-8"></th>
+                      <th className="p-3">Receipt #</th>
+                      <th className="p-3">Time</th>
+                      <th className="p-3">Staff</th>
+                      <th className="p-3">Items</th>
+                      <th className="p-3">Total</th>
                     </tr>
-                  ) : (
-                    filteredDailySales.map(s => {
-                      const items = getSaleItems(s.id);
-                      const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
-                      const isExpanded = expandedSales.has(s.id);
+                  </thead>
+                  <tbody className={`divide-y ${borderLine}`}>
+                    {filteredDailySales.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
+                          No transactions recorded on this date.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDailySales.map(s => {
+                        const items = getSaleItems(s.id);
+                        const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
+                        const isExpanded = expandedSales.has(s.id);
 
-                      return (
-                        <React.Fragment key={s.id}>
-                          {/* Main Sale Row */}
-                          <tr
-                            className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
-                              }`}
-                            onClick={() => toggleExpanded(s.id)}
-                          >
-                            <td className="p-3">
-                              {items.length > 0 && (
-                                isExpanded ?
-                                  <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
-                                  <ChevronRight className="w-4 h-4 text-[#2ea043]" />
-                              )}
-                            </td>
-                            <td className="p-3 font-mono font-bold text-[#2ea043]">#{s.sale_number}</td>
-                            <td className={`p-3 ${textMuted}`}>{new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td className={`p-3 font-semibold ${textTitle}`}>{s.sold_by_name || 'Staff'}</td>
-                            <td className={`p-3 ${textMuted}`}>
-                              {items.map((item, idx) => (
-                                <span key={idx} className="inline-block mr-1">
-                                  {item.product_name}
-                                  {idx < items.length - 1 && ', '}
-                                </span>
-                              ))}
-                              <span className="text-[11px] text-[#2ea043] ml-1">({itemCount} units)</span>
-                            </td>
-                            <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {s.total.toFixed(2)}</td>
-                          </tr>
-
-                          {/* Expanded Items Row */}
-                          {isExpanded && items.length > 0 && (
-                            <tr>
-                              <td colSpan={6} className="p-0">
-                                <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
-                                  <table className="w-full text-left text-sm">
-                                    <thead className={`text-[10px] uppercase font-bold ${textMuted}`}>
-                                      <tr>
-                                        <th className="p-2">Product</th>
-                                        <th className="p-2">Qty</th>
-                                        <th className="p-2">Price</th>
-                                        <th className="p-2">Subtotal</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {items.map((item, idx) => (
-                                        <tr key={idx} className={`${borderLine}`}>
-                                          <td className="p-2 font-medium">{item.product_name}</td>
-                                          <td className="p-2">{item.quantity}</td>
-                                          <td className="p-2">{currency} {item.unit_price.toFixed(2)}</td>
-                                          <td className="p-2 font-bold">{currency} {item.subtotal.toFixed(2)}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                        return (
+                          <React.Fragment key={s.id}>
+                            {/* Main Sale Row */}
+                            <tr
+                              className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
+                                }`}
+                              onClick={() => toggleExpanded(s.id)}
+                            >
+                              <td className="p-3">
+                                {items.length > 0 && (
+                                  isExpanded ?
+                                    <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
+                                    <ChevronRight className="w-4 h-4 text-[#2ea043]" />
+                                )}
                               </td>
+                              <td className="p-3 font-mono font-bold text-[#2ea043]">#{s.sale_number}</td>
+                              <td className={`p-3 ${textMuted}`}>{new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                              <td className={`p-3 font-semibold ${textTitle}`}>{s.sold_by_name || 'Staff'}</td>
+                              <td className={`p-3 ${textMuted}`}>
+                                {items.map((item, idx) => (
+                                  <span key={idx} className="inline-block mr-1">
+                                    {item.product_name}
+                                    {idx < items.length - 1 && ', '}
+                                  </span>
+                                ))}
+                                <span className="text-[11px] text-[#2ea043] ml-1">({itemCount} units)</span>
+                              </td>
+                              <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {s.total.toFixed(2)}</td>
                             </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+
+                            {/* Expanded Items Row */}
+                            {isExpanded && items.length > 0 && (
+                              <tr>
+                                <td colSpan={6} className="p-0">
+                                  <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
+                                    <table className="w-full text-left text-sm">
+                                      <thead className={`text-[10px] uppercase font-bold ${textMuted}`}>
+                                        <tr>
+                                          <th className="p-2">Product</th>
+                                          <th className="p-2">Qty</th>
+                                          <th className="p-2">Price</th>
+                                          <th className="p-2">Subtotal</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {items.map((item, idx) => (
+                                          <tr key={idx} className={`${borderLine}`}>
+                                            <td className="p-2 font-medium">{item.product_name}</td>
+                                            <td className="p-2">{item.quantity}</td>
+                                            <td className="p-2">{currency} {item.unit_price.toFixed(2)}</td>
+                                            <td className="p-2 font-bold">{currency} {item.subtotal.toFixed(2)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Low Stock Alert - REMOVED border */}
-          {lowStockProducts.length > 0 && (
+          {!isLoading && lowStockProducts.length > 0 && (
             <div className={`rounded-2xl p-4 ${isDark ? 'bg-amber-950/20' : 'bg-amber-50'}`}>
               <div className="flex items-center gap-2 text-amber-500">
                 <AlertTriangle className="w-5 h-5" />
@@ -361,220 +426,239 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Revenue</p>
-              <p className="text-xl font-extrabold text-[#2ea043] mt-1">
-                {currency} {monthlyTotalRevenue.toFixed(2)}
-              </p>
-            </div>
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Transactions</p>
-              <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                {filteredMonthlySales.length}
-              </p>
-            </div>
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Avg. Transaction</p>
-              <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                {currency} {filteredMonthlySales.length > 0 ? (monthlyTotalRevenue / filteredMonthlySales.length).toFixed(2) : '0.00'}
-              </p>
-            </div>
-            <div className={`p-4 rounded-2xl ${cardBg}`}>
-              <p className={`text-sm font-semibold ${textMuted}`}>Products Sold</p>
-              <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
-                {saleItems.filter(item => {
-                  const sale = sales.find(s => s.id === item.sale_id);
-                  return sale && sale.created_at.startsWith(monthlyPeriod);
-                }).reduce((acc, item) => acc + item.quantity, 0)}
-              </p>
-            </div>
+            {isLoading ? (
+              <>
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+              </>
+            ) : (
+              <>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Revenue</p>
+                  <p className="text-xl font-extrabold text-[#2ea043] mt-1">
+                    {currency} {monthlyTotalRevenue.toFixed(2)}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Transactions</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {filteredMonthlySales.length}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Avg. Transaction</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {currency} {filteredMonthlySales.length > 0 ? (monthlyTotalRevenue / filteredMonthlySales.length).toFixed(2) : '0.00'}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Products Sold</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {saleItems.filter(item => {
+                      const sale = sales.find(s => s.id === item.sale_id);
+                      return sale && sale.created_at.startsWith(monthlyPeriod);
+                    }).reduce((acc, item) => acc + item.quantity, 0)}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Top Products - REMOVED border */}
-          <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-            <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
-              Top Selling Products ({monthlyPeriod})
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
-                  }`}>
-                  <tr>
-                    <th className="p-3">Product</th>
-                    <th className="p-3">Quantity Sold</th>
-                    <th className="p-3">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${borderLine}`}>
-                  {(() => {
-                    const productSales: Record<string, { quantity: number; revenue: number; name: string }> = {};
-                    saleItems.forEach(item => {
-                      const sale = sales.find(s => s.id === item.sale_id);
-                      if (sale && sale.created_at.startsWith(monthlyPeriod)) {
-                        if (!productSales[item.product_id]) {
-                          productSales[item.product_id] = {
-                            quantity: 0,
-                            revenue: 0,
-                            name: item.product_name || 'Unknown'
-                          };
+          {isLoading ? (
+            <SkeletonTable rows={5} cols={3} />
+          ) : (
+            <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+              <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
+                Top Selling Products ({monthlyPeriod})
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+                    }`}>
+                    <tr>
+                      <th className="p-3">Product</th>
+                      <th className="p-3">Quantity Sold</th>
+                      <th className="p-3">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${borderLine}`}>
+                    {(() => {
+                      const productSales: Record<string, { quantity: number; revenue: number; name: string }> = {};
+                      saleItems.forEach(item => {
+                        const sale = sales.find(s => s.id === item.sale_id);
+                        if (sale && sale.created_at.startsWith(monthlyPeriod)) {
+                          if (!productSales[item.product_id]) {
+                            productSales[item.product_id] = {
+                              quantity: 0,
+                              revenue: 0,
+                              name: item.product_name || 'Unknown'
+                            };
+                          }
+                          productSales[item.product_id].quantity += item.quantity;
+                          productSales[item.product_id].revenue += item.subtotal;
                         }
-                        productSales[item.product_id].quantity += item.quantity;
-                        productSales[item.product_id].revenue += item.subtotal;
-                      }
-                    });
-                    const sorted = Object.values(productSales).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
-                    return sorted.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className={`p-8 text-center ${textMuted}`}>No sales data for this month.</td>
-                      </tr>
-                    ) : (
-                      sorted.map((p, idx) => (
-                        <tr key={idx} className={`transition-colors ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'}`}>
-                          <td className={`p-3 font-semibold ${textTitle}`}>{p.name}</td>
-                          <td className={`p-3 font-bold ${textTitle}`}>{p.quantity}</td>
-                          <td className={`p-3 font-extrabold text-[#2ea043]`}>{currency} {p.revenue.toFixed(2)}</td>
+                      });
+                      const sorted = Object.values(productSales).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+                      return sorted.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className={`p-8 text-center ${textMuted}`}>No sales data for this month.</td>
                         </tr>
-                      ))
-                    );
-                  })()}
-                </tbody>
-              </table>
+                      ) : (
+                        sorted.map((p, idx) => (
+                          <tr key={idx} className={`transition-colors ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'}`}>
+                            <td className={`p-3 font-semibold ${textTitle}`}>{p.name}</td>
+                            <td className={`p-3 font-bold ${textTitle}`}>{p.quantity}</td>
+                            <td className={`p-3 font-extrabold text-[#2ea043]`}>{currency} {p.revenue.toFixed(2)}</td>
+                          </tr>
+                        ))
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* Sales Log View - REMOVED border */}
       {activeReportTab === 'history' && (
-        <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
-                }`}>
-                <tr>
-                  <th className="p-3 w-8"></th>
-                  <th className="p-3">Receipt #</th>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Customer</th>
-                  <th className="p-3">Items</th>
-                  <th className="p-3">Total</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${borderLine}`}>
-                {sales.length === 0 ? (
+        isLoading ? (
+          <SkeletonTable rows={5} cols={7} />
+        ) : (
+          <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+                  }`}>
                   <tr>
-                    <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
-                      No sales history found.
-                    </td>
+                    <th className="p-3 w-8"></th>
+                    <th className="p-3">Receipt #</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3">Items</th>
+                    <th className="p-3">Total</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
-                ) : (
-                  sales.slice(0, 50).map(s => {
-                    const items = getSaleItems(s.id);
-                    const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
-                    const isExpanded = expandedSales.has(s.id);
+                </thead>
+                <tbody className={`divide-y ${borderLine}`}>
+                  {sales.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
+                        No sales history found.
+                      </td>
+                    </tr>
+                  ) : (
+                    sales.slice(0, 50).map(s => {
+                      const items = getSaleItems(s.id);
+                      const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
+                      const isExpanded = expandedSales.has(s.id);
 
-                    return (
-                      <React.Fragment key={s.id}>
-                        {/* Main Sale Row */}
-                        <tr
-                          className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
-                            }`}
-                          onClick={() => toggleExpanded(s.id)}
-                        >
-                          <td className="p-3">
-                            {items.length > 0 && (
-                              isExpanded ?
-                                <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
-                                <ChevronRight className="w-4 h-4 text-[#2ea043]" />
-                            )}
-                          </td>
-                          <td className="p-3 font-mono font-bold text-[#2ea043]">#{s.sale_number}</td>
-                          <td className={`p-3 ${textMuted}`}>
-                            {new Date(s.created_at).toLocaleDateString()} {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td className={`p-3 font-semibold ${textTitle}`}>{s.customer_name || 'Guest'}</td>
-                          <td className={`p-3 ${textMuted}`}>
-                            {items.slice(0, 3).map((item, idx) => (
-                              <span key={idx} className="inline-block mr-1">
-                                {item.product_name}
-                                {idx < Math.min(items.length, 3) - 1 && ', '}
-                              </span>
-                            ))}
-                            {items.length > 3 && <span className="text-[#2ea043]">+{items.length - 3} more</span>}
-                            <span className="text-[11px] text-[#2ea043] ml-1">({itemCount} units)</span>
-                          </td>
-                          <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {s.total.toFixed(2)}</td>
-                          <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                generateReceiptPdf(pharmacy, s, items, 'print');
-                              }}
-                              className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
-                                }`}
-                            >
-                              Print
-                            </button>
-                            {onProcessReturn && (
+                      return (
+                        <React.Fragment key={s.id}>
+                          {/* Main Sale Row */}
+                          <tr
+                            className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
+                              }`}
+                            onClick={() => toggleExpanded(s.id)}
+                          >
+                            <td className="p-3">
+                              {items.length > 0 && (
+                                isExpanded ?
+                                  <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
+                                  <ChevronRight className="w-4 h-4 text-[#2ea043]" />
+                              )}
+                            </td>
+                            <td className="p-3 font-mono font-bold text-[#2ea043]">#{s.sale_number}</td>
+                            <td className={`p-3 ${textMuted}`}>
+                              {new Date(s.created_at).toLocaleDateString()} {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className={`p-3 font-semibold ${textTitle}`}>{s.customer_name || 'Guest'}</td>
+                            <td className={`p-3 ${textMuted}`}>
+                              {items.slice(0, 3).map((item, idx) => (
+                                <span key={idx} className="inline-block mr-1">
+                                  {item.product_name}
+                                  {idx < Math.min(items.length, 3) - 1 && ', '}
+                                </span>
+                              ))}
+                              {items.length > 3 && <span className="text-[#2ea043]">+{items.length - 3} more</span>}
+                              <span className="text-[11px] text-[#2ea043] ml-1">({itemCount} units)</span>
+                            </td>
+                            <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {s.total.toFixed(2)}</td>
+                            <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedSaleForReturn(s);
+                                  generateReceiptPdf(pharmacy, s, items, 'print');
                                 }}
-                                className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
+                                className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
+                                  }`}
                               >
-                                Return
+                                Print
                               </button>
-                            )}
-                          </td>
-                        </tr>
-
-                        {/* Expanded Items Row */}
-                        {isExpanded && items.length > 0 && (
-                          <tr>
-                            <td colSpan={7} className="p-0">
-                              <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
-                                <table className="w-full text-left text-sm">
-                                  <thead className={`text-[10px] uppercase font-bold ${textMuted}`}>
-                                    <tr>
-                                      <th className="p-2">#</th>
-                                      <th className="p-2">Product</th>
-                                      <th className="p-2">Qty</th>
-                                      <th className="p-2">Unit Price</th>
-                                      <th className="p-2">Subtotal</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {items.map((item, idx) => (
-                                      <tr key={idx} className={`${borderLine}`}>
-                                        <td className="p-2 text-muted">{idx + 1}</td>
-                                        <td className="p-2 font-medium">{item.product_name}</td>
-                                        <td className="p-2">{item.quantity}</td>
-                                        <td className="p-2">{currency} {item.unit_price.toFixed(2)}</td>
-                                        <td className="p-2 font-bold">{currency} {item.subtotal.toFixed(2)}</td>
-                                      </tr>
-                                    ))}
-                                    {/* Show totals row */}
-                                    <tr className={`${borderLine}`}>
-                                      <td colSpan={3}></td>
-                                      <td className="p-2 font-bold">Total:</td>
-                                      <td className="p-2 font-extrabold text-[#2ea043]">{currency} {s.total.toFixed(2)}</td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
+                              {onProcessReturn && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedSaleForReturn(s);
+                                  }}
+                                  className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
+                                >
+                                  Return
+                                </button>
+                              )}
                             </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+
+                          {/* Expanded Items Row */}
+                          {isExpanded && items.length > 0 && (
+                            <tr>
+                              <td colSpan={7} className="p-0">
+                                <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
+                                  <table className="w-full text-left text-sm">
+                                    <thead className={`text-[10px] uppercase font-bold ${textMuted}`}>
+                                      <tr>
+                                        <th className="p-2">#</th>
+                                        <th className="p-2">Product</th>
+                                        <th className="p-2">Qty</th>
+                                        <th className="p-2">Unit Price</th>
+                                        <th className="p-2">Subtotal</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {items.map((item, idx) => (
+                                        <tr key={idx} className={`${borderLine}`}>
+                                          <td className="p-2 text-muted">{idx + 1}</td>
+                                          <td className="p-2 font-medium">{item.product_name}</td>
+                                          <td className="p-2">{item.quantity}</td>
+                                          <td className="p-2">{currency} {item.unit_price.toFixed(2)}</td>
+                                          <td className="p-2 font-bold">{currency} {item.subtotal.toFixed(2)}</td>
+                                        </tr>
+                                      ))}
+                                      {/* Show totals row */}
+                                      <tr className={`${borderLine}`}>
+                                        <td colSpan={3}></td>
+                                        <td className="p-2 font-bold">Total:</td>
+                                        <td className="p-2 font-extrabold text-[#2ea043]">{currency} {s.total.toFixed(2)}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Return Modal - REMOVED border, full screen on mobile */}

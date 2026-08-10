@@ -12,6 +12,7 @@ interface DashboardViewProps {
   onNavigate: (tab: any) => void;
   onOpenAddStockModal: () => void;
   theme?: 'dark' | 'light';
+  isLoading?: boolean; // ← ADD THIS
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -24,6 +25,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigate,
   onOpenAddStockModal,
   theme = 'dark',
+  isLoading = false, // ← ADD THIS WITH DEFAULT
 }) => {
   // Get pharmacy details from profile (since we store everything in profiles now)
   const pharmacyName = profile?.pharmacy_name || pharmacy?.name || 'PHARMARAE KENYA';
@@ -52,99 +54,162 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const canViewFinancials = role === 'owner' || role === 'admin' || role === 'pharmacist';
 
+  // Skeleton Components
+  const SkeletonMetric = () => (
+    <div className={`rounded-2xl p-3.5 animate-pulse ${cardBg}`}>
+      <div className="flex items-center justify-between mb-1">
+        <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+        <div className="w-4 h-4 bg-gray-300 dark:bg-gray-700 rounded"></div>
+      </div>
+      <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-20 mt-1"></div>
+      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+    </div>
+  );
+
+  const SkeletonSaleItem = () => (
+    <div className={`flex items-center justify-between p-2.5 rounded-xl animate-pulse ${itemBg}`}>
+      <div>
+        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-20"></div>
+        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+      </div>
+      <div className="text-right">
+        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-12 mt-1"></div>
+      </div>
+    </div>
+  );
+
+  const SkeletonWarning = () => (
+    <div className={`p-2.5 rounded-xl animate-pulse ${isDark ? 'bg-amber-950/20' : 'bg-amber-50'}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-24"></div>
+          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mt-1"></div>
+        </div>
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
       {/* REMOVED padding on container for edge-to-edge on mobile */}
 
       {/* Welcome Banner - REMOVED border */}
-      <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden transition-colors mx-0 ${isDark
-        ? 'bg-gradient-to-r from-[#161b22] via-[#21262d] to-[#161b22] text-white'
-        : 'bg-gradient-to-r from-[#0969da] via-[#1f883d] to-[#0969da] text-white'
-        }`}>
-        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-              {greeting}, {profile?.full_name?.split(' ')[0] || 'Pharmacist'}
-            </p>
-            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mt-0.5">
-              {pharmacyName}
-            </h2>
-            <p className="text-xs text-white/80 mt-1">
-              {profile?.pharmacy_trading_name || pharmacy?.trading_name || 'Ready for fast dispensing & stock auditing today.'}
-            </p>
+      {isLoading ? (
+        <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden animate-pulse mx-0 ${isDark
+          ? 'bg-[#161b22]'
+          : 'bg-[#0969da]'
+          }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-32"></div>
+              <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-48 mt-2"></div>
+              <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-64 mt-2"></div>
+            </div>
+            <div className="h-10 bg-gray-300 dark:bg-gray-700 rounded-xl w-32"></div>
           </div>
-
-          <button
-            onClick={() => onNavigate('sell')}
-            className="self-start sm:self-auto bg-[#2ea043] hover:bg-[#3fb950] text-white px-5 py-2.5 rounded-xl font-extrabold text-sm shadow-xl flex items-center gap-2 transition-transform active:scale-95"
-          >
-            <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
-            <span>SELL NOW</span>
-          </button>
         </div>
-      </div>
+      ) : (
+        <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden transition-colors mx-0 ${isDark
+          ? 'bg-gradient-to-r from-[#161b22] via-[#21262d] to-[#161b22] text-white'
+          : 'bg-gradient-to-r from-[#0969da] via-[#1f883d] to-[#0969da] text-white'
+          }`}>
+          <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                {greeting}, {profile?.full_name?.split(' ')[0] || 'Pharmacist'}
+              </p>
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mt-0.5">
+                {pharmacyName}
+              </h2>
+              <p className="text-xs text-white/80 mt-1">
+                {profile?.pharmacy_trading_name || pharmacy?.trading_name || 'Ready for fast dispensing & stock auditing today.'}
+              </p>
+            </div>
+
+            <button
+              onClick={() => onNavigate('sell')}
+              className="self-start sm:self-auto bg-[#2ea043] hover:bg-[#3fb950] text-white px-5 py-2.5 rounded-xl font-extrabold text-sm shadow-xl flex items-center gap-2 transition-transform active:scale-95"
+            >
+              <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
+              <span>SELL NOW</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Key Metrics Grid - REMOVED border from all cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-0 md:px-0">
+        {isLoading ? (
+          // Show 4 skeleton metrics
+          <>
+            <SkeletonMetric />
+            <SkeletonMetric />
+            <SkeletonMetric />
+            <SkeletonMetric />
+          </>
+        ) : (
+          <>
+            {/* Today's Sales */}
+            <div className={`rounded-2xl p-3.5 ${cardBg}`}>
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Today's Sales</span>
+                <TrendingUp className="w-4 h-4 text-[#2ea043]" />
+              </div>
+              <p className="text-lg sm:text-xl font-extrabold text-[#2ea043]">
+                {canViewFinancials
+                  ? `${currency} ${totalSalesRevenue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`
+                  : '••••••'}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Total revenue recorded</p>
+            </div>
 
-        {/* Today's Sales */}
-        <div className={`rounded-2xl p-3.5 ${cardBg}`}>
-          <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
-            <span>Today's Sales</span>
-            <TrendingUp className="w-4 h-4 text-[#2ea043]" />
-          </div>
-          <p className="text-lg sm:text-xl font-extrabold text-[#2ea043]">
-            {canViewFinancials
-              ? `${currency} ${totalSalesRevenue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`
-              : '••••••'}
-          </p>
-          <p className={`text-[10px] mt-1 ${textMuted}`}>Total revenue recorded</p>
-        </div>
+            {/* Transactions */}
+            <div className={`rounded-2xl p-3.5 ${cardBg}`}>
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Transactions</span>
+                <FileText className="w-4 h-4 text-[#58a6ff]" />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
+                {totalTransactions}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Receipts completed</p>
+            </div>
 
-        {/* Transactions */}
-        <div className={`rounded-2xl p-3.5 ${cardBg}`}>
-          <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
-            <span>Transactions</span>
-            <FileText className="w-4 h-4 text-[#58a6ff]" />
-          </div>
-          <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
-            {totalTransactions}
-          </p>
-          <p className={`text-[10px] mt-1 ${textMuted}`}>Receipts completed</p>
-        </div>
+            {/* Low Stock Alert */}
+            <button
+              onClick={() => onNavigate('stock')}
+              className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+            >
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Low Stock</span>
+                <AlertTriangle className={`w-4 h-4 ${lowStockProducts.length > 0 ? 'text-amber-500' : textMuted}`} />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${lowStockProducts.length > 0 ? 'text-amber-500' : textTitle}`}>
+                {lowStockProducts.length}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Products below reorder</p>
+            </button>
 
-        {/* Low Stock Alert */}
-        <button
-          onClick={() => onNavigate('stock')}
-          className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
-        >
-          <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
-            <span>Low Stock</span>
-            <AlertTriangle className={`w-4 h-4 ${lowStockProducts.length > 0 ? 'text-amber-500' : textMuted}`} />
-          </div>
-          <p className={`text-lg sm:text-xl font-extrabold ${lowStockProducts.length > 0 ? 'text-amber-500' : textTitle}`}>
-            {lowStockProducts.length}
-          </p>
-          <p className={`text-[10px] mt-1 ${textMuted}`}>Products below reorder</p>
-        </button>
-
-        {/* Expiring Soon */}
-        <button
-          onClick={() => onNavigate('stock')}
-          className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
-        >
-          <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
-            <span>Expiring Soon</span>
-            <Clock className={`w-4 h-4 ${expiringBatches.length > 0 ? 'text-rose-500' : textMuted}`} />
-          </div>
-          <p className={`text-lg sm:text-xl font-extrabold ${expiringBatches.length > 0 ? 'text-rose-500' : textTitle}`}>
-            {expiringBatches.length}
-          </p>
-          <p className={`text-[10px] mt-1 ${textMuted}`}>Batches expiring in 90 days</p>
-        </button>
-
+            {/* Expiring Soon */}
+            <button
+              onClick={() => onNavigate('stock')}
+              className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+            >
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Expiring Soon</span>
+                <Clock className={`w-4 h-4 ${expiringBatches.length > 0 ? 'text-rose-500' : textMuted}`} />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${expiringBatches.length > 0 ? 'text-rose-500' : textTitle}`}>
+                {expiringBatches.length}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Batches expiring in 90 days</p>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Quick Action Hub - REMOVED border */}
@@ -219,7 +284,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
 
-          {todaySales.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-2 overflow-y-auto max-h-64 pr-1">
+              <SkeletonSaleItem />
+              <SkeletonSaleItem />
+              <SkeletonSaleItem />
+              <SkeletonSaleItem />
+            </div>
+          ) : todaySales.length === 0 ? (
             <div className={`py-8 text-center text-xs ${textMuted}`}>
               <CheckCircle2 className="w-8 h-8 opacity-40 mx-auto mb-2" />
               No sales completed yet today. Tap <span className="text-[#2ea043] font-extrabold">SELL NOW</span> to record the first transaction!
@@ -267,48 +339,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
 
-          <div className="space-y-2.5 overflow-y-auto max-h-64 pr-1">
-            {lowStockProducts.length === 0 && expiringBatches.length === 0 ? (
-              <div className={`py-8 text-center text-xs ${textMuted}`}>
-                <CheckCircle2 className="w-8 h-8 text-[#2ea043] opacity-50 mx-auto mb-2" />
-                All stock levels are healthy and no batches expire within 90 days.
-              </div>
-            ) : (
-              <>
-                {lowStockProducts.map(prod => (
-                  <div key={prod.id} className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-amber-600 dark:text-amber-300">{prod.name}</div>
-                      <div className="text-[10px] text-amber-600/80 dark:text-amber-300/70">
-                        Category: {prod.category_name || 'General'}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                        Stock: {prod.total_stock_base || 0} (Reorder: {prod.reorder_level})
-                      </span>
+          {isLoading ? (
+            <div className="space-y-2.5 overflow-y-auto max-h-64 pr-1">
+              <SkeletonWarning />
+              <SkeletonWarning />
+              <SkeletonWarning />
+            </div>
+          ) : lowStockProducts.length === 0 && expiringBatches.length === 0 ? (
+            <div className={`py-8 text-center text-xs ${textMuted}`}>
+              <CheckCircle2 className="w-8 h-8 text-[#2ea043] opacity-50 mx-auto mb-2" />
+              All stock levels are healthy and no batches expire within 90 days.
+            </div>
+          ) : (
+            <div className="space-y-2.5 overflow-y-auto max-h-64 pr-1">
+              {lowStockProducts.map(prod => (
+                <div key={prod.id} className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-amber-600 dark:text-amber-300">{prod.name}</div>
+                    <div className="text-[10px] text-amber-600/80 dark:text-amber-300/70">
+                      Category: {prod.category_name || 'General'}
                     </div>
                   </div>
-                ))}
+                  <div className="text-right">
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      Stock: {prod.total_stock_base || 0} (Reorder: {prod.reorder_level})
+                    </span>
+                  </div>
+                </div>
+              ))}
 
-                {expiringBatches.map(batch => (
-                  <div key={batch.id} className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-rose-600 dark:text-rose-300">{batch.product_name || 'Drug Batch'}</div>
-                      <div className="text-[10px] text-rose-600/80 dark:text-rose-300/70">
-                        Batch: {batch.batch_number}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
-                        Expires: {batch.expiry_date}
-                      </span>
+              {expiringBatches.map(batch => (
+                <div key={batch.id} className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-rose-600 dark:text-rose-300">{batch.product_name || 'Drug Batch'}</div>
+                    <div className="text-[10px] text-rose-600/80 dark:text-rose-300/70">
+                      Batch: {batch.batch_number}
                     </div>
                   </div>
-                ))}
-              </>
-            )}
-          </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                      Expires: {batch.expiry_date}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

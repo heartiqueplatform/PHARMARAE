@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Profile, UserRole, Supplier, AuditLog } from '../../types';
-import { Users, Truck, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image } from 'lucide-react';
+import { Users, Truck, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image, FileCheck, Info } from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
@@ -20,6 +20,7 @@ interface MoreViewProps {
   onTriggerSync: () => void;
   onResetLocalCache?: () => void;
   theme?: 'dark' | 'light';
+  onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void; // Add this
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -37,6 +38,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onTriggerSync,
   onResetLocalCache,
   theme = 'dark',
+  onNavigateToTab,
 }) => {
   const isDark = theme === 'dark';
 
@@ -1015,7 +1017,96 @@ export const MoreView: React.FC<MoreViewProps> = ({
           <span>{successToast}</span>
         </div>
       )}
+      {/* LEGAL & RESOURCES SECTION */}
+      {activeSection === 'settings' && (
+        <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
+          <h3 className={`font-bold text-base ${textTitle} flex items-center gap-2`}>
+            <span className="text-[#2ea043]">⚖️</span>
+            Legal & Resources
+          </h3>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* About Button */}
+            <button
+              onClick={() => {
+                if (onNavigateToTab) {
+                  onNavigateToTab('about');
+                }
+              }}
+              className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-95 group ${isDark
+                ? 'bg-[#0d1117] hover:bg-[#21262d]'
+                : 'bg-[#f6f8fa] hover:bg-[#f3f4f6]'
+                }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500/30 transition-colors">
+                  <Info className="w-5 h-5 text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">About</p>
+                  <p className={`text-[11px] ${textMuted} truncate`}>App version 1.0.0</p>
+                </div>
+                <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Privacy Policy Button */}
+            <button
+              onClick={() => {
+                if (onNavigateToTab) {
+                  onNavigateToTab('privacy');
+                }
+              }}
+              className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-95 group ${isDark
+                ? 'bg-[#0d1117] hover:bg-[#21262d]'
+                : 'bg-[#f6f8fa] hover:bg-[#f3f4f6]'
+                }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-500/30 transition-colors">
+                  <Shield className="w-5 h-5 text-purple-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">Privacy Policy</p>
+                  <p className={`text-[11px] ${textMuted} truncate`}>Data protection</p>
+                </div>
+                <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Terms & Conditions Button */}
+            <button
+              onClick={() => {
+                if (onNavigateToTab) {
+                  onNavigateToTab('terms');
+                }
+              }}
+              className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-95 group ${isDark
+                ? 'bg-[#0d1117] hover:bg-[#21262d]'
+                : 'bg-[#f6f8fa] hover:bg-[#f3f4f6]'
+                }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/30 transition-colors">
+                  <FileCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">Terms & Conditions</p>
+                  <p className={`text-[11px] ${textMuted} truncate`}>Usage agreement</p>
+                </div>
+                <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 };

@@ -11,7 +11,7 @@ interface CartItem {
 }
 
 interface PosViewProps {
-  pharmacy: Pharmacy | null;
+  pharmacyName: string | null;
   currentProfile: Profile | null;
   role: UserRole;
   products: Product[];
@@ -21,10 +21,11 @@ interface PosViewProps {
   onOpenBarcodeScanner: () => void;
   scannedBarcode?: string | null;
   theme?: 'dark' | 'light';
+  isLoading?: boolean; // ← ADD THIS
 }
 
 export const PosView: React.FC<PosViewProps> = ({
-  pharmacy,
+  pharmacyName,
   currentProfile,
   role,
   products,
@@ -34,11 +35,12 @@ export const PosView: React.FC<PosViewProps> = ({
   onOpenBarcodeScanner,
   scannedBarcode,
   theme = 'dark',
+  isLoading = false, // ← ADD THIS WITH DEFAULT
 }) => {
-  const currency = pharmacy?.currency || 'KSh';
+  const currency = 'KSh'; // or from pharmacy
   const isDark = theme === 'dark';
 
-  // Base card styles - REMOVED ALL borders
+  // Base card styles
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const cardHover = isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
@@ -46,25 +48,17 @@ export const PosView: React.FC<PosViewProps> = ({
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
 
-  // Large touch targets for mobile
   const touchTarget = 'min-h-[44px] min-w-[44px]';
   const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
 
-  // Additional theme variables for cart items - REMOVED borders
   const cartItemBg = isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]';
   const cartItemText = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const cartItemSubText = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const cartItemBorder = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const selectBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-white text-[#1f2328]';
-  const inputDisabled = isDark ? 'bg-[#161b22] text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]';
-  const buttonSecondary = isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-[#eaeef2]';
-  const buttonSecondaryActive = isDark ? 'bg-[#2ea043] text-white' : 'bg-[#2ea043] text-white';
 
-  // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-
-  // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -72,7 +66,6 @@ export const PosView: React.FC<PosViewProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto handle barcode scanner match
   React.useEffect(() => {
     if (scannedBarcode) {
       setSearchQuery(scannedBarcode);
@@ -83,14 +76,12 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   }, [scannedBarcode, products]);
 
-  // Categories list
   const categories = useMemo(() => {
     const set = new Set<string>();
     products.forEach(p => { if (p.category_name) set.add(p.category_name); });
     return Array.from(set);
   }, [products]);
 
-  // Filtered Products
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesCategory = selectedCategory === 'all' || p.category_name === selectedCategory;
@@ -106,12 +97,10 @@ export const PosView: React.FC<PosViewProps> = ({
     });
   }, [products, searchQuery, selectedCategory]);
 
-  // Get available quantity directly from product
   const getAvailableQuantity = (product: Product): number => {
     return product.quantity || 0;
   };
 
-  // Get best batch (FEFO) for a product
   const getBestBatch = (productId: string): ProductBatch | undefined => {
     const todayStr = new Date().toISOString().split('T')[0];
     const available = batches
@@ -120,7 +109,6 @@ export const PosView: React.FC<PosViewProps> = ({
     return available[0];
   };
 
-  // Add Product to Cart
   const addToCart = (product: Product) => {
     const availableQty = getAvailableQuantity(product);
     if (availableQty <= 0) {
@@ -153,7 +141,6 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   };
 
-  // Update Item Quantity
   const updateQuantity = (index: number, newQty: number) => {
     if (newQty <= 0) {
       removeItem(index);
@@ -174,17 +161,14 @@ export const PosView: React.FC<PosViewProps> = ({
     setCart(updated);
   };
 
-  // Remove Item
   const removeItem = (index: number) => {
     const updated = cart.filter((_, i) => i !== index);
     setCart(updated);
   };
 
-  // Totals
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.subtotal, 0), [cart]);
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
-  // Submit Sale
   const handleCheckout = async () => {
     if (cart.length === 0 || isSubmitting) return;
 
@@ -224,13 +208,49 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   };
 
+  // Skeleton Product Card
+  const SkeletonCard = () => (
+    <div className={`p-4 rounded-2xl animate-pulse ${cardBg}`}>
+      <div className="space-y-2">
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
+        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-2/3"></div>
+        <div className={`pt-3 mt-2 flex items-center justify-between ${borderLine}`}>
+          <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+          <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-14"></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Skeleton Cart Item
+  const SkeletonCartItem = () => (
+    <div className={`${cartItemBg} rounded-xl p-3 animate-pulse`}>
+      <div className="flex items-start justify-between">
+        <div className="flex-1 pr-2 space-y-2">
+          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
+          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+        </div>
+        <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
+      </div>
+      <div className={`flex items-center justify-between pt-2 ${cartItemBorder}`}>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
+          <div className="w-12 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
+          <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        </div>
+        <div className="h-5 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Left Column: Fast Product Search & Grid (7 cols) */}
+      {/* Left Column: Fast Product Search & Grid */}
       <div className="lg:col-span-7 space-y-4">
 
-        {/* Search Bar & Barcode Trigger - Large touch targets */}
+        {/* Search Bar & Barcode Trigger */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className={`w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`} />
@@ -262,7 +282,7 @@ export const PosView: React.FC<PosViewProps> = ({
           </button>
         </div>
 
-        {/* Category Pills - Larger touch targets */}
+        {/* Category Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
           <button
             onClick={() => setSelectedCategory('all')}
@@ -291,11 +311,30 @@ export const PosView: React.FC<PosViewProps> = ({
           ))}
         </div>
 
-        {/* Product Cards Grid - Larger touch targets */}
+        {/* Product Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[550px] overflow-y-auto pr-1">
-          {filteredProducts.length === 0 ? (
+          {isLoading ? (
+            // Show 6 skeleton loaders
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          ) : filteredProducts.length === 0 ? (
             <div className={`col-span-full py-12 text-center text-sm ${textMuted}`}>
-              No matching items found in inventory.
+              {products.length === 0 ? (
+                <div className="space-y-3">
+                  <ShoppingBag className={`w-16 h-16 mx-auto ${textMuted} opacity-30`} />
+                  <p className="font-semibold text-base">No Products Found</p>
+                  <p className="text-sm">Add your first product to start selling.</p>
+                  <p className="text-xs opacity-70">Go to Stock tab → New Product</p>
+                </div>
+              ) : (
+                'No matching items found in inventory.'
+              )}
             </div>
           ) : (
             filteredProducts.map(prod => {
@@ -368,7 +407,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
       </div>
 
-      {/* Right Column: Cart & Checkout (5 cols) - REMOVED border */}
+      {/* Right Column: Cart & Checkout */}
       <div className={`lg:col-span-5 rounded-2xl p-4 shadow-xl flex flex-col justify-between h-full ${cardBg}`}>
 
         <div>
@@ -391,8 +430,14 @@ export const PosView: React.FC<PosViewProps> = ({
             )}
           </div>
 
-          {/* Cart Item List - Larger touch targets */}
-          {cart.length === 0 ? (
+          {/* Cart Item List */}
+          {isLoading ? (
+            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+              <SkeletonCartItem />
+              <SkeletonCartItem />
+              <SkeletonCartItem />
+            </div>
+          ) : cart.length === 0 ? (
             <div className={`py-12 text-center ${textMuted} text-sm space-y-2`}>
               <ShoppingBag className={`w-12 h-12 mx-auto ${textMuted}`} />
               <p>Your cart is empty.</p>
@@ -427,7 +472,6 @@ export const PosView: React.FC<PosViewProps> = ({
                     </button>
                   </div>
 
-                  {/* Quantity Stepper & Price - Larger controls */}
                   <div className={`flex items-center justify-between pt-2 ${cartItemBorder}`}>
                     <div className={`flex items-center gap-2 ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} rounded-lg p-1`}>
                       <button
@@ -467,10 +511,9 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
           )}
 
-          {/* Customer & Payment Method - Larger touch targets */}
+          {/* Customer & Payment Method */}
           <div className={`mt-4 pt-3 ${borderLine} space-y-3`}>
 
-            {/* Customer Select */}
             <div className={`flex items-center justify-between text-sm ${textMuted}`}>
               <span className="flex items-center gap-2">
                 <User className="w-4 h-4" />
@@ -491,7 +534,6 @@ export const PosView: React.FC<PosViewProps> = ({
               </select>
             </div>
 
-            {/* Discount */}
             <div className={`flex items-center justify-between text-sm ${textMuted}`}>
               <span className="flex items-center gap-2">
                 <Tag className="w-4 h-4" />
@@ -508,7 +550,6 @@ export const PosView: React.FC<PosViewProps> = ({
               />
             </div>
 
-            {/* Payment Method - Larger touch targets */}
             <div>
               <p className={`text-[11px] font-bold uppercase ${textMuted} mb-2`}>Payment Method</p>
               <div className="grid grid-cols-3 gap-2 text-sm">
@@ -532,7 +573,7 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
         </div>
 
-        {/* Checkout Button - Larger touch target */}
+        {/* Checkout Button */}
         <div className={`mt-4 pt-3 ${borderLine} space-y-3`}>
           <div className={`flex justify-between items-center ${textMuted} text-sm`}>
             <span>Subtotal:</span>

@@ -29,6 +29,7 @@ import { MoreView } from './components/views/MoreView';
 import { AboutView } from '@/components/views/AboutView';
 import { PrivacyPolicyView } from '@/components/views/PrivacyPolicyView';
 import { TermsConditionsView } from '@/components/views/TermsConditionsView';
+
 const APP_VERSION = '1.0.0';
 const APP_NAME = 'PHARMARAE KENYA';
 const VERSION_KEY = 'pharmarae_app_version';
@@ -40,7 +41,7 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncPendingCount, setSyncPendingCount] = useState<number>(0);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-
+  const [isLoading, setIsLoading] = useState(true);
   // Core Data State - SINGLE TABLE ARCHITECTURE
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -277,11 +278,14 @@ export default function App() {
       updated_at: profile.updated_at
     };
   };
-
   // =============================================
-  // LOAD DATA - WITH FORCED SUPABASE PULL
+  // LOAD DATA - WITH FORCED SUPABASE PULL & MINIMUM LOADING TIME
   // =============================================
   const loadDatabaseData = useCallback(async () => {
+    const startTime = Date.now();
+    setIsLoading(true);
+    console.log('🔄 Loading data...');
+
     try {
       await seedInitialDataIfNeeded();
 
@@ -393,6 +397,16 @@ export default function App() {
       }
     } catch (err) {
       console.error('Error loading database data:', err);
+    } finally {
+      // Ensure minimum loading time of 500ms so skeleton is visible
+      const elapsed = Date.now() - startTime;
+      const minLoadTime = 500;
+      if (elapsed < minLoadTime) {
+        console.log(`⏳ Ensuring minimum loading time: ${minLoadTime - elapsed}ms remaining`);
+        await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
+      }
+      setIsLoading(false);
+      console.log('✅ Loading complete, isLoading set to false');
     }
   }, [isOnline]);
   // Add this useEffect in your App component (around line 100)
@@ -1004,12 +1018,14 @@ export default function App() {
       throw err;
     }
   };
-
   // =============================================
-  // ADD BATCH
+  // ADD BATCH - FIXED VERSION (No Double Counting)
   // =============================================
   const handleAddBatch = async (batchData: Partial<ProductBatch>) => {
-    if (!currentProfile || !batchData.product_id) return;
+    if (!currentProfile || !batchData.product_id) {
+      console.error('❌ No profile or product_id found');
+      return;
+    }
 
     const pharmacyName = normalizePharmacyName(batchData.pharmacy_name || currentProfile.pharmacy_name);
     if (!pharmacyName) {
@@ -1017,56 +1033,78 @@ export default function App() {
       return;
     }
 
+    // Validate required fields
+    if (!batchData.batch_number) {
+      throw new Error('Batch number is required');
+    }
+    if (!batchData.expiry_date) {
+      throw new Error('Expiry date is required');
+    }
+    if (!batchData.quantity_base || batchData.quantity_base <= 0) {
+      throw new Error('Quantity must be greater than 0');
+    }
+
     const id = genUUID();
+    const now = new Date().toISOString();
+
+    // Create the new batch
     const newBatch: ProductBatch = {
       id,
       pharmacy_name: pharmacyName,
       product_id: batchData.product_id,
       supplier_id: batchData.supplier_id || null,
-      batch_number: batchData.batch_number || 'B1',
-      expiry_date: batchData.expiry_date || new Date().toISOString().split('T')[0],
-      quantity_base: batchData.quantity_base || 0,
-      cost_price: batchData.cost_price || 0,
-      selling_price: batchData.selling_price || 0,
-      received_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    console.log('📦 Saving batch:', newBatch);
-    await db.product_batches.put(newBatch);
-
-    const product = await db.products.get(batchData.product_id);
-    if (product) {
-      const newQuantity = (product.quantity || 0) + (batchData.quantity_base || 0);
-      await db.products.update(batchData.product_id, {
-        quantity: newQuantity,
-        updated_at: new Date().toISOString()
-      });
-    }
-
-    const supabaseBatch = {
-      id: id,
-      pharmacy_name: pharmacyName,
-      product_id: batchData.product_id,
-      supplier_id: batchData.supplier_id || null,
-      batch_number: batchData.batch_number || 'B1',
-      expiry_date: batchData.expiry_date || new Date().toISOString().split('T')[0],
-      quantity_base: Number(batchData.quantity_base) || 0,
+      batch_number: batchData.batch_number.trim(),
+      expiry_date: batchData.expiry_date,
+      quantity_base: Number(batchData.quantity_base),
       cost_price: Number(batchData.cost_price) || 0,
       selling_price: Number(batchData.selling_price) || 0,
-      received_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      received_at: now,
+      created_at: now,
+      updated_at: now
     };
 
-    console.log('☁️ Sending batch to Supabase:', supabaseBatch);
+    console.log('📦 Saving batch to Dexie:', newBatch);
 
+    // Step 1: Save the batch
+    await db.product_batches.put(newBatch);
+    console.log('✅ Batch saved to Dexie');
+
+    // Step 2: Get ALL batches for this product to calculate total
+    const allBatchesForProduct = await db.product_batches
+      .where('product_id')
+      .equals(batchData.product_id)
+      .toArray();
+
+    // Calculate total quantity from ALL batches
+    const totalQuantity = allBatchesForProduct.reduce((sum, b) => sum + b.quantity_base, 0);
+
+    console.log(`📊 Total quantity from all batches: ${totalQuantity}`);
+
+    // Step 3: Update the product with the recalculated total quantity
+    const product = await db.products.get(batchData.product_id);
+    if (!product) {
+      console.error('❌ Product not found:', batchData.product_id);
+      throw new Error('Product not found');
+    }
+
+    const oldQuantity = product.quantity || 0;
+
+    console.log(`📊 Product quantity: ${oldQuantity} → ${totalQuantity} (recalculated from ${allBatchesForProduct.length} batches)`);
+
+    // Update the product with the new total quantity
+    await db.products.update(batchData.product_id, {
+      quantity: totalQuantity,
+      updated_at: now
+    });
+    console.log('✅ Product quantity updated in Dexie');
+
+    // Step 4: Record stock movement
     const movId = genUUID();
     const movement: StockMovement = {
       id: movId,
       pharmacy_name: pharmacyName,
       product_id: batchData.product_id,
+      product_name: product.name,
       batch_id: id,
       batch_number: newBatch.batch_number,
       movement_type: 'purchase',
@@ -1074,38 +1112,289 @@ export default function App() {
       performed_by: currentProfile?.id,
       performed_by_name: currentProfile?.full_name,
       reason: `Stock received - Batch ${newBatch.batch_number}`,
-      created_at: new Date().toISOString()
+      created_at: now
     };
     await db.stock_movements.put(movement);
+    console.log('✅ Stock movement recorded');
+
+    // Step 5: Sync to Supabase
+    const supabaseBatch = {
+      id: id,
+      pharmacy_name: pharmacyName,
+      product_id: batchData.product_id,
+      supplier_id: batchData.supplier_id || null,
+      batch_number: batchData.batch_number.trim(),
+      expiry_date: batchData.expiry_date,
+      quantity_base: Number(batchData.quantity_base),
+      cost_price: Number(batchData.cost_price) || 0,
+      selling_price: Number(batchData.selling_price) || 0,
+      received_at: now,
+      created_at: now,
+      updated_at: now
+    };
+
+    console.log('☁️ Sending batch to Supabase:', supabaseBatch);
 
     try {
       const client = getSupabaseClient();
       if (!client) {
         console.warn('⚠️ No Supabase client, queuing for sync');
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'INSERT', supabaseBatch);
+
+        // Also queue the product update with recalculated total
+        const supabaseProduct = {
+          id: product.id,
+          quantity: totalQuantity,
+          updated_at: now
+        };
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', supabaseProduct);
+
         await loadDatabaseData();
         return;
       }
 
-      const { error } = await client
+      // Insert the batch
+      const { error: batchError } = await client
         .from('product_batches')
         .upsert(supabaseBatch, { onConflict: 'id' });
 
-      if (error) {
-        console.error('❌ Supabase batch error:', error);
+      if (batchError) {
+        console.error('❌ Supabase batch error:', batchError);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'INSERT', supabaseBatch);
       } else {
         console.log('✅ Batch synced to Supabase!');
       }
+
+      // Update the product in Supabase with recalculated total
+      const { error: productError } = await client
+        .from('products')
+        .update({
+          quantity: totalQuantity,
+          updated_at: now
+        })
+        .eq('id', batchData.product_id);
+
+      if (productError) {
+        console.error('❌ Supabase product update error:', productError);
+        // Queue the product update for later
+        const supabaseProduct = {
+          id: product.id,
+          quantity: totalQuantity,
+          updated_at: now
+        };
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', supabaseProduct);
+      } else {
+        console.log('✅ Product quantity updated in Supabase!');
+      }
     } catch (err) {
-      console.error('❌ Supabase batch request failed:', err);
+      console.error('❌ Supabase request failed:', err);
+      // Queue both operations for later sync
       await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'INSERT', supabaseBatch);
+      const supabaseProduct = {
+        id: product.id,
+        quantity: totalQuantity,
+        updated_at: now
+      };
+      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', supabaseProduct);
     }
 
+    // Step 6: Record audit log
+    await db.audit_logs.put({
+      id: genUUID(),
+      pharmacy_name: pharmacyName,
+      user_id: currentProfile?.id,
+      user_name: currentProfile?.full_name,
+      action: 'BATCH_ADDED',
+      entity_type: 'PRODUCT_BATCH',
+      entity_id: id,
+      details: `Added batch ${batchData.batch_number} with ${batchData.quantity_base} units. Product ${product.name} quantity: ${oldQuantity} → ${totalQuantity} (recalculated from ${allBatchesForProduct.length} batches)`,
+      created_at: now
+    });
+
+    // Step 7: Reload all data to reflect changes
     await loadDatabaseData();
-    console.log('✅ Batch saved successfully!');
+    console.log('✅ Batch added and product quantity updated successfully!');
   };
 
+  // =============================================
+  // UPDATE BATCH - For Adjustments (Add/Subtract)
+  // =============================================
+  const handleUpdateBatch = async (batchId: string, batchData: Partial<ProductBatch>) => {
+    if (!currentProfile) {
+      console.error('❌ No profile found');
+      return;
+    }
+
+    const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
+    if (!pharmacyName) {
+      console.error('❌ No pharmacy_name found');
+      return;
+    }
+
+    try {
+      // Get existing batch
+      const existingBatch = await db.product_batches.get(batchId);
+      if (!existingBatch) {
+        throw new Error('Batch not found');
+      }
+
+      const now = new Date().toISOString();
+
+      // Calculate the quantity change
+      const oldQuantity = existingBatch.quantity_base;
+      const newQuantity = Number(batchData.quantity_base);
+      const quantityChange = newQuantity - oldQuantity;
+
+      console.log(`📊 Batch quantity change: ${oldQuantity} → ${newQuantity} (${quantityChange > 0 ? '+' : ''}${quantityChange})`);
+
+      // Update local batch
+      const updatedBatch = {
+        ...existingBatch,
+        ...batchData,
+        updated_at: now
+      };
+      await db.product_batches.put(updatedBatch);
+      console.log('✅ Batch updated in Dexie');
+
+      // Get ALL batches for this product to recalculate total
+      const allBatchesForProduct = await db.product_batches
+        .where('product_id')
+        .equals(existingBatch.product_id)
+        .toArray();
+
+      // Calculate total quantity from ALL batches
+      const totalQuantity = allBatchesForProduct.reduce((sum, b) => sum + b.quantity_base, 0);
+
+      console.log(`📊 Recalculated total quantity: ${totalQuantity} from ${allBatchesForProduct.length} batches`);
+
+      // Update the product with recalculated total
+      const product = await db.products.get(existingBatch.product_id);
+      if (!product) {
+        throw new Error('Product not found');
+      }
+
+      const oldProductQuantity = product.quantity || 0;
+
+      await db.products.update(existingBatch.product_id, {
+        quantity: totalQuantity,
+        updated_at: now
+      });
+      console.log(`✅ Product quantity updated in Dexie: ${oldProductQuantity} → ${totalQuantity}`);
+
+      // Record adjustment in stock movements if quantity changed
+      if (quantityChange !== 0) {
+        const movId = genUUID();
+        const movement: StockMovement = {
+          id: movId,
+          pharmacy_name: pharmacyName,
+          product_id: existingBatch.product_id,
+          product_name: product.name,
+          batch_id: batchId,
+          batch_number: updatedBatch.batch_number,
+          movement_type: quantityChange > 0 ? 'adjustment_add' : 'adjustment_subtract',
+          quantity_base: quantityChange,
+          performed_by: currentProfile?.id,
+          performed_by_name: currentProfile?.full_name,
+          reason: `Batch quantity adjusted by ${quantityChange} units`,
+          created_at: now
+        };
+        await db.stock_movements.put(movement);
+        console.log('✅ Stock movement recorded');
+      }
+
+      // Sync to Supabase
+      const client = getSupabaseClient();
+      if (client && navigator.onLine) {
+        try {
+          // Update batch in Supabase
+          const { error: batchError } = await client
+            .from('product_batches')
+            .update({
+              quantity_base: newQuantity,
+              updated_at: now
+            })
+            .eq('id', batchId);
+
+          if (batchError) {
+            console.error('❌ Supabase batch update error:', batchError);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+              id: batchId,
+              quantity_base: newQuantity,
+              updated_at: now
+            });
+          } else {
+            console.log('✅ Batch updated in Supabase!');
+          }
+
+          // Update product in Supabase
+          const { error: productError } = await client
+            .from('products')
+            .update({
+              quantity: totalQuantity,
+              updated_at: now
+            })
+            .eq('id', existingBatch.product_id);
+
+          if (productError) {
+            console.error('❌ Supabase product update error:', productError);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
+              id: existingBatch.product_id,
+              quantity: totalQuantity,
+              updated_at: now
+            });
+          } else {
+            console.log('✅ Product quantity updated in Supabase!');
+          }
+        } catch (err) {
+          console.error('❌ Supabase sync error:', err);
+          // Queue for offline sync
+          await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+            id: batchId,
+            quantity_base: newQuantity,
+            updated_at: now
+          });
+          await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
+            id: existingBatch.product_id,
+            quantity: totalQuantity,
+            updated_at: now
+          });
+        }
+      } else {
+        // Queue for offline sync
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+          id: batchId,
+          quantity_base: newQuantity,
+          updated_at: now
+        });
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
+          id: existingBatch.product_id,
+          quantity: totalQuantity,
+          updated_at: now
+        });
+      }
+
+      // Record audit log
+      await db.audit_logs.put({
+        id: genUUID(),
+        pharmacy_name: pharmacyName,
+        user_id: currentProfile?.id,
+        user_name: currentProfile?.full_name,
+        action: 'BATCH_ADJUSTED',
+        entity_type: 'PRODUCT_BATCH',
+        entity_id: batchId,
+        details: `Batch ${existingBatch.batch_number} quantity changed from ${oldQuantity} to ${newQuantity} (${quantityChange > 0 ? '+' : ''}${quantityChange}). Product total recalculated to ${totalQuantity}`,
+        created_at: now
+      });
+
+      // Refresh data
+      await loadDatabaseData();
+      console.log('✅ Batch adjusted and product quantity updated successfully!');
+
+    } catch (err) {
+      console.error('❌ Error updating batch:', err);
+      throw err;
+    }
+  };
   // =============================================
   // ADD SUPPLIER
   // =============================================
@@ -1389,6 +1678,7 @@ export default function App() {
               onNavigate={(tab) => setActiveTab(tab)}
               onOpenAddStockModal={() => setActiveTab('stock')}
               theme={theme}
+              isLoading={isLoading}
             />
           )}
 
@@ -1404,6 +1694,7 @@ export default function App() {
               onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
               scannedBarcode={scannedBarcode}
               theme={theme}
+              isLoading={isLoading}  // ← Add this line
             />
           )}
 
@@ -1420,7 +1711,8 @@ export default function App() {
               onAddBatch={handleAddBatch}
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
-              onForceSync={handleForceSync} // ✅ Pass force sync
+              onUpdateBatch={handleUpdateBatch}
+              isLoading={isLoading}  // ← Use the isLoading state directly
               theme={theme}
             />
           )}
@@ -1435,6 +1727,7 @@ export default function App() {
               batches={batches}
               movements={movements}
               theme={theme}
+              isLoading={isLoading}
             />
           )}
 
@@ -1474,6 +1767,7 @@ export default function App() {
                   alert('Error resetting cache: ' + (err.message || err));
                 }
               }}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
             />
           )}
         </main>
