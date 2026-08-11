@@ -4,14 +4,14 @@ import App from './App.tsx';
 import './index.css';
 
 // App version - update this when you release new versions
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.1.0';
 const APP_NAME = 'PHARMARAE KENYA';
 
 // Store current version in localStorage for comparison
 const VERSION_KEY = 'PHARMARAE_app_version';
 const LAST_UPDATE_CHECK = 'PHARMARAE_last_update_check';
 
-// ✅ FIX: Apply theme and control splash screen
+//  FIX: Apply theme and control splash screen
 const applyThemeAndSplash = () => {
   const savedTheme = localStorage.getItem('medp_theme') as 'dark' | 'light' || 'light';
   const isDark = savedTheme === 'dark';
@@ -66,10 +66,10 @@ const applyThemeAndSplash = () => {
   }
 };
 
-// ✅ Apply theme IMMEDIATELY
+//  Apply theme IMMEDIATELY
 applyThemeAndSplash();
 
-// ✅ Hide splash screen when React is ready
+//  Hide splash screen when React is ready
 const hideSplash = () => {
   const splash = document.getElementById('splash-screen');
   if (splash) {
@@ -269,7 +269,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
-        console.log('✅ Service Worker registered successfully');
+        console.log(' Service Worker registered successfully');
 
         setInterval(() => {
           registration.update();

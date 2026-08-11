@@ -55,7 +55,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   if (!pharmacy) return null;
 
-  // ✅ Helper: Get product details from sale
+  //  Helper: Get product details from sale
   const getSaleProductDetails = (sale: Sale) => {
     return {
       productName: sale.product_name || 'Unknown Product',
@@ -101,7 +101,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const todayStr = new Date().toISOString().split('T')[0];
   const expiringBatches = batches.filter(b => b.expiry_date <= todayStr && b.quantity_base > 0);
 
-  // ✅ FIXED: Trigger Daily PDF Download - matches PDF function signature
+  //  FIXED: Trigger Daily PDF Download - matches PDF function signature
   const handleDownloadDailyPdf = () => {
     generateDailyReportPdf(
       pharmacy,
@@ -113,7 +113,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // ✅ FIXED: Trigger Monthly PDF Download - matches PDF function signature
+  //  FIXED: Trigger Monthly PDF Download - matches PDF function signature
   const handleDownloadMonthlyPdf = () => {
     generateMonthlyReportPdf(
       pharmacy,
@@ -175,7 +175,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </div>
   );
 
-  // ✅ Render a sale row with product details from the sale record
+  //  Render a sale row with product details from the sale record
   const renderSaleRow = (sale: Sale) => {
     const isExpanded = expandedSales.has(sale.id);
     const productDetails = getSaleProductDetails(sale);

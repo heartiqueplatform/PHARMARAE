@@ -134,8 +134,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                             For privacy-related questions or concerns, please contact us at:
                         </p>
                         <div className="mt-2 text-sm font-medium">
-                            <p>📧 privacy@PHARMIENTA.com</p>
-                            <p className="mt-1">📞 +254 700 123 456</p>
+                            <p>pharmienta@gmail.com</p>
+                            <p className="mt-1"> +254 704 473 503</p>
                         </div>
                     </div>
                 </section>

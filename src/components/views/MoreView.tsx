@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Profile, UserRole, Supplier, AuditLog } from '../../types';
-import { Users, Truck, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image, FileCheck, Info } from 'lucide-react';
-import { isSupabaseConfigured, getSupabaseClient } from '../../lib/supabase';
+import { Users, Truck, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image, FileCheck, Info, Download } from 'lucide-react';
+import { isSupabaseConfigured, getSupabaseClient, processOfflineSyncQueue, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
 
@@ -20,7 +20,7 @@ interface MoreViewProps {
   onTriggerSync: () => void;
   onResetLocalCache?: () => void;
   theme?: 'dark' | 'light';
-  onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void; // Add this
+  onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -64,6 +64,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [isResettingCache, setIsResettingCache] = useState(false);
   const [successToast, setSuccessToast] = useState<string>('');
   const [nameError, setNameError] = useState<string>('');
+  const [syncStatus, setSyncStatus] = useState<string>('');
+  const [isPullingData, setIsPullingData] = useState(false);
 
   const triggerToast = (msg: string) => {
     setSuccessToast(msg);
@@ -170,7 +172,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         role: editRole,
       });
       setEditingProfile(null);
-      triggerToast('✅ Staff profile updated successfully!');
+      triggerToast(' Staff profile updated successfully!');
     } catch (err: any) {
       alert('Error updating profile: ' + (err.message || err));
     } finally {
@@ -207,6 +209,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         pharmacy_receipt_footer: pharmFooter,
         pharmacy_currency: pharmCurrency,
         avatar_url: avatarUrl,
+        avatar_public_id: avatarPublicId,
       };
 
       if (nameChanged) {
@@ -228,7 +231,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         await onUpdateProfile(profile.id, updates);
       }
 
-      triggerToast('✅ Pharmacy settings updated successfully!');
+      triggerToast(' Pharmacy settings updated successfully!');
     } catch (err: any) {
       alert('Error saving settings: ' + (err.message || err));
     } finally {
@@ -260,7 +263,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setStaffEmail('');
       setStaffPhone('');
       setStaffPin('');
-      triggerToast(`✅ Staff member "${staffName}" added successfully!`);
+      triggerToast(` Staff member "${staffName}" added successfully!`);
     } catch (err: any) {
       alert('Error adding staff: ' + (err.message || err));
     } finally {
@@ -282,7 +285,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setShowAddSupplierModal(false);
       setSuppName('');
       setSuppPhone('');
-      triggerToast(`✅ Supplier "${suppName}" registered successfully!`);
+      triggerToast(` Supplier "${suppName}" registered successfully!`);
     } catch (err: any) {
       alert('Error adding supplier: ' + (err.message || err));
     } finally {
@@ -290,16 +293,79 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
   };
 
+  //  UPDATED: Full sync with push and pull
   const handleTriggerSyncQueue = async () => {
     if (isTriggeringSync) return;
     setIsTriggeringSync(true);
+    setSyncStatus('🔄 Processing offline queue...');
+
     try {
+      // Step 1: Process pending mutations (push to Supabase)
+      setSyncStatus('📤 Pushing pending items to Supabase...');
+      const { synced, failed } = await processOfflineSyncQueue();
+
+      if (synced > 0) {
+        setSyncStatus(` Pushed ${synced} items to Supabase`);
+      }
+      if (failed > 0) {
+        setSyncStatus(`⚠️ ${failed} items failed to sync`);
+      }
+
+      // Step 2: Pull fresh data from Supabase
+      if (profile) {
+        setSyncStatus('📥 Pulling fresh data from Supabase...');
+        const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
+        if (pulled) {
+          setSyncStatus(' Fresh data pulled from Supabase');
+        } else {
+          setSyncStatus('⚠️ Failed to pull fresh data');
+        }
+      }
+
+      // Step 3: Update pending count and refresh
+      const count = await db.sync_queue.where('status').equals('pending').count();
+
+      // Call the parent trigger to refresh the UI
       await onTriggerSync();
-      triggerToast('✅ Offline queue processed & synchronized with Supabase cloud!');
+
+      triggerToast(` Sync complete! ${synced} items synced, ${count} pending`);
+      setSyncStatus('');
     } catch (err: any) {
-      console.error(err);
+      console.error('Sync error:', err);
+      setSyncStatus(`❌ Sync failed: ${err.message}`);
+      triggerToast('❌ Sync failed: ' + err.message);
     } finally {
-      setTimeout(() => setIsTriggeringSync(false), 800);
+      setTimeout(() => {
+        setIsTriggeringSync(false);
+        setSyncStatus('');
+      }, 2000);
+    }
+  };
+
+  //  NEW: Force pull data from Supabase
+  const handlePullData = async () => {
+    if (!profile || isPullingData) return;
+    setIsPullingData(true);
+    setSyncStatus(' Pulling data from Supabase...');
+
+    try {
+      const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
+      if (pulled) {
+        triggerToast(' Data pulled from Supabase successfully!');
+        setSyncStatus(' Data pulled successfully');
+        // Refresh the UI
+        await onTriggerSync();
+      } else {
+        triggerToast(' Failed to pull data from Supabase');
+        setSyncStatus(' Pull failed');
+      }
+    } catch (err: any) {
+      console.error('Pull error:', err);
+      triggerToast(' Pull failed: ' + err.message);
+      setSyncStatus(' Pull failed');
+    } finally {
+      setIsPullingData(false);
+      setTimeout(() => setSyncStatus(''), 3000);
     }
   };
 
@@ -307,13 +373,17 @@ export const MoreView: React.FC<MoreViewProps> = ({
     if (!onResetLocalCache || isResettingCache) return;
     if (confirm('Are you sure you want to clear local offline cache and re-sync fresh from Supabase cloud?')) {
       setIsResettingCache(true);
+      setSyncStatus(' Resetting cache...');
       try {
         await onResetLocalCache();
-        triggerToast('✅ Local cache wiped & clean state synchronized!');
+        triggerToast(' Local cache wiped & clean state synchronized!');
+        setSyncStatus(' Cache reset complete');
       } catch (err: any) {
         alert('Cache reset error: ' + (err.message || err));
+        setSyncStatus('❌ Cache reset failed');
       } finally {
         setIsResettingCache(false);
+        setTimeout(() => setSyncStatus(''), 3000);
       }
     }
   };
@@ -396,7 +466,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
             Pharmacy Profile Settings
             {!canManage && (
               <span className="ml-2 text-xs text-amber-500 font-normal">
-                🔒 Owner Only
+                Owner Only
               </span>
             )}
           </h3>
@@ -412,15 +482,42 @@ export const MoreView: React.FC<MoreViewProps> = ({
           <div className="flex flex-col items-center py-4 border-b border-slate-800">
             <AvatarUpload
               currentImage={avatarUrl}
-              onUploadSuccess={(url, publicId) => {
+              onUploadSuccess={async (url, publicId) => {
                 setAvatarUrl(url);
                 setAvatarPublicId(publicId);
-                triggerToast('✅ Avatar uploaded successfully!');
+                triggerToast(' Avatar uploaded successfully!');
+
+                // Auto-save the avatar to the database
+                if (profile && onUpdateProfile) {
+                  try {
+                    await onUpdateProfile(profile.id, {
+                      avatar_url: url,
+                      avatar_public_id: publicId,
+                    });
+                    triggerToast(' Avatar saved to database!');
+                  } catch (err) {
+                    console.error('Failed to save avatar:', err);
+                    triggerToast(' Avatar uploaded but failed to save to database');
+                  }
+                }
               }}
-              onRemove={() => {
+              onRemove={async () => {
                 setAvatarUrl('');
                 setAvatarPublicId('');
-                triggerToast('✅ Avatar removed');
+                triggerToast(' Avatar removed');
+
+                //  Auto-save the removal to the database
+                if (profile && onUpdateProfile) {
+                  try {
+                    await onUpdateProfile(profile.id, {
+                      avatar_url: null,
+                      avatar_public_id: null,
+                    });
+                    triggerToast(' Avatar removal saved to database!');
+                  } catch (err) {
+                    console.error('Failed to remove avatar:', err);
+                  }
+                }
               }}
               size="large"
               theme={theme}
@@ -694,6 +791,11 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   {syncPendingCount} item(s)
                 </span>
               </div>
+              {syncStatus && (
+                <div className={`mt-2 p-2 rounded-lg text-xs font-mono ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'}`}>
+                  {syncStatus}
+                </div>
+              )}
             </div>
           </div>
 
@@ -705,7 +807,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
             <div className="flex flex-col sm:flex-row gap-3 pt-1">
               <button
                 onClick={handleTriggerSyncQueue}
-                disabled={isTriggeringSync}
+                disabled={isTriggeringSync || !isOnline}
                 className={`flex-1 py-3.5 bg-[#2ea043] hover:bg-[#3fb950] active:scale-98 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 ${touchTarget}`}
               >
                 {isTriggeringSync ? (
@@ -717,6 +819,24 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <>
                     <RefreshCw className="w-5 h-5" />
                     <span>Sync Now ({syncPendingCount})</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handlePullData}
+                disabled={isPullingData || !isOnline}
+                className={`flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 ${touchTarget}`}
+              >
+                {isPullingData ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Pulling...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    <span>Pull Data</span>
                   </>
                 )}
               </button>
@@ -739,6 +859,13 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 </button>
               )}
             </div>
+
+            {!isOnline && (
+              <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500 text-sm flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                <span>You are offline. Changes will be queued and synced when you reconnect.</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -776,7 +903,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Add Staff Modal - REMOVED border, full screen on mobile */}
+      {/* Add Staff Modal */}
       {showAddStaffModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
@@ -868,7 +995,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Add Supplier Modal - REMOVED border, full screen on mobile */}
+      {/* Add Supplier Modal */}
       {showAddSupplierModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
@@ -923,7 +1050,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Edit Profile Modal - REMOVED border, full screen on mobile */}
+      {/* Edit Profile Modal */}
       {editingProfile && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
@@ -1017,6 +1144,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
           <span>{successToast}</span>
         </div>
       )}
+
       {/* LEGAL & RESOURCES SECTION */}
       {activeSection === 'settings' && (
         <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
@@ -1107,6 +1235,5 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
     </div>
-
   );
 };

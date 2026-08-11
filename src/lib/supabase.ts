@@ -93,10 +93,10 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 // =============================================
-// ✅ NO AUTHENTICATION CHECKS - User is already on dashboard
+//  NO AUTHENTICATION CHECKS - User is already on dashboard
 // =============================================
 export function ensureAuthenticated(): boolean {
-  // ✅ Simply check if user is locally authenticated
+  //  Simply check if user is locally authenticated
   return localStorage.getItem('medp_authenticated') === 'true';
 }
 
@@ -143,7 +143,7 @@ export async function queueOfflineMutation(
 export async function processOfflineSyncQueue(): Promise<{ synced: number; failed: number }> {
   const client = getSupabaseClient();
 
-  // ✅ Check if online and client exists
+  //  Check if online and client exists
   if (!navigator.onLine) {
     console.log('📴 Offline - cannot process sync queue');
     return { synced: 0, failed: 0 };
@@ -154,7 +154,7 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
     return { synced: 0, failed: 0 };
   }
 
-  // ✅ NO AUTH CHECK - just check if configured
+  //  NO AUTH CHECK - just check if configured
   if (!isSupabaseConfigured()) {
     console.log('⚠️ Supabase not configured');
     return { synced: 0, failed: 0 };
@@ -222,18 +222,18 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
     }
   }
 
-  console.log(`✅ Sync complete: ${syncedCount} synced, ${failedCount} failed`);
+  console.log(` Sync complete: ${syncedCount} synced, ${failedCount} failed`);
   return { synced: syncedCount, failed: failedCount };
 }
 
 // =============================================
-// PULL FROM SUPABASE - ✅ NO AUTH CHECKS
-// ✅ UPDATED: Removed sale_items (single table design)
+// PULL FROM SUPABASE -  NO AUTH CHECKS
+//  UPDATED: Removed sale_items (single table design)
 // =============================================
 export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boolean> {
   const client = getSupabaseClient();
 
-  // ✅ Only check online status and client exists
+  //  Only check online status and client exists
   if (!navigator.onLine) {
     console.log('📴 Offline - cannot pull from Supabase');
     return false;
@@ -524,7 +524,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     }
 
     // =============================================
-    // 7. PULL SALES - ✅ Single table design (all product details included)
+    // 7. PULL SALES -  Single table design (all product details included)
     // =============================================
     console.log('📦 Pulling sales...');
     let { data: remoteSales, error: salesError } = await client
@@ -707,7 +707,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
       }
     }
 
-    console.log('✅ All data pulled from Supabase successfully!');
+    console.log(' All data pulled from Supabase successfully!');
     return true;
   } catch (err) {
     console.error('❌ Pull from Supabase failed:', err);
@@ -751,7 +751,7 @@ export async function clearPharmacyData(pharmacyName: string): Promise<void> {
 
   const tables = [
     'products', 'product_batches', 'categories', 'units',
-    'suppliers', 'customers', 'sales', // ✅ Removed sale_items
+    'suppliers', 'customers', 'sales', //  Removed sale_items
     'stock_movements', 'audit_logs'
   ];
 
@@ -762,13 +762,13 @@ export async function clearPharmacyData(pharmacyName: string): Promise<void> {
       for (const item of items) {
         await table.delete(item.id);
       }
-      console.log(`  ✅ Cleared ${items.length} records from ${tableName}`);
+      console.log(`   Cleared ${items.length} records from ${tableName}`);
     }
   }
 }
 
 // =============================================
-// ✅ NEW: Force sync all data (no auth checks)
+//  NEW: Force sync all data (no auth checks)
 // =============================================
 export async function forceSyncAllData(pharmacyName: string): Promise<boolean> {
   console.log(`🔄 Force syncing all data for: ${pharmacyName}`);
@@ -785,7 +785,7 @@ export async function forceSyncAllData(pharmacyName: string): Promise<boolean> {
 }
 
 // =============================================
-// ✅ NEW: Check if data exists in Supabase (no auth)
+//  NEW: Check if data exists in Supabase (no auth)
 // =============================================
 export async function checkDataExistsInSupabase(pharmacyName: string): Promise<{ exists: boolean; count: number }> {
   const client = getSupabaseClient();

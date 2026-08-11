@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Pharmacy, Product, ProductBatch, Category, Supplier, Unit, StockMovement, DosageFormType } from '../../types';
+import { Pharmacy, Product, ProductBatch, Category, Supplier, Unit, StockMovement, DosageFormType, StorageCondition } from '../../types';
 import { Package, Plus, Search, Filter, AlertTriangle, Clock, Layers, ArrowUpRight, ArrowDownRight, Tag, PlusCircle, RefreshCw, Sparkles, CheckCircle, Loader2, Edit2, Trash2, MinusCircle, Save } from 'lucide-react';
 import { COMMON_DRUGS_LIST, CommonDrug } from '../../data/commonDrugs';
 
@@ -87,12 +87,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [newProdSize, setNewProdSize] = useState('');
   const [newProdAbsorbency, setNewProdAbsorbency] = useState('');
   const [newProdFragrance, setNewProdFragrance] = useState('');
-
+  // Add these state variables near other state declarations
+  const [newProdShelf, setNewProdShelf] = useState('');
+  const [newProdBay, setNewProdBay] = useState('');
+  const [newProdRack, setNewProdRack] = useState('');
+  const [newProdZone, setNewProdZone] = useState('');
+  const [newProdBin, setNewProdBin] = useState('');
+  const [newProdCardboard, setNewProdCardboard] = useState('');
+  const [newProdStorageCondition, setNewProdStorageCondition] = useState<StorageCondition>('room_temperature');
   // Skeleton Loader Component - Matches the product card layout
-  // ✅ FIXED: Theme-aware skeleton colors (add these near other theme variables)
+  //  FIXED: Theme-aware skeleton colors (add these near other theme variables)
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
   const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]'
+  // Update the handleSelectCommonDrug function to include location fields
   const handleSelectCommonDrug = (drug: CommonDrug) => {
     setNewProdName(drug.name);
     setNewProdGeneric(drug.generic_name);
@@ -107,6 +115,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdSize('');
     setNewProdAbsorbency('');
     setNewProdFragrance('');
+    // Reset location fields
+    setNewProdShelf('');
+    setNewProdBay('');
+    setNewProdRack('');
+    setNewProdZone('');
+    setNewProdBin('');
+    setNewProdCardboard('');
+    setNewProdStorageCondition('room_temperature');
 
     const matchedCat = categories.find(c =>
       c.name.toLowerCase().includes(drug.category_name.toLowerCase()) ||
@@ -118,13 +134,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setShowDrugSuggestions(false);
   };
 
+
   const [newBatchNumber, setNewBatchNumber] = useState('');
   const [newBatchExpiry, setNewBatchExpiry] = useState('');
   const [newBatchQty, setNewBatchQty] = useState<number>(100);
   const [newBatchCost, setNewBatchCost] = useState<number>(0);
   const [newBatchPrice, setNewBatchPrice] = useState<number>(0);
   const [newBatchSupplier, setNewBatchSupplier] = useState('');
-
+  // Update the handleSaveProduct function to include location fields
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -167,6 +184,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         size: newProdSize || null,
         absorbency: newProdAbsorbency || null,
         fragrance: newProdFragrance || null,
+        //  Location fields
+        shelf_number: newProdShelf || null,
+        bay_number: newProdBay || null,
+        rack_number: newProdRack || null,
+        zone: newProdZone || null,
+        bin_number: newProdBin || null,
+        cardboard_box_id: newProdCardboard || null,
+        storage_condition: newProdStorageCondition || 'room_temperature',
       };
 
       await onAddProduct(productData);
@@ -216,13 +241,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         reorder_level: Number(newProdReorder) || 10,
         prescription_required: newProdRx,
         active: true,
-        // Include quantity - this allows editing product quantity directly
         quantity: Number(newProdQuantity) || 0,
         sub_category: newProdSubCategory || null,
         material: newProdMaterial || null,
         size: newProdSize || null,
         absorbency: newProdAbsorbency || null,
         fragrance: newProdFragrance || null,
+        //  ADD LOCATION FIELDS HERE
+        shelf_number: newProdShelf || null,
+        bay_number: newProdBay || null,
+        rack_number: newProdRack || null,
+        zone: newProdZone || null,
+        bin_number: newProdBin || null,
+        cardboard_box_id: newProdCardboard || null,
+        storage_condition: newProdStorageCondition || 'room_temperature',
       };
 
       await onUpdateProduct(editingProduct.id, productData);
@@ -237,7 +269,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       setIsSavingProduct(false);
     }
   };
-
   const handleDeleteProduct = async (productId: string) => {
     if (!onDeleteProduct) {
       alert('Delete function not available.');
@@ -259,6 +290,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
+  // Update the openEditModal function
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
     setNewProdName(product.name || '');
@@ -272,15 +304,24 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdCost(product.default_cost_price || 0);
     setNewProdReorder(product.reorder_level || 10);
     setNewProdRx(product.prescription_required || false);
-    setNewProdQuantity(product.quantity || 0); // Load current quantity
+    setNewProdQuantity(product.quantity || 0);
     setNewProdSubCategory((product as any).sub_category || '');
     setNewProdMaterial((product as any).material || '');
     setNewProdSize((product as any).size || '');
     setNewProdAbsorbency((product as any).absorbency || '');
     setNewProdFragrance((product as any).fragrance || '');
+    //  Load location fields
+    setNewProdShelf(product.shelf_number || '');
+    setNewProdBay(product.bay_number || '');
+    setNewProdRack(product.rack_number || '');
+    setNewProdZone(product.zone || '');
+    setNewProdBin(product.bin_number || '');
+    setNewProdCardboard(product.cardboard_box_id || '');
+    setNewProdStorageCondition(product.storage_condition || 'room_temperature');
     setShowEditProductModal(true);
   };
 
+  // Update the resetProductForm function
   const resetProductForm = () => {
     setNewProdName('');
     setNewProdGeneric('');
@@ -299,6 +340,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setNewProdSize('');
     setNewProdAbsorbency('');
     setNewProdFragrance('');
+    // Reset location fields
+    setNewProdShelf('');
+    setNewProdBay('');
+    setNewProdRack('');
+    setNewProdZone('');
+    setNewProdBin('');
+    setNewProdCardboard('');
+    setNewProdStorageCondition('room_temperature');
   };
 
   const handleSaveBatch = async (e: React.FormEvent) => {
@@ -402,7 +451,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
       // Show success message
       const action = adjustBatchQty > 0 ? 'added' : 'subtracted';
-      alert(`✅ Successfully ${action} ${Math.abs(adjustBatchQty)} units from batch ${adjustingBatch.batch_number}`);
+      alert(` Successfully ${action} ${Math.abs(adjustBatchQty)} units from batch ${adjustingBatch.batch_number}`);
 
     } catch (err: any) {
       alert('Error adjusting batch: ' + (err.message || err));
@@ -419,7 +468,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   });
   ;
 
-  // ✅ FIXED: Theme-aware Skeleton Loader
+  //  FIXED: Theme-aware Skeleton Loader
   const SkeletonRow = () => (
     <tr className="animate-pulse">
       <td className="p-3">
@@ -545,6 +594,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <th className="p-3">Product</th>
                     <th className="p-3">Category / Form</th>
                     <th className="p-3">Price ({currency})</th>
+                    <th className="p-3">Location</th>      {/* ← ADD THIS */}
+                    <th className="p-3">Storage</th>       {/* ← ADD THIS */}
                     <th className="p-3">Stock</th>
                     <th className="p-3">Status</th>
                     <th className="p-3 text-right">Actions</th>
@@ -594,6 +645,34 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           </td>
                           <td className="p-3 font-extrabold text-[#2ea043]">
                             {currency} {p.selling_price.toFixed(2)}
+                          </td>
+                          {/* ====== ADD LOCATION COLUMN ====== */}
+                          <td className="p-3">
+                            <div className="text-xs font-mono">
+                              {p.zone && <span className="font-bold">{p.zone}</span>}
+                              {p.bay_number && <span className="text-[#8b949e]"> {p.bay_number}</span>}
+                              {p.shelf_number && <span className="text-[#8b949e]"> · {p.shelf_number}</span>}
+                              {!p.zone && !p.bay_number && !p.shelf_number &&
+                                <span className={textMuted}>Not assigned</span>
+                              }
+                            </div>
+                            {p.cardboard_box_id && (
+                              <div className={`text-[10px] ${textMuted}`}>
+                                📦 {p.cardboard_box_id}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* ====== ADD STORAGE CONDITION COLUMN ====== */}
+                          <td className="p-3">
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded capitalize ${p.storage_condition === 'refrigerated' ? 'bg-blue-500/15 text-blue-400' :
+                              p.storage_condition === 'frozen' ? 'bg-cyan-500/15 text-cyan-400' :
+                                p.storage_condition === 'cold_chain' ? 'bg-indigo-500/15 text-indigo-400' :
+                                  p.storage_condition === 'controlled' ? 'bg-amber-500/15 text-amber-400' :
+                                    'bg-gray-500/15 text-gray-400'
+                              }`}>
+                              {p.storage_condition?.replace('_', ' ') || 'Ambient'}
+                            </span>
                           </td>
                           <td className={`p-3 font-extrabold ${textTitle}`}>
                             {stock} units
@@ -981,7 +1060,107 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   <option value="pain_relief">Pain Relief</option>
                 </select>
               </div>
+              {/*  INVENTORY LOCATION SECTION */}
+              <div className={`p-4 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
+                <h4 className={`text-sm font-bold ${textTitle}`}>
+                  <Package className="w-4 h-4 inline-block mr-2" />
+                  Storage Location
+                </h4>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Zone</label>
+                    <select
+                      value={newProdZone}
+                      onChange={(e) => setNewProdZone(e.target.value)}
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    >
+                      <option value="">Select Zone</option>
+                      <option value="A">Zone A</option>
+                      <option value="B">Zone B</option>
+                      <option value="C">Zone C</option>
+                      <option value="D">Zone D</option>
+                      <option value="Cold-Room">Cold Room</option>
+                      <option value="Fridge">Fridge</option>
+                      <option value="Freezer">Freezer</option>
+                      <option value="Controlled">Controlled Storage</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Bay / Aisle</label>
+                    <input
+                      type="text"
+                      value={newProdBay}
+                      onChange={(e) => setNewProdBay(e.target.value)}
+                      placeholder="e.g. Bay-2, Aisle-B"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Rack</label>
+                    <input
+                      type="text"
+                      value={newProdRack}
+                      onChange={(e) => setNewProdRack(e.target.value)}
+                      placeholder="e.g. Rack-3"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Shelf Number</label>
+                    <input
+                      type="text"
+                      value={newProdShelf}
+                      onChange={(e) => setNewProdShelf(e.target.value)}
+                      placeholder="e.g. Shelf-3A"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Bin Number</label>
+                    <input
+                      type="text"
+                      value={newProdBin}
+                      onChange={(e) => setNewProdBin(e.target.value)}
+                      placeholder="e.g. BIN-007"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Cardboard Box ID</label>
+                    <input
+                      type="text"
+                      value={newProdCardboard}
+                      onChange={(e) => setNewProdCardboard(e.target.value)}
+                      placeholder="e.g. BOX-2026-01"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Storage Condition</label>
+                  <select
+                    value={newProdStorageCondition}
+                    onChange={(e) => setNewProdStorageCondition(e.target.value as StorageCondition)}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  >
+                    <option value="room_temperature">🌡️ Room Temperature</option>
+                    <option value="refrigerated">🧊 Refrigerated (2-8°C)</option>
+                    <option value="frozen">❄️ Frozen (-20°C)</option>
+                    <option value="cold_chain">📦 Cold Chain</option>
+                    <option value="controlled">🔒 Controlled</option>
+                    <option value="ambient">🌤️ Ambient</option>
+                  </select>
+                </div>
+              </div>
               {(newProdForm === 'sanitary_pad' || newProdForm === 'cotton_wool') && (
                 <div className={`p-4 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
                   <h4 className={`text-sm font-bold ${textTitle}`}>Product Specifications</h4>
@@ -1242,7 +1421,107 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </select>
                 </div>
               </div>
+              {/*  INVENTORY LOCATION SECTION */}
+              <div className={`p-4 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
+                <h4 className={`text-sm font-bold ${textTitle}`}>
+                  <Package className="w-4 h-4 inline-block mr-2" />
+                  Storage Location
+                </h4>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Zone</label>
+                    <select
+                      value={newProdZone}
+                      onChange={(e) => setNewProdZone(e.target.value)}
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    >
+                      <option value="">Select Zone</option>
+                      <option value="A">Zone A</option>
+                      <option value="B">Zone B</option>
+                      <option value="C">Zone C</option>
+                      <option value="D">Zone D</option>
+                      <option value="Cold-Room">Cold Room</option>
+                      <option value="Fridge">Fridge</option>
+                      <option value="Freezer">Freezer</option>
+                      <option value="Controlled">Controlled Storage</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Bay / Aisle</label>
+                    <input
+                      type="text"
+                      value={newProdBay}
+                      onChange={(e) => setNewProdBay(e.target.value)}
+                      placeholder="e.g. Bay-2, Aisle-B"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Rack</label>
+                    <input
+                      type="text"
+                      value={newProdRack}
+                      onChange={(e) => setNewProdRack(e.target.value)}
+                      placeholder="e.g. Rack-3"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Shelf Number</label>
+                    <input
+                      type="text"
+                      value={newProdShelf}
+                      onChange={(e) => setNewProdShelf(e.target.value)}
+                      placeholder="e.g. Shelf-3A"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Bin Number</label>
+                    <input
+                      type="text"
+                      value={newProdBin}
+                      onChange={(e) => setNewProdBin(e.target.value)}
+                      placeholder="e.g. BIN-007"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Cardboard Box ID</label>
+                    <input
+                      type="text"
+                      value={newProdCardboard}
+                      onChange={(e) => setNewProdCardboard(e.target.value)}
+                      placeholder="e.g. BOX-2026-01"
+                      className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block mb-1.5 font-bold ${textMuted}`}>Storage Condition</label>
+                  <select
+                    value={newProdStorageCondition}
+                    onChange={(e) => setNewProdStorageCondition(e.target.value as StorageCondition)}
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  >
+                    <option value="room_temperature">🌡️ Room Temperature</option>
+                    <option value="refrigerated">🧊 Refrigerated (2-8°C)</option>
+                    <option value="frozen">❄️ Frozen (-20°C)</option>
+                    <option value="cold_chain">📦 Cold Chain</option>
+                    <option value="controlled">🔒 Controlled</option>
+                    <option value="ambient">🌤️ Ambient</option>
+                  </select>
+                </div>
+              </div>
               <div>
                 <label className={`block mb-1.5 font-bold ${textMuted}`}>Sub-Category</label>
                 <select

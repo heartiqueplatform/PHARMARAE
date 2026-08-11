@@ -6,7 +6,7 @@ interface DashboardViewProps {
   pharmacy: Pharmacy | null;
   profile: Profile | null;
   role: UserRole;
-  todaySales: Sale[];
+  todaySales: Sale[]; // Now contains ALL product details directly
   lowStockProducts: Product[];
   expiringBatches: ProductBatch[];
   onNavigate: (tab: any) => void;
@@ -44,7 +44,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const itemBg = isDark ? 'bg-[#21262d]/50' : 'bg-[#f6f8fa]';
 
-  // ✅ FIXED: Theme-aware skeleton colors
+  //  FIXED: Theme-aware skeleton colors
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
   const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
@@ -53,13 +53,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
-  // Metrics
+  //  UPDATED: Metrics using single-table sales data
   const totalSalesRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
   const totalTransactions = todaySales.length;
+  //  Total items sold from quantity field directly
+  const totalItemsSold = todaySales.reduce((acc, s) => acc + (s.quantity || 0), 0);
 
   const canViewFinancials = role === 'owner' || role === 'admin' || role === 'pharmacist';
 
-  // ✅ FIXED: Theme-aware Skeleton Components
+  //  FIXED: Theme-aware Skeleton Components
   const SkeletonMetric = () => (
     <div className={`rounded-2xl p-3.5 animate-pulse ${cardBg}`}>
       <div className="flex items-center justify-between mb-1">
@@ -96,7 +98,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     </div>
   );
 
-  // ✅ FIXED: Theme-aware Banner Skeleton
+  //  FIXED: Theme-aware Banner Skeleton
   const SkeletonBanner = () => (
     <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden animate-pulse mx-0 ${isDark
       ? 'bg-[#161b22]'
@@ -112,6 +114,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
     </div>
   );
+
+  //  Helper: Get product name from sale
+  const getSaleProductName = (sale: Sale): string => {
+    return sale.product_name || 'Unknown Product';
+  };
+
+  //  Helper: Get product quantity from sale
+  const getSaleQuantity = (sale: Sale): number => {
+    return sale.quantity || 1;
+  };
 
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
@@ -189,6 +201,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className={`text-[10px] mt-1 ${textMuted}`}>Receipts completed</p>
             </div>
 
+            {/* Items Sold -  Now uses quantity from sale record */}
+            <div className={`rounded-2xl p-3.5 ${cardBg}`}>
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Items Sold</span>
+                <Package className="w-4 h-4 text-[#d2a8ff]" />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
+                {totalItemsSold}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Units dispensed today</p>
+            </div>
+
             {/* Low Stock Alert */}
             <button
               onClick={() => onNavigate('stock')}
@@ -202,21 +226,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {lowStockProducts.length}
               </p>
               <p className={`text-[10px] mt-1 ${textMuted}`}>Products below reorder</p>
-            </button>
-
-            {/* Expiring Soon */}
-            <button
-              onClick={() => onNavigate('stock')}
-              className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
-            >
-              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
-                <span>Expiring Soon</span>
-                <Clock className={`w-4 h-4 ${expiringBatches.length > 0 ? 'text-rose-500' : textMuted}`} />
-              </div>
-              <p className={`text-lg sm:text-xl font-extrabold ${expiringBatches.length > 0 ? 'text-rose-500' : textTitle}`}>
-                {expiringBatches.length}
-              </p>
-              <p className={`text-[10px] mt-1 ${textMuted}`}>Batches expiring in 90 days</p>
             </button>
           </>
         )}
@@ -308,28 +317,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           ) : (
             <div className="space-y-2 overflow-y-auto max-h-64 pr-1">
-              {todaySales.slice(0, 5).map(sale => (
-                <div
-                  key={sale.id}
-                  className={`flex items-center justify-between p-2.5 rounded-xl text-xs transition-colors ${itemBg}`}
-                >
-                  <div>
-                    <div className={`font-bold ${textTitle}`}>#{sale.sale_number}</div>
-                    <div className={`text-[10px] mt-0.5 ${textMuted}`}>
-                      {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {sale.sold_by_name || 'Cashier'}
+              {todaySales.slice(0, 5).map(sale => {
+                //  Get product details from the sale record directly
+                const productName = sale.product_name || 'Unknown Product';
+                const quantity = sale.quantity || 1;
+
+                return (
+                  <div
+                    key={sale.id}
+                    className={`flex items-center justify-between p-2.5 rounded-xl text-xs transition-colors ${itemBg}`}
+                  >
+                    <div>
+                      <div className={`font-bold ${textTitle}`}>
+                        #{sale.sale_number} - {productName}
+                      </div>
+                      <div className={`text-[10px] mt-0.5 ${textMuted}`}>
+                        {new Date(sale.sale_date || sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {' • '}
+                        {sale.sold_by_name || 'Cashier'}
+                        {' • '}
+                        ×{quantity}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-extrabold text-[#2ea043]">
+                        {canViewFinancials ? `${currency} ${sale.total.toFixed(2)}` : 'Completed'}
+                      </div>
+                      <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded border font-semibold ${isDark ? 'bg-[#30363d] text-[#c9d1d9] border-[#484f58]' : 'bg-slate-200 text-slate-800 border-slate-300'
+                        }`}>
+                        {sale.payment_method || 'cash'}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-extrabold text-[#2ea043]">
-                      {canViewFinancials ? `${currency} ${sale.total.toFixed(2)}` : 'Completed'}
-                    </div>
-                    <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded border font-semibold ${isDark ? 'bg-[#30363d] text-[#c9d1d9] border-[#484f58]' : 'bg-slate-200 text-slate-800 border-slate-300'
-                      }`}>
-                      {sale.payment_method}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -372,7 +393,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                      Stock: {prod.total_stock_base || 0} (Reorder: {prod.reorder_level})
+                      Stock: {prod.quantity || 0} (Reorder: {prod.reorder_level})
                     </span>
                   </div>
                 </div>

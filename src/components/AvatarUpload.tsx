@@ -60,9 +60,9 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
             const result = await uploadToCloudinary(file, 'medp_pharmacy/avatars');
 
             if (result.success && result.url && result.publicId) {
-                // ✅ Pass the URL and publicId to parent
+                //  Pass the URL and publicId to parent
                 onUploadSuccess(result.url, result.publicId);
-                console.log('✅ Avatar uploaded successfully:', result.url);
+                console.log(' Avatar uploaded successfully:', result.url);
             } else {
                 setError(result.error || 'Upload failed');
                 setPreview(currentImage || null);

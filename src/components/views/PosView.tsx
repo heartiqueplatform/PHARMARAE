@@ -173,7 +173,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.subtotal, 0), [cart]);
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
-  // ✅ UPDATED: Complete sale with ALL product details for single table design
+  //  UPDATED: Complete sale with ALL product details for single table design
   const handleCheckout = async () => {
     if (cart.length === 0 || isSubmitting) return;
 
@@ -188,10 +188,10 @@ export const PosView: React.FC<PosViewProps> = ({
 
     setIsSubmitting(true);
     try {
-      // ✅ Since we sell ONE item at a time, get the first (and only) item
+      //  Since we sell ONE item at a time, get the first (and only) item
       const item = cart[0];
 
-      // ✅ Build complete sale data with ALL product details
+      //  Build complete sale data with ALL product details
       const saleData: Partial<Sale> = {
         // Customer info
         customer_id: selectedCustomer?.id || null,
@@ -201,7 +201,7 @@ export const PosView: React.FC<PosViewProps> = ({
         sold_by: currentProfile?.id || null,
         sold_by_name: currentProfile?.full_name || 'System User',
 
-        // ✅ PRODUCT DETAILS (Single Item - stored directly in sales table)
+        //  PRODUCT DETAILS (Single Item - stored directly in sales table)
         product_id: item.product.id,
         product_name: item.product.name,
         product_barcode: item.product.barcode || null,
@@ -228,7 +228,7 @@ export const PosView: React.FC<PosViewProps> = ({
         // Status
         status: 'completed',
 
-        // ✅ Extra product details as JSON (for historical reference)
+        //  Extra product details as JSON (for historical reference)
         product_details: {
           generic_name: item.product.generic_name || null,
           brand: item.product.brand || null,
@@ -252,10 +252,10 @@ export const PosView: React.FC<PosViewProps> = ({
 
       console.log('🟢 Completing sale with product details:', saleData);
 
-      // ✅ Send to parent to save to database
+      //  Send to parent to save to database
       await onCompleteSale(saleData, cart);
 
-      // ✅ Clear cart after successful sale
+      //  Clear cart after successful sale
       setCart([]);
       setDiscountAmount(0);
       setDiscountReason('');

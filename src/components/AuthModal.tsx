@@ -87,7 +87,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       }
 
       saveSupabaseCredentials(supabaseUrl, supabaseKey);
-      setSuccessMsg('✅ Supabase credentials saved successfully!');
+      setSuccessMsg(' Supabase credentials saved successfully!');
       setTimeout(() => {
         setSuccessMsg('');
         setShowSupabaseConfig(false);
@@ -226,11 +226,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           setSuccessMsg('⚠️ Account created locally but cloud sync failed.');
         } else {
           await db.profiles.put(newProfile);
-          setSuccessMsg('✅ Account created and synced to cloud!');
+          setSuccessMsg(' Account created and synced to cloud!');
         }
       } else {
         await db.profiles.put(newProfile);
-        setSuccessMsg('✅ Account created and synced to cloud!');
+        setSuccessMsg(' Account created and synced to cloud!');
       }
 
       localStorage.setItem('medp_authenticated', 'true');
@@ -377,7 +377,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
             P
           </div>
           <h2 className={`text-lg font-black tracking-tight ${textPrimary}`}>
-            PHARMARAE POS
+            PHARMIENTA KENYA POS
           </h2>
           <p className={`text-[11px] ${textSecondary} flex items-center justify-center gap-1.5 flex-wrap`}>
             {showSupabaseConfig
@@ -411,7 +411,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
             ? isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/80' : 'text-emerald-700 bg-emerald-100 border-emerald-200'
             : isDark ? 'text-amber-400 bg-amber-950/80 border-amber-800/80' : 'text-amber-700 bg-amber-100 border-amber-200'
             }`}>
-            {creds.url && !creds.url.includes('your-supabase-project') ? '✅' : '⚠️'}
+            {creds.url && !creds.url.includes('your-supabase-project') ? '' : '⚠️'}
           </span>
         </button>
 

@@ -125,6 +125,7 @@ export interface ProductUnit {
   created_at?: string;
 }
 
+// Update the Product interface
 export interface Product {
   id: string;
   pharmacy_name: string;
@@ -149,11 +150,33 @@ export interface Product {
   notes?: string;
   created_at: string;
   updated_at: string;
+
+  //  NEW INVENTORY LOCATION FIELDS
+  shelf_number?: string;              // Shelf number (e.g., "Shelf-3")
+  bay_number?: string;                // Bay or aisle (e.g., "Aisle-B", "Bay-2")
+  rack_number?: string;               // Rack within bay (e.g., "Rack-1")
+  storage_location?: string;          // Full location (e.g., "Bay-B, Rack-1, Shelf-3")
+  zone?: string;                      // Storage zone (e.g., "Zone-A", "Cold-Room")
+  bin_number?: string;                // Bin number (e.g., "BIN-007")
+  cardboard_box_id?: string;          // Cardboard box identifier
+  storage_condition?: StorageCondition; // Storage requirement
+  last_inventory_count_date?: string; // Last physical count date
+  last_inventory_count_by?: string;   // User who counted
+
   // Calculated dynamically
   total_stock_base?: number;
   packaging_units?: ProductUnit[];
   smart_tag?: 'LOW_STOCK' | 'FAST_MOVING' | 'SLOW_MOVING' | 'OUT_OF_STOCK' | 'EXPIRING_SOON' | 'EXPIRED' | 'NORMAL';
 }
+
+// Add new type for storage conditions
+export type StorageCondition =
+  | 'room_temperature'
+  | 'refrigerated'
+  | 'frozen'
+  | 'cold_chain'
+  | 'controlled'
+  | 'ambient';
 
 export interface ProductBatch {
   id: string;
@@ -257,7 +280,7 @@ export interface Sale {
   sold_by?: string;
   sold_by_name?: string;
 
-  // ✅ PRODUCT DETAILS (Single Item per Sale)
+  //  PRODUCT DETAILS (Single Item per Sale)
   product_id: string;
   product_name: string;
   product_barcode?: string;
@@ -284,7 +307,7 @@ export interface Sale {
   // Sale Status
   status: 'completed' | 'returned' | 'voided' | 'pending';
 
-  // ✅ Extra Product Metadata (Stored as JSON)
+  //  Extra Product Metadata (Stored as JSON)
   product_details?: {
     generic_name?: string;
     brand?: string;

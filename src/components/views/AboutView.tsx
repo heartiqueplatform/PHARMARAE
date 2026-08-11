@@ -19,8 +19,8 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                 />
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <span style={{ color: '#003366' }}>PHARMA</span>
-                        <span style={{ color: '#B30000' }}>RAE</span>
+                        <span style={{ color: '#003366' }}>PHARM</span>
+                        <span style={{ color: '#B30000' }}>IENTA</span>
                         <span className="text-xs font-black px-2 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
                             PRO
                         </span>
@@ -122,11 +122,11 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                             <div className="space-y-2">
                                 <p className="flex items-center gap-2">
                                     <Phone className="w-4 h-4 text-[#2ea043]" />
-                                    <span>+254 700 123 456</span>
+                                    <span>+254 704473503</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Mail className="w-4 h-4 text-[#2ea043]" />
-                                    <span>info@PHARMIENTA.com</span>
+                                    <span>pharmienta@gmail.com</span>
                                 </p>
                             </div>
                             <div className="space-y-2">

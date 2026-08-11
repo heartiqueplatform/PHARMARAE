@@ -312,13 +312,13 @@ export default function App() {
         setCurrentRole(current.role || 'owner');
 
         if (pharmacyName) {
-          // ✅ FORCE PULL FROM SUPABASE IF ONLINE
+          //  FORCE PULL FROM SUPABASE IF ONLINE
           if (isOnline && isSupabaseConfigured()) {
             console.log(`🔄 FORCE PULLING from Supabase for: ${pharmacyName}`);
             try {
               const success = await pullFromSupabaseToLocal(pharmacyName);
               if (success) {
-                console.log('✅ Supabase data pulled successfully!');
+                console.log(' Supabase data pulled successfully!');
                 setLastSyncTime(new Date());
               } else {
                 console.warn('⚠️ Failed to pull from Supabase, using local data');
@@ -406,7 +406,7 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
       }
       setIsLoading(false);
-      console.log('✅ Loading complete, isLoading set to false');
+      console.log(' Loading complete, isLoading set to false');
     }
   }, [isOnline]);
 
@@ -440,7 +440,7 @@ export default function App() {
       // Step 1: Process pending offline mutations (push to Supabase)
       const { synced, failed } = await processOfflineSyncQueue();
       if (synced > 0) {
-        console.log(`✅ Pushed ${synced} items to Supabase`);
+        console.log(` Pushed ${synced} items to Supabase`);
       }
       if (failed > 0) {
         console.warn(`⚠️ ${failed} items failed to sync`);
@@ -452,7 +452,7 @@ export default function App() {
         console.log(`🔄 Pulling fresh data from Supabase for: ${pharmacyName}`);
         const success = await pullFromSupabaseToLocal(pharmacyName);
         if (success) {
-          console.log('✅ Fresh data pulled from Supabase');
+          console.log(' Fresh data pulled from Supabase');
           setLastSyncTime(new Date());
         }
       }
@@ -464,7 +464,7 @@ export default function App() {
       // Step 4: Reload UI data
       await loadDatabaseData();
 
-      console.log('✅ Background sync complete!');
+      console.log(' Background sync complete!');
     } catch (err) {
       console.error('❌ Sync queue error:', err);
     } finally {
@@ -498,15 +498,15 @@ export default function App() {
 
       // Process pending mutations
       const { synced, failed } = await processOfflineSyncQueue();
-      console.log(`✅ Pushed ${synced} items, ${failed} failed`);
+      console.log(` Pushed ${synced} items, ${failed} failed`);
 
       // Pull fresh data
       const success = await pullFromSupabaseToLocal(pharmacyName);
       if (success) {
-        console.log('✅ Force sync complete!');
+        console.log(' Force sync complete!');
         setLastSyncTime(new Date());
         await loadDatabaseData();
-        alert('✅ Data synced successfully!');
+        alert(' Data synced successfully!');
       } else {
         alert('❌ Sync failed. Please check your connection and try again.');
       }
@@ -532,7 +532,7 @@ export default function App() {
 
   // =============================================
   // PROCESS SALE - COMPLETE WITH STOCK UPDATES
-  // ✅ UPDATED: Single table design - NO sale_items
+  //  UPDATED: Single table design - NO sale_items
   // =============================================
   const handleCompleteSale = async (saleData: Partial<Sale>, cartItems: any[]) => {
     if (!currentProfile) {
@@ -569,10 +569,10 @@ export default function App() {
     const saleNumber = `INV-${yearMonth}-${countToday.toString().padStart(4, '0')}`;
     const saleId = genUUID();
 
-    // ✅ Get batch info if available
+    //  Get batch info if available
     const usedBatch = item.batch || null;
 
-    // ✅ Build the complete sale record with ALL product details
+    //  Build the complete sale record with ALL product details
     const newSale: Sale = {
       id: saleId,
       pharmacy_name: pharmacyName,
@@ -586,7 +586,7 @@ export default function App() {
       sold_by: currentProfile?.id || null,
       sold_by_name: currentProfile?.full_name || 'System User',
 
-      // ✅ PRODUCT DETAILS (Single Item)
+      //  PRODUCT DETAILS (Single Item)
       product_id: item.product.id,
       product_name: item.product.name,
       product_barcode: item.product.barcode || null,
@@ -613,7 +613,7 @@ export default function App() {
       // Status
       status: 'completed',
 
-      // ✅ Extra product details as JSON
+      //  Extra product details as JSON
       product_details: {
         generic_name: item.product.generic_name || null,
         brand: item.product.brand || null,
@@ -796,7 +796,7 @@ export default function App() {
     setReceiptSale(newSale);
     setIsReceiptModalOpen(true);
 
-    console.log('✅ Sale completed successfully!');
+    console.log(' Sale completed successfully!');
   };
 
   // =============================================
@@ -842,10 +842,20 @@ export default function App() {
       is_controlled: prodData.is_controlled || false,
       barcode: prodData.barcode || null,
       sku: prodData.sku || null,
+      //  ADD LOCATION FIELDS
+      shelf_number: prodData.shelf_number || null,
+      bay_number: prodData.bay_number || null,
+      rack_number: prodData.rack_number || null,
+      storage_location: prodData.storage_location || null,
+      zone: prodData.zone || null,
+      bin_number: prodData.bin_number || null,
+      cardboard_box_id: prodData.cardboard_box_id || null,
+      storage_condition: prodData.storage_condition || 'room_temperature',
+      last_inventory_count_date: prodData.last_inventory_count_date || null,
+      last_inventory_count_by: prodData.last_inventory_count_by || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-
     console.log('📦 Saving product to Dexie:', newProd);
     await db.products.put(newProd);
 
@@ -878,10 +888,18 @@ export default function App() {
       is_controlled: prodData.is_controlled || false,
       barcode: prodData.barcode || null,
       sku: prodData.sku || null,
+      //  ADD LOCATION FIELDS
+      shelf_number: prodData.shelf_number || null,
+      bay_number: prodData.bay_number || null,
+      rack_number: prodData.rack_number || null,
+      storage_location: prodData.storage_location || null,
+      zone: prodData.zone || null,
+      bin_number: prodData.bin_number || null,
+      cardboard_box_id: prodData.cardboard_box_id || null,
+      storage_condition: prodData.storage_condition || 'room_temperature',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-
     console.log('☁️ Sending to Supabase:', supabaseProd);
 
     try {
@@ -901,7 +919,7 @@ export default function App() {
         console.error('❌ Supabase error:', error);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'INSERT', supabaseProd);
       } else {
-        console.log('✅ Product synced to Supabase!');
+        console.log(' Product synced to Supabase!');
       }
     } catch (err) {
       console.error('❌ Supabase request failed:', err);
@@ -909,7 +927,7 @@ export default function App() {
     }
 
     await loadDatabaseData();
-    console.log('✅ Product saved successfully!');
+    console.log(' Product saved successfully!');
   };
 
   // =============================================
@@ -929,10 +947,18 @@ export default function App() {
       console.error('❌ Product not found');
       return;
     }
-
     const updatedProduct: Product = {
       ...existingProduct,
       ...productData,
+      //  Explicitly handle location fields
+      shelf_number: productData.shelf_number !== undefined ? productData.shelf_number : existingProduct.shelf_number,
+      bay_number: productData.bay_number !== undefined ? productData.bay_number : existingProduct.bay_number,
+      rack_number: productData.rack_number !== undefined ? productData.rack_number : existingProduct.rack_number,
+      storage_location: productData.storage_location !== undefined ? productData.storage_location : existingProduct.storage_location,
+      zone: productData.zone !== undefined ? productData.zone : existingProduct.zone,
+      bin_number: productData.bin_number !== undefined ? productData.bin_number : existingProduct.bin_number,
+      cardboard_box_id: productData.cardboard_box_id !== undefined ? productData.cardboard_box_id : existingProduct.cardboard_box_id,
+      storage_condition: productData.storage_condition || existingProduct.storage_condition || 'room_temperature',
       updated_at: new Date().toISOString()
     };
 
@@ -968,6 +994,15 @@ export default function App() {
       is_controlled: productData.is_controlled !== undefined ? productData.is_controlled : existingProduct.is_controlled,
       barcode: productData.barcode !== undefined ? productData.barcode : existingProduct.barcode,
       sku: productData.sku !== undefined ? productData.sku : existingProduct.sku,
+      //  ADD LOCATION FIELDS
+      shelf_number: productData.shelf_number !== undefined ? productData.shelf_number : existingProduct.shelf_number,
+      bay_number: productData.bay_number !== undefined ? productData.bay_number : existingProduct.bay_number,
+      rack_number: productData.rack_number !== undefined ? productData.rack_number : existingProduct.rack_number,
+      storage_location: productData.storage_location !== undefined ? productData.storage_location : existingProduct.storage_location,
+      zone: productData.zone !== undefined ? productData.zone : existingProduct.zone,
+      bin_number: productData.bin_number !== undefined ? productData.bin_number : existingProduct.bin_number,
+      cardboard_box_id: productData.cardboard_box_id !== undefined ? productData.cardboard_box_id : existingProduct.cardboard_box_id,
+      storage_condition: productData.storage_condition || existingProduct.storage_condition || 'room_temperature',
       created_at: existingProduct.created_at,
       updated_at: new Date().toISOString()
     };
@@ -991,7 +1026,7 @@ export default function App() {
         console.error('❌ Supabase update error:', error);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', supabaseProd);
       } else {
-        console.log('✅ Product updated in Supabase!');
+        console.log(' Product updated in Supabase!');
       }
     } catch (err) {
       console.error('❌ Supabase request failed:', err);
@@ -999,7 +1034,7 @@ export default function App() {
     }
 
     await loadDatabaseData();
-    console.log('✅ Product updated successfully!');
+    console.log(' Product updated successfully!');
   };
 
   // =============================================
@@ -1042,7 +1077,7 @@ export default function App() {
           console.error('❌ Supabase delete error:', error);
           await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'DELETE', { id: productId });
         } else {
-          console.log('✅ Product deleted from Supabase!');
+          console.log(' Product deleted from Supabase!');
         }
       }
 
@@ -1059,7 +1094,7 @@ export default function App() {
       });
 
       await loadDatabaseData();
-      console.log('✅ Product deleted successfully!');
+      console.log(' Product deleted successfully!');
     } catch (err) {
       console.error('❌ Delete error:', err);
       throw err;
@@ -1115,7 +1150,7 @@ export default function App() {
 
     // Step 1: Save the batch
     await db.product_batches.put(newBatch);
-    console.log('✅ Batch saved to Dexie');
+    console.log(' Batch saved to Dexie');
 
     // Step 2: Get ALL batches for this product to calculate total
     const allBatchesForProduct = await db.product_batches
@@ -1144,7 +1179,7 @@ export default function App() {
       quantity: totalQuantity,
       updated_at: now
     });
-    console.log('✅ Product quantity updated in Dexie');
+    console.log(' Product quantity updated in Dexie');
 
     // Step 4: Record stock movement
     const movId = genUUID();
@@ -1163,7 +1198,7 @@ export default function App() {
       created_at: now
     };
     await db.stock_movements.put(movement);
-    console.log('✅ Stock movement recorded');
+    console.log(' Stock movement recorded');
 
     // Step 5: Sync to Supabase
     const supabaseBatch = {
@@ -1210,7 +1245,7 @@ export default function App() {
         console.error('❌ Supabase batch error:', batchError);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'INSERT', supabaseBatch);
       } else {
-        console.log('✅ Batch synced to Supabase!');
+        console.log(' Batch synced to Supabase!');
       }
 
       // Update the product in Supabase with recalculated total
@@ -1232,7 +1267,7 @@ export default function App() {
         };
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', supabaseProduct);
       } else {
-        console.log('✅ Product quantity updated in Supabase!');
+        console.log(' Product quantity updated in Supabase!');
       }
     } catch (err) {
       console.error('❌ Supabase request failed:', err);
@@ -1261,7 +1296,7 @@ export default function App() {
 
     // Step 7: Reload all data to reflect changes
     await loadDatabaseData();
-    console.log('✅ Batch added and product quantity updated successfully!');
+    console.log(' Batch added and product quantity updated successfully!');
   };
 
   // =============================================
@@ -1302,7 +1337,7 @@ export default function App() {
         updated_at: now
       };
       await db.product_batches.put(updatedBatch);
-      console.log('✅ Batch updated in Dexie');
+      console.log(' Batch updated in Dexie');
 
       // Get ALL batches for this product to recalculate total
       const allBatchesForProduct = await db.product_batches
@@ -1327,7 +1362,7 @@ export default function App() {
         quantity: totalQuantity,
         updated_at: now
       });
-      console.log(`✅ Product quantity updated in Dexie: ${oldProductQuantity} → ${totalQuantity}`);
+      console.log(` Product quantity updated in Dexie: ${oldProductQuantity} → ${totalQuantity}`);
 
       // Record adjustment in stock movements if quantity changed
       if (quantityChange !== 0) {
@@ -1347,7 +1382,7 @@ export default function App() {
           created_at: now
         };
         await db.stock_movements.put(movement);
-        console.log('✅ Stock movement recorded');
+        console.log(' Stock movement recorded');
       }
 
       // Sync to Supabase
@@ -1371,7 +1406,7 @@ export default function App() {
               updated_at: now
             });
           } else {
-            console.log('✅ Batch updated in Supabase!');
+            console.log(' Batch updated in Supabase!');
           }
 
           // Update product in Supabase
@@ -1391,7 +1426,7 @@ export default function App() {
               updated_at: now
             });
           } else {
-            console.log('✅ Product quantity updated in Supabase!');
+            console.log(' Product quantity updated in Supabase!');
           }
         } catch (err) {
           console.error('❌ Supabase sync error:', err);
@@ -1436,7 +1471,7 @@ export default function App() {
 
       // Refresh data
       await loadDatabaseData();
-      console.log('✅ Batch adjusted and product quantity updated successfully!');
+      console.log(' Batch adjusted and product quantity updated successfully!');
 
     } catch (err) {
       console.error('❌ Error updating batch:', err);
@@ -1563,6 +1598,9 @@ export default function App() {
   // =============================================
   // UPDATE PROFILE
   // =============================================
+  // =============================================
+  // UPDATE PROFILE
+  // =============================================
   const handleUpdateProfile = async (profileId: string, updates: Partial<Profile>) => {
     if (!currentProfile) return;
     const existing = await db.profiles.get(profileId);
@@ -1637,7 +1675,7 @@ export default function App() {
           console.error('❌ Supabase update error:', error);
           await queueOfflineMutation(normalizePharmacyName(currentProfile.pharmacy_name), currentProfile.id, 'profile', 'UPDATE', updated);
         } else {
-          console.log('✅ Profile updated in Supabase with avatar:', updated.avatar_url);
+          console.log(' Profile updated in Supabase with avatar:', updated.avatar_url);
         }
       } catch (err) {
         console.error('❌ Supabase update failed:', err);
@@ -1653,7 +1691,6 @@ export default function App() {
     }
     await loadDatabaseData();
   };
-
   // =============================================
   // UPDATE PHARMACY NAME
   // =============================================
@@ -1662,7 +1699,7 @@ export default function App() {
     await handleUpdateProfile(currentProfile.id, {
       pharmacy_name: newName
     });
-    console.log(`✅ Pharmacy name updated to: ${newName}`);
+    console.log(` Pharmacy name updated to: ${newName}`);
   };
 
   // Filter today's sales for dashboard

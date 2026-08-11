@@ -26,7 +26,7 @@ const addBrandingFooter = (doc: jsPDF, y?: number) => {
 
 /**
  * Generate Professional Sales Receipt PDF
- * ✅ UPDATED: Uses single sale record (no sale_items array)
+ *  UPDATED: Uses single sale record (no sale_items array)
  */
 export function generateReceiptPdf(
   pharmacy: Pharmacy,
@@ -111,7 +111,7 @@ export function generateReceiptPdf(
   doc.line(5, yPos, 75, yPos);
   yPos += 5;
 
-  // ✅ Single Item from Sale (since we sell one item at a time)
+  //  Single Item from Sale (since we sell one item at a time)
   const itemName = sale.product_name || 'Unknown Product';
   const itemQty = sale.quantity || 1;
   const itemPrice = sale.unit_price || 0;
@@ -195,7 +195,7 @@ export function generateReceiptPdf(
 
 /**
  * Generate Professional Daily Report PDF
- * ✅ UPDATED: Uses single sale record with product details directly
+ *  UPDATED: Uses single sale record with product details directly
  */
 export function generateDailyReportPdf(
   pharmacy: Pharmacy,
@@ -244,7 +244,7 @@ export function generateDailyReportPdf(
   doc.setLineWidth(0.5);
   doc.line(14, 51, 196, 51);
 
-  // Summary Cards Data - ✅ Using sale fields directly
+  // Summary Cards Data -  Using sale fields directly
   const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
   const totalTransactions = sales.length;
   const totalItemsSold = sales.reduce((sum, s) => sum + (s.quantity || 0), 0);
@@ -261,7 +261,7 @@ export function generateDailyReportPdf(
   doc.text(`Total Drug Items Dispensed: ${totalItemsSold}`, 110, 66);
   doc.text(`Total Discount Granted: ${currency} ${totalDiscounts.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, 71);
 
-  // Payment Breakdown - ✅ Using sale.payment_method directly
+  // Payment Breakdown -  Using sale.payment_method directly
   const paymentMethodTotals: Record<string, number> = {};
   sales.forEach(s => {
     const method = s.payment_method || 'cash';
@@ -285,7 +285,7 @@ export function generateDailyReportPdf(
 
   let nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // Detailed Transactions - ✅ Using sale fields directly
+  // Detailed Transactions -  Using sale fields directly
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Detailed Transactions & Items Sold', 14, nextY);
@@ -309,7 +309,7 @@ export function generateDailyReportPdf(
     doc.setTextColor(0, 0, 0);
     nextY += 4;
 
-    // ✅ Single item from sale
+    //  Single item from sale
     const itemRows = [[
       sale.product_name || 'Unknown',
       (sale.quantity || 1).toString(),
@@ -408,7 +408,7 @@ export function generateDailyReportPdf(
 
 /**
  * Generate Professional Monthly Audit Report PDF
- * ✅ UPDATED: Uses single sale record with product details directly
+ *  UPDATED: Uses single sale record with product details directly
  */
 export function generateMonthlyReportPdf(
   pharmacy: Pharmacy,
@@ -455,7 +455,7 @@ export function generateMonthlyReportPdf(
   doc.setLineWidth(0.5);
   doc.line(14, 46, 196, 46);
 
-  // Financial Metrics - ✅ Using sale fields directly
+  // Financial Metrics -  Using sale fields directly
   const totalRevenue = monthlySales.reduce((sum, s) => sum + s.total, 0);
   const avgSale = monthlySales.length > 0 ? totalRevenue / monthlySales.length : 0;
 
@@ -487,7 +487,7 @@ export function generateMonthlyReportPdf(
 
   let nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // Payment Method Breakdown - ✅ Using sale.payment_method directly
+  // Payment Method Breakdown -  Using sale.payment_method directly
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Payment Method Breakdown', 14, nextY);
@@ -515,7 +515,7 @@ export function generateMonthlyReportPdf(
 
   nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // Top Selling Products - ✅ Using sale fields directly
+  // Top Selling Products -  Using sale fields directly
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Top Moving Medicines & Products', 14, nextY);

@@ -48,7 +48,7 @@
   <!-- Color Scheme -->
   <meta name="color-scheme" content="light dark" />
 
-  <!-- ✅ FIX: Minimal styles - Let main.tsx control theme -->
+  <!--  FIX: Minimal styles - Let main.tsx control theme -->
   <style>
     /* Default styles - theme will be applied by main.tsx */
     html,
@@ -102,7 +102,7 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then(registration => {
-            console.log('✅ Service Worker registered successfully:', registration);
+            console.log(' Service Worker registered successfully:', registration);
           })
           .catch(error => {
             console.error('❌ Service Worker registration failed:', error);

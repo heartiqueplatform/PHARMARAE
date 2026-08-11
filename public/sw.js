@@ -39,7 +39,7 @@ self.addEventListener('install', (event) => {
         return cache.addAll(STATIC_ASSETS);
       })
       .then(() => {
-        console.log(`✅ Service Worker v${APP_VERSION}: Installation complete`);
+        console.log(` Service Worker v${APP_VERSION}: Installation complete`);
         // Force the waiting service worker to become active
         return self.skipWaiting();
       })
@@ -53,7 +53,7 @@ self.addEventListener('install', (event) => {
 // ACTIVATE EVENT - Clean up old caches
 // ============================================
 self.addEventListener('activate', (event) => {
-  console.log(`✅ Service Worker v${APP_VERSION}: Activating...`);
+  console.log(` Service Worker v${APP_VERSION}: Activating...`);
 
   event.waitUntil(
     caches.keys()
@@ -71,7 +71,7 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
-        console.log(`✅ Service Worker v${APP_VERSION}: Activation complete`);
+        console.log(` Service Worker v${APP_VERSION}: Activation complete`);
         // Claim all clients to take control immediately
         return self.clients.claim();
       })
@@ -280,7 +280,7 @@ self.addEventListener('sync', (event) => {
           });
         })
         .then(() => {
-          console.log('✅ Service Worker: Background sync complete');
+          console.log(' Service Worker: Background sync complete');
         })
     );
   }
@@ -363,7 +363,7 @@ self.addEventListener('periodicsync', (event) => {
       // Check for updates
       self.registration.update()
         .then(() => {
-          console.log('✅ Service Worker: Periodic check complete');
+          console.log(' Service Worker: Periodic check complete');
         })
     );
   }
