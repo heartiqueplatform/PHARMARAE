@@ -779,7 +779,7 @@ export default function App() {
 
     // STEP 7: Record Audit Log
     const auditId = genUUID();
-    await db.audit_logs.put({
+    const auditLog = {
       id: auditId,
       pharmacy_name: pharmacyName,
       user_id: currentProfile?.id,
@@ -789,7 +789,12 @@ export default function App() {
       entity_id: saleId,
       details: `Sale #${saleNumber}: ${item.product.name} x${item.quantity} for ${saleData.total || item.subtotal}`,
       created_at: now.toISOString()
-    });
+    };
+
+    await db.audit_logs.put(auditLog);
+
+    // ✅ Queue for Supabase sync
+    await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
     // STEP 8: Refresh & Show Receipt
     await loadDatabaseData();
@@ -799,6 +804,9 @@ export default function App() {
     console.log(' Sale completed successfully!');
   };
 
+  // =============================================
+  // ADD PRODUCT - WITH AUTO SYNC
+  // =============================================
   // =============================================
   // ADD PRODUCT - WITH AUTO SYNC
   // =============================================
@@ -856,6 +864,7 @@ export default function App() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
     console.log('📦 Saving product to Dexie:', newProd);
     await db.products.put(newProd);
 
@@ -900,6 +909,7 @@ export default function App() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
     console.log('☁️ Sending to Supabase:', supabaseProd);
 
     try {
@@ -926,10 +936,31 @@ export default function App() {
       await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'INSERT', supabaseProd);
     }
 
+    // ✅ ADD THIS: Record audit log for product creation
+    const auditLog = {
+      id: genUUID(),
+      pharmacy_name: pharmacyName,
+      user_id: currentProfile?.id,
+      user_name: currentProfile?.full_name,
+      action: 'PRODUCT_CREATED',
+      entity_type: 'PRODUCT',
+      entity_id: id,
+      details: `Created product: ${prodData.name || 'Unknown'}`,
+      created_at: new Date().toISOString()
+    };
+
+    await db.audit_logs.put(auditLog);
+
+    // ✅ Queue for Supabase sync
+    await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+
     await loadDatabaseData();
     console.log(' Product saved successfully!');
   };
 
+  // =============================================
+  // UPDATE PRODUCT
+  // =============================================
   // =============================================
   // UPDATE PRODUCT
   // =============================================
@@ -947,6 +978,12 @@ export default function App() {
       console.error('❌ Product not found');
       return;
     }
+
+    // Track what fields are being updated for audit log
+    const updatedFields = Object.keys(productData).filter(key =>
+      key !== 'id' && key !== 'created_at' && key !== 'updated_at' && key !== 'pharmacy_name'
+    );
+
     const updatedProduct: Product = {
       ...existingProduct,
       ...productData,
@@ -1033,6 +1070,24 @@ export default function App() {
       await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', supabaseProd);
     }
 
+    // ✅ ADD THIS: Record audit log for product update
+    const auditLog = {
+      id: genUUID(),
+      pharmacy_name: pharmacyName,
+      user_id: currentProfile?.id,
+      user_name: currentProfile?.full_name,
+      action: 'PRODUCT_UPDATED',
+      entity_type: 'PRODUCT',
+      entity_id: productId,
+      details: `Updated product: ${existingProduct.name} → ${productData.name || existingProduct.name} (Fields: ${updatedFields.join(', ')})`,
+      created_at: new Date().toISOString()
+    };
+
+    await db.audit_logs.put(auditLog);
+
+    // ✅ Queue for Supabase sync
+    await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+
     await loadDatabaseData();
     console.log(' Product updated successfully!');
   };
@@ -1081,7 +1136,7 @@ export default function App() {
         }
       }
 
-      await db.audit_logs.put({
+      const auditLog = {
         id: genUUID(),
         pharmacy_name: pharmacyName,
         user_id: currentProfile?.id,
@@ -1091,7 +1146,12 @@ export default function App() {
         entity_id: productId,
         details: `Deleted product with ${productBatches.length} batch(es)`,
         created_at: new Date().toISOString()
-      });
+      };
+
+      await db.audit_logs.put(auditLog);
+
+      // ✅ Queue for Supabase sync
+      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
       await loadDatabaseData();
       console.log(' Product deleted successfully!');
@@ -1282,7 +1342,7 @@ export default function App() {
     }
 
     // Step 6: Record audit log
-    await db.audit_logs.put({
+    const auditLog = {
       id: genUUID(),
       pharmacy_name: pharmacyName,
       user_id: currentProfile?.id,
@@ -1292,7 +1352,12 @@ export default function App() {
       entity_id: id,
       details: `Added batch ${batchData.batch_number} with ${batchData.quantity_base} units. Product ${product.name} quantity: ${oldQuantity} → ${totalQuantity} (recalculated from ${allBatchesForProduct.length} batches)`,
       created_at: now
-    });
+    };
+
+    await db.audit_logs.put(auditLog);
+
+    // ✅ Queue for Supabase sync
+    await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
     // Step 7: Reload all data to reflect changes
     await loadDatabaseData();
@@ -1457,7 +1522,7 @@ export default function App() {
       }
 
       // Record audit log
-      await db.audit_logs.put({
+      const auditLog = {
         id: genUUID(),
         pharmacy_name: pharmacyName,
         user_id: currentProfile?.id,
@@ -1467,7 +1532,12 @@ export default function App() {
         entity_id: batchId,
         details: `Batch ${existingBatch.batch_number} quantity changed from ${oldQuantity} to ${newQuantity} (${quantityChange > 0 ? '+' : ''}${quantityChange}). Product total recalculated to ${totalQuantity}`,
         created_at: now
-      });
+      };
+
+      await db.audit_logs.put(auditLog);
+
+      // ✅ Queue for Supabase sync
+      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
       // Refresh data
       await loadDatabaseData();
@@ -1582,7 +1652,7 @@ export default function App() {
 
     await loadDatabaseData();
 
-    await db.audit_logs.put({
+    const auditLog = {
       id: genUUID(),
       pharmacy_name: pharmacyName,
       user_id: currentProfile.id,
@@ -1592,12 +1662,14 @@ export default function App() {
       entity_id: profileId,
       details: `Added staff member: ${newProfile.full_name} (${newProfile.role})`,
       created_at: new Date().toISOString()
-    });
+    };
+
+    await db.audit_logs.put(auditLog);
+
+    // ✅ Queue for Supabase sync
+    await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
   };
 
-  // =============================================
-  // UPDATE PROFILE
-  // =============================================
   // =============================================
   // UPDATE PROFILE
   // =============================================
@@ -1691,6 +1763,7 @@ export default function App() {
     }
     await loadDatabaseData();
   };
+
   // =============================================
   // UPDATE PHARMACY NAME
   // =============================================

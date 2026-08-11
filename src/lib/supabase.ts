@@ -738,6 +738,7 @@ function mapEntityTypeToTable(entityType: string): string {
     case 'return': return 'returns';
     case 'return_item': return 'return_items';
     case 'discount': return 'discounts';
+    case 'audit_log': return 'audit_logs';
     default: return entityType;
   }
 }
