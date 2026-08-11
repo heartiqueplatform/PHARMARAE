@@ -1,5 +1,13 @@
 import React from 'react';
-import { Shield, Lock, Eye, Database, Users, Mail } from 'lucide-react';
+import {
+    Shield, Lock, Eye, Database, Users, Mail,
+    FileCheck, Server, Globe, Clock, UserCheck,
+    Key, AlertCircle, FileText, Share2, Trash2,
+    Phone, MapPin, Calendar, CheckCircle, AlertTriangle,
+    Cookie, Activity, Fingerprint, MessageSquare,
+    Building2, CreditCard, ClipboardList, BadgeCheck,
+    RefreshCw, Link, Code, Wifi, Download
+} from 'lucide-react';
 
 interface PrivacyPolicyViewProps {
     theme: 'dark' | 'light';
@@ -8,137 +16,286 @@ interface PrivacyPolicyViewProps {
 export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) => {
     const isDark = theme === 'dark';
 
+    const sections = [
+        {
+            icon: Eye,
+            title: 'Information We Collect',
+            items: [
+                { label: 'Pharmacy Information', description: 'Pharmacy name, trading name, address, phone, email, county, town, and licensing details' },
+                { label: 'User Data', description: 'Name, email, phone number, role, PIN code, and activity logs for staff members' },
+                { label: 'Transaction Data', description: 'Sales records, inventory movements, customer purchases, and payment histories' },
+                { label: 'Product Information', description: 'Stock levels, batch numbers, expiry dates, pricing, and supplier information' },
+                { label: 'Customer Data', description: 'Patient names, contact details, prescription history, and purchase patterns' },
+                { label: 'Device Information', description: 'Device type, operating system, browser version, and IP addresses for analytics' },
+            ]
+        },
+        {
+            icon: Lock,
+            title: 'How We Use Your Information',
+            items: [
+                { label: 'Core Operations', description: 'Process sales, manage inventory, and generate receipts for customers' },
+                { label: 'Analytics & Reporting', description: 'Generate insights on sales trends, inventory turnover, and staff performance' },
+                { label: 'Access Management', description: 'Manage staff permissions, role-based access, and security controls' },
+                { label: 'Customer Service', description: 'Provide transaction history, prescription records, and customer support' },
+                { label: 'Compliance', description: 'Maintain regulatory compliance and legal documentation' },
+                { label: 'System Optimization', description: 'Improve performance, fix bugs, and enhance user experience' },
+            ]
+        },
+        {
+            icon: Shield,
+            title: 'Data Security Measures',
+            items: [
+                { label: 'Encryption', description: 'All data is encrypted in transit using TLS/HTTPS and at rest using AES-256' },
+                { label: 'Authentication', description: 'Multi-factor authentication and secure password policies' },
+                { label: 'Access Control', description: 'Role-based access with granular permissions and audit trails' },
+                { label: 'Monitoring', description: '24/7 security monitoring and intrusion detection systems' },
+                { label: 'Backup & Recovery', description: 'Automated daily backups with point-in-time recovery capabilities' },
+                { label: 'Compliance Audits', description: 'Regular security audits and penetration testing' },
+            ]
+        },
+        {
+            icon: Database,
+            title: 'Data Storage & Processing',
+            items: [
+                { label: 'Local Storage', description: 'Data stored locally using IndexedDB for offline access and fast retrieval' },
+                { label: 'Cloud Storage', description: 'Secure cloud synchronization with Supabase for backup and multi-device access' },
+                { label: 'Data Retention', description: 'Data retained for 7 years to comply with Kenyan pharmacy regulations' },
+                { label: 'Data Processing', description: 'Processed in compliance with Kenyan data protection laws and GDPR standards' },
+                { label: 'Third-Party Services', description: 'Integration with payment processors and analytics services' },
+                { label: 'Data Portability', description: 'Easy export of data in CSV, PDF, and JSON formats' },
+            ]
+        },
+        {
+            icon: Users,
+            title: 'Data Subject Rights',
+            items: [
+                { label: 'Right to Access', description: 'Access all personal data held about you at any time' },
+                { label: 'Right to Rectification', description: 'Request corrections to inaccurate or incomplete data' },
+                { label: 'Right to Erasure', description: 'Request deletion of your data under certain circumstances' },
+                { label: 'Right to Restriction', description: 'Restrict processing of your data under certain conditions' },
+                { label: 'Right to Data Portability', description: 'Receive your data in a structured, machine-readable format' },
+                { label: 'Right to Object', description: 'Object to data processing for marketing or non-essential purposes' },
+            ]
+        },
+        {
+            icon: Cookie,
+            title: 'Cookies & Tracking',
+            items: [
+                { label: 'Essential Cookies', description: 'Required for basic functionality and authentication' },
+                { label: 'Analytics Cookies', description: 'Help us understand how users interact with the platform' },
+                { label: 'Preferences Cookies', description: 'Remember user preferences and settings' },
+                { label: 'Security Cookies', description: 'Maintain session security and prevent fraud' },
+                { label: 'Third-Party Cookies', description: 'Used for payment processing and analytics services' },
+                { label: 'Cookie Consent', description: 'Users can manage cookie preferences at any time' },
+            ]
+        }
+    ];
+
+    const complianceItems = [
+        { icon: BadgeCheck, label: 'Kenyan Data Protection Act (2019)', description: 'Compliant with local data protection regulations' },
+        { icon: Globe, label: 'GDPR', description: 'European data protection standards for international operations' },
+        { icon: FileCheck, label: 'HIPAA Guidelines', description: 'Healthcare data privacy and security best practices' },
+        { icon: Shield, label: 'ISO 27001', description: 'Information security management standards' },
+        { icon: Clock, label: 'Data Retention', description: '7-year retention policy for regulatory compliance' },
+        { icon: Lock, label: 'Data Minimization', description: 'Collect only necessary data for operations' },
+    ];
+
     return (
-        <div className={`max-w-4xl mx-auto p-4 sm:p-6 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1f2328]'}`}>
+        <div className={`max-w-5xl mx-auto p-4 sm:p-6 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1f2328]'}`}>
+
+            {/* Header */}
             <div className="flex items-center gap-3 mb-6">
-                <Shield className="w-8 h-8 text-[#2ea043]" />
-                <h1 className="text-2xl font-bold">Privacy Policy</h1>
+                <div className="p-3 rounded-xl bg-[#2ea043]/10">
+                    <Shield className="w-8 h-8 text-[#2ea043]" />
+                </div>
+                <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-3">
+                        Privacy Policy
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#58a6ff]/10 text-[#58a6ff] border border-[#58a6ff]/20">
+                            v2.0
+                        </span>
+                    </h1>
+                    <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-2`}>
+                        <Clock className="w-4 h-4" />
+                        Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
+                        <span className="text-[#2ea043]">Effective immediately</span>
+                    </p>
+                </div>
+            </div>
+
+            {/* Quick Overview */}
+            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-5 h-5 text-[#2ea043]" />
+                    <h2 className="text-lg font-semibold">Privacy at a Glance</h2>
+                </div>
+                <p className="text-sm leading-relaxed">
+                    PHARMIENTA Pro is committed to protecting your privacy and ensuring the security of your data.
+                    We collect only the information necessary to provide our pharmacy management services and maintain
+                    compliance with Kenyan and international data protection regulations. Your data is stored securely,
+                    encrypted, and never shared with third parties without your explicit consent.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#30363d]/30">
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                        <span className="text-xs">Secure Encryption</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                        <span className="text-xs">Offline-First</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                        <span className="text-xs">GDPR Compliant</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                        <span className="text-xs">24/7 Monitoring</span>
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-6">
-                <p className="text-sm opacity-80">
-                    Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
+                {/* Dynamic Sections */}
+                {sections.map((section, idx) => (
+                    <section key={idx}>
+                        <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                            <section.icon className="w-5 h-5 text-[#2ea043]" />
+                            {section.title}
+                            <span className={`text-xs font-normal px-2 py-0.5 rounded ${isDark ? 'bg-[#21262d] text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'}`}>
+                                {section.items.length} items
+                            </span>
+                        </h2>
+                        <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
+                            <ul className="space-y-2 text-sm">
+                                {section.items.map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2">
+                                        <span className="text-[#2ea043] mt-0.5">•</span>
+                                        <div>
+                                            <span className="font-semibold">{item.label}:</span>
+                                            <span className="ml-1 opacity-80">{item.description}</span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </section>
+                ))}
 
+                {/* Compliance Section */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Eye className="w-5 h-5 text-[#2ea043]" />
-                        Information We Collect
+                        <BadgeCheck className="w-5 h-5 text-[#2ea043]" />
+                        Regulatory Compliance
                     </h2>
-                    <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                        <ul className="space-y-2 text-sm">
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span><strong>Pharmacy Information:</strong> Pharmacy name, trading name, address, phone, email, county, town</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span><strong>User Data:</strong> Name, email, phone number, role, PIN code for staff members</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span><strong>Transaction Data:</strong> Sales records, inventory movements, customer purchases</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span><strong>Product Information:</strong> Stock levels, batch numbers, expiry dates, pricing</span>
-                            </li>
-                        </ul>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {complianceItems.map((item, idx) => (
+                            <div key={idx} className={`p-3 rounded-lg flex items-start gap-2 ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
+                                <item.icon className="w-5 h-5 text-[#2ea043] flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold">{item.label}</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        {item.description}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </section>
 
+                {/* Data Processing Agreement */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Lock className="w-5 h-5 text-[#2ea043]" />
-                        How We Use Your Information
+                        <FileText className="w-5 h-5 text-[#2ea043]" />
+                        Data Processing Agreement
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                        <ul className="space-y-2 text-sm">
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Process sales and manage inventory</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Generate reports and analytics for your pharmacy</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Manage staff access and permissions</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Provide customer receipts and transaction history</span>
-                            </li>
-                        </ul>
-                    </div>
-                </section>
-
-                <section>
-                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Database className="w-5 h-5 text-[#2ea043]" />
-                        Data Storage & Security
-                    </h2>
-                    <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                        <ul className="space-y-2 text-sm">
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Data is stored locally using IndexedDB for offline access</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Cloud synchronization with Supabase for backup and multi-device access</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>All data is encrypted in transit using HTTPS</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Access is restricted to authenticated users only</span>
-                            </li>
-                        </ul>
-                    </div>
-                </section>
-
-                <section>
-                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Users className="w-5 h-5 text-[#2ea043]" />
-                        Your Rights
-                    </h2>
-                    <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                        <ul className="space-y-2 text-sm">
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Access, modify, or delete your pharmacy data at any time</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Export your data in various formats</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-[#2ea043] mt-0.5">•</span>
-                                <span>Withdraw consent for data processing</span>
-                            </li>
-                        </ul>
-                    </div>
-                </section>
-
-                <section>
-                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Mail className="w-5 h-5 text-[#2ea043]" />
-                        Contact Us
-                    </h2>
-                    <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                        <p className="text-sm">
-                            For privacy-related questions or concerns, please contact us at:
-                        </p>
-                        <div className="mt-2 text-sm font-medium">
-                            <p>pharmienta@gmail.com</p>
-                            <p className="mt-1"> +254 704 473 503</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                            <div className="flex items-start gap-2">
+                                <Server className="w-4 h-4 text-[#2ea043] mt-0.5" />
+                                <div>
+                                    <p className="font-semibold">Data Processor</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        PHARMIENTA KENYA acts as data processor
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Building2 className="w-4 h-4 text-[#2ea043] mt-0.5" />
+                                <div>
+                                    <p className="font-semibold">Data Controller</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        Pharmacy owners are data controllers
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Key className="w-4 h-4 text-[#2ea043] mt-0.5" />
+                                <div>
+                                    <p className="font-semibold">Data Sub-processors</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        Supabase, Stripe, and analytics providers
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
+
+                {/* Contact Information */}
+                <section>
+                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                        <MessageSquare className="w-5 h-5 text-[#2ea043]" />
+                        Privacy Inquiries
+                    </h2>
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
+                        <p className="text-sm mb-3">
+                            For privacy-related questions, data access requests, or concerns about your data,
+                            please contact our Data Protection Officer:
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            <div className="space-y-2">
+                                <p className="flex items-center gap-2">
+                                    <Mail className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
+                                    <span>pharmienta@gmail.com</span>
+                                </p>
+                                <p className="flex items-center gap-2">
+                                    <Phone className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
+                                    <span>+254 704 473 503</span>
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <p className="flex items-center gap-2">
+                                    <MapPin className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
+                                    <span>Nairobi, Kenya</span>
+                                </p>
+                                <p className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
+                                    <span>Response within 48 hours</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Footer */}
+                <div className={`pt-4 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <Lock className="w-3 h-3" />
+                            <span>Secure Connection • All data encrypted</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <span>© {new Date().getFullYear()} PHARMIENTA KENYA</span>
+                            <span>|</span>
+                            <span className="flex items-center gap-1">
+                                <RefreshCw className="w-3 h-3" />
+                                <span>Updated regularly</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

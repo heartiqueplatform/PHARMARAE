@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Pharmacy, Profile, UserRole, Product, ProductBatch, Customer, Sale, SaleItem, PaymentMethod } from '../../types';
-import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
 
 interface CartItem {
   product: Product;
@@ -69,6 +69,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const [discountReason, setDiscountReason] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmOverlay, setShowConfirmOverlay] = useState(false); // New state for overlay
 
   React.useEffect(() => {
     if (scannedBarcode) {
@@ -173,11 +174,11 @@ export const PosView: React.FC<PosViewProps> = ({
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.subtotal, 0), [cart]);
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
-  //  UPDATED: Complete sale with ALL product details for single table design
-  const handleCheckout = async () => {
+  // Show confirmation overlay instead of directly completing
+  const handleCheckoutClick = () => {
     if (cart.length === 0 || isSubmitting) return;
 
-    // Validate stock
+    // Validate stock first
     for (const item of cart) {
       const availableQty = getAvailableQuantity(item.product);
       if (item.quantity > availableQty) {
@@ -186,22 +187,24 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
 
+    setShowConfirmOverlay(true);
+  };
+
+  // Actual sale completion
+  const handleConfirmSale = async () => {
+    if (cart.length === 0) return;
+
     setIsSubmitting(true);
+    setShowConfirmOverlay(false);
+
     try {
-      //  Since we sell ONE item at a time, get the first (and only) item
       const item = cart[0];
 
-      //  Build complete sale data with ALL product details
       const saleData: Partial<Sale> = {
-        // Customer info
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || 'Cash Customer',
-
-        // Staff info
         sold_by: currentProfile?.id || null,
         sold_by_name: currentProfile?.full_name || 'System User',
-
-        //  PRODUCT DETAILS (Single Item - stored directly in sales table)
         product_id: item.product.id,
         product_name: item.product.name,
         product_barcode: item.product.barcode || null,
@@ -209,26 +212,16 @@ export const PosView: React.FC<PosViewProps> = ({
         quantity: item.quantity,
         unit_price: item.unitPrice,
         subtotal: item.subtotal,
-
-        // Batch info
         batch_id: item.batch?.id || null,
         batch_number: item.batch?.batch_number || null,
-
-        // Financials
         discount: discountAmount,
         discount_reason: discountReason || null,
         tax: 0,
         total: finalTotal,
-
-        // Payment
         payment_method: paymentMethod,
         payment_status: 'paid',
         payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-
-        // Status
         status: 'completed',
-
-        //  Extra product details as JSON (for historical reference)
         product_details: {
           generic_name: item.product.generic_name || null,
           brand: item.product.brand || null,
@@ -243,19 +236,14 @@ export const PosView: React.FC<PosViewProps> = ({
           cost_price: item.product.default_cost_price || 0,
           unit: item.product.base_unit_name || null,
         },
-
-        // Additional info
         notes: `Sale of ${item.product.name} x${item.quantity}`,
         sale_date: new Date().toISOString(),
         pharmacy_name: pharmacyName || 'Unknown Pharmacy'
       };
 
-      console.log('🟢 Completing sale with product details:', saleData);
-
-      //  Send to parent to save to database
       await onCompleteSale(saleData, cart);
 
-      //  Clear cart after successful sale
+      // Clear cart after successful sale
       setCart([]);
       setDiscountAmount(0);
       setDiscountReason('');
@@ -651,7 +639,7 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           <button
-            onClick={handleCheckout}
+            onClick={handleCheckoutClick}
             disabled={cart.length === 0 || isSubmitting}
             className={`w-full py-4 rounded-xl font-bold text-base shadow-lg flex items-center justify-center gap-3 transition-all active:scale-98 ${touchTarget} ${cart.length === 0 || isSubmitting
               ? isDark
@@ -660,21 +648,131 @@ export const PosView: React.FC<PosViewProps> = ({
               : 'bg-[#2ea043] hover:bg-[#2c9b3e] text-white shadow-[#2ea043]/20'
               }`}
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>Processing...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
-                <span>COMPLETE SALE ({currency} {finalTotal.toFixed(2)})</span>
-              </>
-            )}
+            <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+            <span>COMPLETE SALE ({currency} {finalTotal.toFixed(2)})</span>
           </button>
         </div>
 
       </div>
+
+      {/* CONFIRMATION OVERLAY */}
+      {showConfirmOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className={`max-w-md w-full rounded-2xl shadow-2xl p-6 ${cardBg} border ${borderLine} max-h-[90vh] overflow-y-auto`}>
+
+            {/* Header */}
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-amber-500/20 text-amber-500">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className={`font-bold text-lg ${textTitle}`}>Confirm Sale</h3>
+                  <p className={`text-sm ${textMuted}`}>Please review all details before completing</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowConfirmOverlay(false)}
+                className={`p-1 rounded-lg ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'} transition-colors ${touchTargetSmall}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Customer Info */}
+            <div className={`mb-4 p-3 rounded-lg ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
+              <div className="flex items-center gap-2 text-sm">
+                <User className="w-4 h-4 text-[#2ea043]" />
+                <span className={`font-medium ${textTitle}`}>
+                  {selectedCustomer?.name || 'Cash Customer'}
+                </span>
+                {selectedCustomer?.phone && (
+                  <span className={`text-xs ${textMuted}`}>• {selectedCustomer.phone}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Items List */}
+            <div className="mb-4">
+              <h4 className={`text-sm font-bold ${textMuted} uppercase tracking-wider mb-2`}>
+                Items ({cart.length})
+              </h4>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {cart.map((item, idx) => (
+                  <div key={idx} className={`flex items-center justify-between text-sm p-2 rounded-lg ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium truncate ${textTitle}`}>{item.product.name}</p>
+                      <p className={`text-xs ${textMuted}`}>
+                        {item.quantity} × {currency} {item.unitPrice.toFixed(2)}
+                        {item.batch && ` • Batch: ${item.batch.batch_number}`}
+                      </p>
+                    </div>
+                    <span className={`font-bold ${textTitle}`}>
+                      {currency} {item.subtotal.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div className={`pt-3 ${borderLine}`}>
+              <div className="space-y-1.5 text-sm">
+                <div className={`flex justify-between ${textMuted}`}>
+                  <span>Subtotal</span>
+                  <span>{currency} {subtotal.toFixed(2)}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-amber-500">
+                    <span>Discount</span>
+                    <span>-{currency} {discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className={`flex justify-between text-lg font-extrabold ${textTitle}`}>
+                  <span>Total</span>
+                  <span className="text-[#2ea043]">{currency} {finalTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Method */}
+            <div className={`mt-3 pt-3 ${borderLine}`}>
+              <div className="flex items-center justify-between text-sm">
+                <span className={textMuted}>Payment Method</span>
+                <span className={`font-bold uppercase ${textTitle}`}>{paymentMethod}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowConfirmOverlay(false)}
+                className={`flex-1 py-3 rounded-xl font-bold transition-colors ${isDark ? 'bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9]' : 'bg-[#f6f8fa] hover:bg-[#eaeef2] text-[#1f2328]'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSale}
+                disabled={isSubmitting}
+                className={`flex-1 py-3 rounded-xl font-bold text-white transition-colors ${isSubmitting ? 'bg-[#2ea043]/70 cursor-not-allowed' : 'bg-[#2ea043] hover:bg-[#2c9b3e]'} flex items-center justify-center gap-2`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span>Confirm Sale</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -100,6 +100,67 @@ export const Header: React.FC<HeaderProps> = ({
 
   const hasUpdate = checkForAppUpdate();
 
+  // Avatar component for consistent perfect circles
+  const AvatarCircle = ({
+    src,
+    alt,
+    initials,
+    size = 'md',
+    showStatus = false,
+    statusPosition = 'bottom-right',
+    className = ''
+  }: {
+    src?: string | null;
+    alt?: string;
+    initials: string;
+    size?: 'sm' | 'md' | 'lg' | 'xl';
+    showStatus?: boolean;
+    statusPosition?: 'bottom-right' | 'bottom-left';
+    className?: string;
+  }) => {
+    const sizeClasses = {
+      sm: 'w-8 h-8 text-[10px]',
+      md: 'w-10 h-10 text-base',
+      lg: 'w-14 h-14 text-xl',
+      xl: 'w-16 h-16 text-2xl'
+    };
+
+    const statusSize = {
+      sm: 'w-2.5 h-2.5',
+      md: 'w-3 h-3',
+      lg: 'w-3.5 h-3.5',
+      xl: 'w-4 h-4'
+    };
+
+    const statusOffset = {
+      'bottom-right': '-bottom-0.5 -right-0.5',
+      'bottom-left': '-bottom-0.5 -left-0.5'
+    };
+
+    const sizeClass = sizeClasses[size] || sizeClasses.md;
+    const statusClass = statusSize[size] || statusSize.md;
+    const offsetClass = statusOffset[statusPosition] || statusOffset['bottom-right'];
+
+    return (
+      <div className={`relative flex-shrink-0 ${className}`}>
+        {src ? (
+          <img
+            src={src}
+            alt={alt || 'Avatar'}
+            className={`${sizeClass} rounded-full object-cover border-2 border-[#2ea043]/30 shadow-lg shadow-[#2ea043]/10`}
+          />
+        ) : (
+          <div className={`${sizeClass} rounded-full flex items-center justify-center font-bold shadow-lg bg-gradient-to-br from-[#2ea043] to-[#58a6ff] text-white`}>
+            {initials || 'U'}
+          </div>
+        )}
+        {showStatus && isOnline && (
+          <span className={`absolute ${offsetClass} ${statusClass} bg-emerald-500 rounded-full border-2 ${isDark ? 'border-[#161b22]' : 'border-white'} shadow-sm`} />
+        )}
+      </div>
+    );
+  };
+
   return (
     <header className={`sticky top-0 z-30 backdrop-blur-xl border-b transition-all duration-300 px-3 py-2.5 ${isDark
       ? 'bg-[#161b22]/95 text-[#f0f6fc] border-[#30363d]/50'
@@ -108,45 +169,31 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto flex items-center justify-between">
 
         {/* Pharmacy Title & Brand */}
-        <div className="flex items-center gap-3">
-          {/*  Perfect Circle Avatar with floating style */}
-          {currentProfile?.avatar_url ? (
-            <div className="relative">
-              <img
-                src={currentProfile.avatar_url}
-                alt={pharmacyName}
-                className="w-10 h-10 rounded-full object-cover border-2 border-[#2ea043]/30 shadow-lg shadow-[#2ea043]/10"
-              />
-              {/* Online status dot - floating style */}
-              {isOnline && (
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
-              )}
-            </div>
-          ) : (
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2ea043] to-[#58a6ff] flex items-center justify-center text-white font-extrabold text-base shadow-lg shadow-[#2ea043]/20">
-                {pharmacyName.charAt(0).toUpperCase()}
-              </div>
-              {isOnline && (
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
-              )}
-            </div>
-          )}
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-extrabold text-base tracking-tight leading-none">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Perfect Circle Avatar with floating status */}
+          <AvatarCircle
+            src={currentProfile?.avatar_url}
+            initials={pharmacyName.charAt(0).toUpperCase()}
+            size="md"
+            showStatus={true}
+            statusPosition="bottom-right"
+          />
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-extrabold text-base tracking-tight leading-none truncate max-w-[120px] sm:max-w-[200px]">
                 {pharmacyName}
               </h1>
-              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${isDark
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shrink-0 ${isDark
                 ? 'bg-[#2ea043]/20 text-[#2ea043] border-[#2ea043]/30'
                 : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                 }`}>
                 {currentRole === 'owner' ? 'Owner' : currentRole === 'admin' ? 'Manager' : 'Staff'}
               </span>
-              {/*  Version Badge - Floating style */}
+              {/* Version Badge */}
               <button
                 onClick={() => setShowVersionInfo(!showVersionInfo)}
-                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-200 ${isDark
+                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-200 shrink-0 ${isDark
                   ? 'bg-[#21262d]/80 text-[#8b949e] border-[#30363d] hover:bg-[#30363d]'
                   : 'bg-[#f6f8fa]/80 text-[#656d76] border-[#d0d7de] hover:bg-slate-200'
                   }`}
@@ -158,11 +205,11 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
             </div>
-            <p className={`text-[10px] truncate max-w-[150px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+            <p className={`text-[10px] truncate max-w-[120px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
               }`}>
               {pharmacyTown ? `${pharmacyTown} • POS active` : 'Pharmacy Management System'}
               {hasUpdate && (
-                <span className="text-[8px] text-emerald-500 font-medium animate-pulse">
+                <span className="text-[8px] text-emerald-500 font-medium animate-pulse hidden sm:inline">
                   • Update available
                 </span>
               )}
@@ -171,13 +218,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Controls: Theme Toggle, Sync Badge, Profile Switcher */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
 
-          {/* Theme Toggle Button - Floating style */}
+          {/* Theme Toggle Button */}
           {onToggleTheme && (
             <button
               onClick={onToggleTheme}
-              className={`p-2 rounded-full border transition-all duration-200 hover:scale-105 ${isDark
+              className={`p-2 rounded-full border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isDark
                 ? 'bg-[#21262d]/80 border-[#30363d] text-amber-400 hover:bg-[#30363d]'
                 : 'bg-[#f6f8fa]/80 border-[#d0d7de] text-indigo-600 hover:bg-slate-200'
                 }`}
@@ -187,11 +234,11 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Sync & Network Badge - Floating style */}
+          {/* Sync & Network Badge */}
           <button
             onClick={onTriggerSync}
             disabled={isSyncing}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 hover:scale-105 ${isOnline
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isOnline
               ? syncPendingCount > 0
                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                 : isDark
@@ -213,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/*  Profile Switcher with Avatar - Floating style */}
+          {/* Profile Switcher with Avatar */}
           {filteredProfiles.length > 0 && (
             <div className="relative">
               <button
@@ -223,84 +270,55 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'bg-[#f6f8fa]/80 border-[#d0d7de] hover:bg-slate-200 text-[#1f2328]'
                   }`}
               >
-                {/*  Perfect Circle Avatar */}
-                {getAvatarUrl(currentProfile) ? (
-                  <img
-                    src={getAvatarUrl(currentProfile)!}
-                    alt={currentProfile?.full_name || 'User'}
-                    className="w-6 h-6 rounded-full object-cover border border-[#2ea043]/30"
-                  />
-                ) : (
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${currentRole === 'owner'
-                    ? 'bg-amber-500/20 text-amber-400'
-                    : currentRole === 'admin'
-                      ? 'bg-purple-500/20 text-purple-400'
-                      : 'bg-[#58a6ff]/20 text-[#58a6ff]'
-                    }`}>
-                    {getInitials(currentProfile)}
-                  </div>
-                )}
-                <span className="font-semibold max-w-[80px] sm:max-w-[120px] truncate hidden xs:inline">
+                {/* Perfect Circle Avatar - SMALL */}
+                <AvatarCircle
+                  src={currentProfile?.avatar_url}
+                  initials={getInitials(currentProfile)}
+                  size="sm"
+                  showStatus={false}
+                />
+                <span className="font-semibold max-w-[60px] sm:max-w-[100px] truncate hidden xs:inline">
                   {getDisplayName(currentProfile)}
                 </span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                <ChevronDown className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
               </button>
 
-              {/*  Profile Dropdown Menu - Floating style with perfect circles */}
+              {/* Profile Dropdown Menu */}
               {showProfileMenu && (
-                <div className={`absolute right-0 mt-2 w-72 rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
+                <div className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
                   ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
                   : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
                   }`}>
-                  {/*  Current User Section with Perfect Circle Avatar */}
+                  {/* Current User Section with Large Avatar */}
                   <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} flex items-center gap-3`}>
                     {/* Large Perfect Circle Avatar */}
-                    {getAvatarUrl(currentProfile) ? (
-                      <div className="relative">
-                        <img
-                          src={getAvatarUrl(currentProfile)!}
-                          alt={currentProfile?.full_name || 'User'}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-[#2ea043]/30 shadow-lg shadow-[#2ea043]/10"
-                        />
-                        {isOnline && (
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shadow-lg ${currentRole === 'owner'
-                          ? 'bg-amber-500/20 text-amber-400'
-                          : currentRole === 'admin'
-                            ? 'bg-purple-500/20 text-purple-400'
-                            : 'bg-[#58a6ff]/20 text-[#58a6ff]'
-                          }`}>
-                          {getInitials(currentProfile)}
-                        </div>
-                        {isOnline && (
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#161b22] shadow-sm" />
-                        )}
-                      </div>
-                    )}
+                    <AvatarCircle
+                      src={currentProfile?.avatar_url}
+                      initials={getInitials(currentProfile)}
+                      size="lg"
+                      showStatus={true}
+                      statusPosition="bottom-right"
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="font-extrabold text-base truncate">
                         {currentProfile?.full_name || 'Staff Member'}
                       </p>
                       <p className={`text-[10px] capitalize flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
                         }`}>
-                        <Shield className="w-3 h-3" />
+                        <Shield className="w-3 h-3 flex-shrink-0" />
                         {currentRole} • {pharmacyName}
                       </p>
                       {currentProfile?.email && (
                         <p className={`text-[9px] truncate flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
                           }`}>
-                          <Mail className="w-2.5 h-2.5" />
+                          <Mail className="w-2.5 h-2.5 flex-shrink-0" />
                           {currentProfile.email}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/*  Staff List with Perfect Circle Avatars */}
+                  {/* Staff List with Perfect Circle Avatars */}
                   <div className="py-1 max-h-56 overflow-y-auto">
                     <p className={`px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
                       }`}>
@@ -320,23 +338,13 @@ export const Header: React.FC<HeaderProps> = ({
                             : isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-slate-100'
                             }`}
                         >
-                          {/*  Perfect Circle Avatar in staff list */}
-                          {p.avatar_url ? (
-                            <img
-                              src={p.avatar_url}
-                              alt={p.full_name}
-                              className="w-8 h-8 rounded-full object-cover border border-[#2ea043]/20"
-                            />
-                          ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${p.role === 'owner'
-                              ? 'bg-amber-500/20 text-amber-400'
-                              : p.role === 'admin'
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-[#58a6ff]/20 text-[#58a6ff]'
-                              }`}>
-                              {getInitials(p)}
-                            </div>
-                          )}
+                          {/* Perfect Circle Avatar in staff list - MEDIUM */}
+                          <AvatarCircle
+                            src={p.avatar_url}
+                            initials={getInitials(p)}
+                            size="sm"
+                            showStatus={false}
+                          />
                           <div className="flex-1 min-w-0">
                             <p className="truncate">{p.full_name}</p>
                             <p className={`text-[9px] truncate ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
@@ -349,15 +357,15 @@ export const Header: React.FC<HeaderProps> = ({
                     })}
                   </div>
 
-                  {/*  Version Info Section */}
+                  {/* Version Info Section */}
                   <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} px-3 py-2`}>
                     <div className={`flex items-center justify-between text-[9px] ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
                       <span className="flex items-center gap-1">
-                        <GitBranch className="w-3 h-3" />
+                        <GitBranch className="w-3 h-3 flex-shrink-0" />
                         v{appVersion}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Info className="w-3 h-3" />
+                        <Info className="w-3 h-3 flex-shrink-0" />
                         {hasUpdate ? (
                           <span className="text-emerald-500 font-medium animate-pulse">
                             Update available
@@ -373,7 +381,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
                   </div>
 
-                  {/*  Action Buttons */}
+                  {/* Action Buttons */}
                   <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} pt-1`}>
                     {/* Sign Out */}
                     {onSignOut && (
@@ -387,7 +395,7 @@ export const Header: React.FC<HeaderProps> = ({
                           : 'text-rose-600 hover:bg-rose-50'
                           }`}
                       >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut className="w-4 h-4 flex-shrink-0" />
                         <span>Sign Out</span>
                       </button>
                     )}
@@ -400,7 +408,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       </div>
 
-      {/*  Version Info Tooltip - Floating style */}
+      {/* Version Info Tooltip */}
       {showVersionInfo && (
         <div className={`absolute left-4 top-full mt-1 px-3 py-2 rounded-xl border shadow-lg text-xs max-w-xs z-40 backdrop-blur-xl ${isDark
           ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
