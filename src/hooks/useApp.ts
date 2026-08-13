@@ -125,6 +125,9 @@ export const useApp = (): AppState => {
     const isInitialLoad = useRef(true);
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+    // 🆕 Detect if mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     const clearToast = useCallback(() => {
         setToastMessage(null);
         setToastType(null);
@@ -160,7 +163,7 @@ export const useApp = (): AppState => {
         };
     }, []);
 
-    // Auto-sync every 30 seconds
+    // 🆕 Auto-sync with mobile-friendly interval
     useEffect(() => {
         if (syncIntervalRef.current) {
             clearInterval(syncIntervalRef.current);
@@ -169,12 +172,16 @@ export const useApp = (): AppState => {
 
         if (!isOnline || !currentProfile) return;
 
+        // Use shorter interval on mobile (15 seconds) vs desktop (30 seconds)
+        const syncInterval = isMobile ? 15000 : 30000;
+
         syncIntervalRef.current = setInterval(() => {
-            if (document.visibilityState === 'visible') {
+            // On mobile, sync more aggressively even if tab is hidden
+            if (document.visibilityState === 'visible' || isMobile) {
                 console.log('Auto-sync interval triggered');
                 triggerSyncQueue();
             }
-        }, 30000);
+        }, syncInterval);
 
         return () => {
             if (syncIntervalRef.current) {
@@ -182,14 +189,18 @@ export const useApp = (): AppState => {
                 syncIntervalRef.current = null;
             }
         };
-    }, [isOnline, currentProfile]);
+    }, [isOnline, currentProfile, isMobile]);
 
-    // Sync when tab becomes visible
+    // 🆕 Force data reload when tab becomes visible (mobile fix)
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && isOnline && currentProfile) {
-                console.log('Tab became visible, checking for updates...');
-                triggerSyncQueue();
+            if (document.visibilityState === 'visible') {
+                console.log('Tab became visible, refreshing data...');
+                if (isOnline && currentProfile) {
+                    // Always reload data when returning to app
+                    loadDatabaseData(false);
+                    triggerSyncQueue();
+                }
             }
         };
 
@@ -197,18 +208,31 @@ export const useApp = (): AppState => {
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [isOnline, currentProfile]);
 
-    // Load data
-    // hooks/useApp.ts - Update the loadDatabaseData function
+    // 🆕 Handle page restore from bfcache (mobile fix)
+    useEffect(() => {
+        const handlePageShow = (e: PageTransitionEvent) => {
+            if (e.persisted) {
+                console.log('Page restored from bfcache, reloading data...');
+                if (isOnline && currentProfile) {
+                    loadDatabaseData(false);
+                    triggerSyncQueue();
+                }
+            }
+        };
 
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
+    }, [isOnline, currentProfile]);
+
+    // Load data
     const loadDatabaseData = useCallback(async (showLoader: boolean = true) => {
-        // ✅ ONLY show loader if it's initial load AND showLoader is true
         const shouldShowLoader = showLoader && isInitialLoad.current;
 
         if (shouldShowLoader) {
             setIsLoading(true);
         }
 
-        console.log('🔄 Loading data...');
+        console.log('Loading data...');
 
         try {
             await seedInitialDataIfNeeded();
@@ -226,19 +250,16 @@ export const useApp = (): AppState => {
 
             if (current) {
                 const pharmacyName = normalizePharmacyName(current.pharmacy_name);
-
-                // ✅ ALWAYS update current profile (even on background sync)
                 setCurrentProfile(current);
                 setCurrentRole(current.role || 'owner');
 
                 if (pharmacyName) {
-                    // ✅ Force pull from Supabase if online
                     if (isOnline && isSupabaseConfigured()) {
-                        console.log(`🔄 Force pulling from Supabase for: ${pharmacyName}`);
+                        console.log(`Force pulling from Supabase for: ${pharmacyName}`);
                         try {
                             const success = await pullFromSupabaseToLocal(pharmacyName);
                             if (success) {
-                                console.log('✅ Supabase data pulled successfully!');
+                                console.log('Supabase data pulled successfully!');
                                 setLastSyncTime(new Date());
 
                                 if (!isInitialLoad.current) {
@@ -252,10 +273,10 @@ export const useApp = (): AppState => {
                                     setToastType('success');
                                 }
                             } else {
-                                console.warn('⚠️ Failed to pull from Supabase, using local data');
+                                console.warn('Failed to pull from Supabase, using local data');
                             }
                         } catch (err) {
-                            console.error('❌ Error pulling from Supabase:', err);
+                            console.error('Error pulling from Supabase:', err);
                             if (!isInitialLoad.current) {
                                 setToastMessage('Unable to refresh data. Using cached version.');
                                 setToastType('error');
@@ -263,9 +284,8 @@ export const useApp = (): AppState => {
                         }
                     }
 
-                    console.log(`📂 Loading data from Dexie for: ${pharmacyName}`);
+                    console.log(`Loading data from Dexie for: ${pharmacyName}`);
 
-                    // ✅ ALWAYS update ALL data (even on background sync)
                     const allProducts = await db.products.toArray();
                     setProducts(allProducts.filter(p => normalizePharmacyName(p.pharmacy_name) === pharmacyName));
 
@@ -304,13 +324,12 @@ export const useApp = (): AppState => {
                 }
             }
         } catch (err) {
-            console.error('❌ Error loading database data:', err);
+            console.error('Error loading database data:', err);
             if (!isInitialLoad.current) {
                 setToastMessage('Could not load latest data. Please check connection.');
                 setToastType('error');
             }
         } finally {
-            // ✅ Only hide loader if it was shown
             if (shouldShowLoader) {
                 const elapsed = Date.now() - startTime;
                 const minLoadTime = 500;
@@ -318,7 +337,7 @@ export const useApp = (): AppState => {
                     await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
                 }
                 setIsLoading(false);
-                console.log('✅ Loading complete');
+                console.log('Loading complete');
                 isInitialLoad.current = false;
             }
         }

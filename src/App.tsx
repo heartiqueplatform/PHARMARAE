@@ -251,6 +251,8 @@ export default function App() {
                   movements={movements}
                   theme={theme}
                   isLoading={isLoading}
+                  isSyncing={isSyncing}
+                  onRefresh={triggerSyncQueue}
                 />
               )}
 
