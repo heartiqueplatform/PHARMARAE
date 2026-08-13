@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+// components/views/ReportsView.tsx
+import React, { useState, useMemo } from 'react';
 import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
-import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2 } from 'lucide-react';
 
 interface ReportsViewProps {
   pharmacy: Pharmacy | null;
@@ -51,11 +52,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   // Return modal
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
-  const [returnReason, setReturnReason] = useState<string>('Damaged / Wrong medication dispensed');
+  const [returnReason, setReturnReason] = useState<string>('Customer returned item');
 
   if (!pharmacy) return null;
 
-  //  Helper: Get product details from sale
+  // Helper: Get product details from sale
   const getSaleProductDetails = (sale: Sale) => {
     return {
       productName: sale.product_name || 'Unknown Product',
@@ -70,18 +71,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   // Filter Daily Sales
-  const filteredDailySales = sales.filter(s => {
-    const date = s.sale_date || s.created_at;
-    return date?.startsWith(dailyDate);
-  });
-  const dailyTotalRevenue = filteredDailySales.reduce((acc, s) => acc + s.total, 0);
+  const filteredDailySales = useMemo(() => {
+    return sales.filter(s => {
+      const date = s.sale_date || s.created_at;
+      return date?.startsWith(dailyDate);
+    });
+  }, [sales, dailyDate]);
+
+  const dailyTotalRevenue = useMemo(() => {
+    return filteredDailySales.reduce((acc, s) => acc + s.total, 0);
+  }, [filteredDailySales]);
 
   // Filter Monthly Sales
-  const filteredMonthlySales = sales.filter(s => {
-    const date = s.sale_date || s.created_at;
-    return date?.startsWith(monthlyPeriod);
-  });
-  const monthlyTotalRevenue = filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
+  const filteredMonthlySales = useMemo(() => {
+    return sales.filter(s => {
+      const date = s.sale_date || s.created_at;
+      return date?.startsWith(monthlyPeriod);
+    });
+  }, [sales, monthlyPeriod]);
+
+  const monthlyTotalRevenue = useMemo(() => {
+    return filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
+  }, [filteredMonthlySales]);
 
   // Toggle expanded sale
   const toggleExpanded = (saleId: string) => {
@@ -95,13 +106,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   // Low stock products
-  const lowStockProducts = products.filter(p => (p.quantity || 0) <= p.reorder_level);
+  const lowStockProducts = useMemo(() => {
+    return products.filter(p => (p.quantity || 0) <= p.reorder_level);
+  }, [products]);
 
   // Expiring batches
   const todayStr = new Date().toISOString().split('T')[0];
-  const expiringBatches = batches.filter(b => b.expiry_date <= todayStr && b.quantity_base > 0);
+  const expiringBatches = useMemo(() => {
+    return batches.filter(b => b.expiry_date <= todayStr && b.quantity_base > 0);
+  }, [batches, todayStr]);
 
-  //  FIXED: Trigger Daily PDF Download - matches PDF function signature
+  // Handle Daily PDF Download
   const handleDownloadDailyPdf = () => {
     generateDailyReportPdf(
       pharmacy,
@@ -113,7 +128,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  //  FIXED: Trigger Monthly PDF Download - matches PDF function signature
+  // Handle Monthly PDF Download
   const handleDownloadMonthlyPdf = () => {
     generateMonthlyReportPdf(
       pharmacy,
@@ -124,6 +139,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
+  // Handle Return Submit
   const handleReturnSubmit = async () => {
     if (!selectedSaleForReturn || !onProcessReturn) return;
     await onProcessReturn(selectedSaleForReturn.id, returnReason);
@@ -175,7 +191,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </div>
   );
 
-  //  Render a sale row with product details from the sale record
+  // Render a sale row with product details from the sale record
   const renderSaleRow = (sale: Sale) => {
     const isExpanded = expandedSales.has(sale.id);
     const productDetails = getSaleProductDetails(sale);
@@ -198,7 +214,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <td className="p-3 font-mono font-bold text-[#2ea043]">#{sale.sale_number}</td>
           <td className={`p-3 ${textMuted}`}>
             {new Date(sale.sale_date || sale.created_at).toLocaleDateString()}
-            {new Date(sale.sale_date || sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span className="ml-1 text-[10px]">
+              {new Date(sale.sale_date || sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           </td>
           <td className={`p-3 font-semibold ${textTitle}`}>{sale.customer_name || 'Guest'}</td>
           <td className={`p-3 ${textMuted}`}>
@@ -215,7 +233,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // Create a temporary sale items array from the sale record
                 const tempItems = [{
                   id: sale.id,
                   sale_id: sale.id,
@@ -263,6 +280,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     <p className={`font-semibold ${textTitle}`}>{productDetails.productName}</p>
                     {productDetails.productDetails?.generic_name && (
                       <p className={`text-xs ${textMuted}`}>{productDetails.productDetails.generic_name}</p>
+                    )}
+                    {productDetails.productDetails?.brand && (
+                      <p className={`text-xs ${textMuted}`}>Brand: {productDetails.productDetails.brand}</p>
                     )}
                   </div>
                   <div>
@@ -440,15 +460,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <th className="p-3 w-8"></th>
                       <th className="p-3">Receipt #</th>
                       <th className="p-3">Time</th>
-                      <th className="p-3">Staff</th>
+                      <th className="p-3">Customer</th>
                       <th className="p-3">Item</th>
                       <th className="p-3">Total</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${borderLine}`}>
                     {filteredDailySales.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className={`p-8 text-center ${textMuted}`}>
+                        <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
                           No transactions recorded on this date.
                         </td>
                       </tr>
@@ -560,7 +581,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     }`}>
                     <tr>
                       <th className="p-3">Product</th>
-                      <th className="p-3">Quantity Sold</th>
+                      <th className="p-3">Units Sold</th>
                       <th className="p-3">Revenue</th>
                     </tr>
                   </thead>
@@ -570,15 +591,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                       filteredMonthlySales.forEach(sale => {
                         if (!sale.product_name) return;
-                        if (!productSales[sale.product_id]) {
-                          productSales[sale.product_id] = {
+                        const key = sale.product_id || sale.product_name;
+                        if (!productSales[key]) {
+                          productSales[key] = {
                             quantity: 0,
                             revenue: 0,
                             name: sale.product_name
                           };
                         }
-                        productSales[sale.product_id].quantity += (sale.quantity || 0);
-                        productSales[sale.product_id].revenue += (sale.subtotal || 0);
+                        productSales[key].quantity += (sale.quantity || 0);
+                        productSales[key].revenue += (sale.subtotal || 0);
                       });
 
                       const sorted = Object.values(productSales)
