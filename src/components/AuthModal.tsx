@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Profile, UserRole } from '../types';
-import { Building2, User, KeyRound, Phone, Mail, LogIn, UserPlus, CheckCircle2, Database, ShieldCheck, Sparkles, AlertCircle, Wifi, WifiOff, Users, Fingerprint } from 'lucide-react';
+import { Building2, User, KeyRound, Phone, Mail, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Database, ShieldCheck, Sparkles, AlertCircle, Wifi, WifiOff, Users, Fingerprint, AlertTriangle, Info, RefreshCw, Copy, Check } from 'lucide-react';
 import { db } from '../lib/db';
 import {
   queueOfflineMutation,
@@ -29,6 +29,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
   // Form State
   const [pharmacyName, setPharmacyName] = useState('');
+  const [normalizedPharmacyName, setNormalizedPharmacyName] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,6 +39,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [pinCopied, setPinCopied] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  // Confirmation modal state
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationInput, setConfirmationInput] = useState('');
+  const [confirmationError, setConfirmationError] = useState('');
+  const [isCheckingName, setIsCheckingName] = useState(false);
+  const [nameIsAvailable, setNameIsAvailable] = useState<boolean | null>(null);
 
   // Network status listener
   useEffect(() => {
@@ -60,6 +69,326 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       if (pinInput) setTimeout(() => pinInput.focus(), 100);
     }
   }, [mode]);
+
+  // Normalize pharmacy name whenever it changes
+  useEffect(() => {
+    const normalized = normalizePharmacyName(pharmacyName);
+    setNormalizedPharmacyName(normalized);
+
+    // Check availability when name changes
+    if (normalized && normalized.length >= 3) {
+      checkPharmacyNameAvailability(normalized);
+    } else {
+      setNameIsAvailable(null);
+    }
+  }, [pharmacyName]);
+
+  // Generate a unique PIN on component mount and when needed
+  useEffect(() => {
+    if (mode === 'register') {
+      generateUniquePin();
+    }
+  }, [mode]);
+
+  const normalizePharmacyName = (name: string): string => {
+    return name
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+  };
+
+  const validatePharmacyName = (name: string): { isValid: boolean; error?: string } => {
+    const normalized = normalizePharmacyName(name);
+
+    if (!normalized || normalized.length === 0) {
+      return { isValid: false, error: 'Pharmacy name is required' };
+    }
+
+    if (normalized.length < 3) {
+      return { isValid: false, error: 'Pharmacy name must be at least 3 characters' };
+    }
+
+    if (normalized.length > 100) {
+      return { isValid: false, error: 'Pharmacy name is too long (max 100 characters)' };
+    }
+
+    if (!/^[A-Z0-9\s\-'&.]+$/.test(normalized)) {
+      return { isValid: false, error: 'Only letters, numbers, spaces, and basic punctuation allowed' };
+    }
+
+    return { isValid: true };
+  };
+
+  const checkPharmacyNameAvailability = async (name: string) => {
+    if (!name || name.length < 3) {
+      setNameIsAvailable(null);
+      return;
+    }
+
+    setIsCheckingName(true);
+    try {
+      const localProfiles = await db.profiles
+        .where('pharmacy_name')
+        .equals(name)
+        .toArray();
+
+      if (localProfiles.length > 0) {
+        setNameIsAvailable(false);
+        setIsCheckingName(false);
+        return;
+      }
+
+      if (isOnline) {
+        const client = getSupabaseClient();
+        if (client) {
+          const { data, error } = await client
+            .from('profiles')
+            .select('pharmacy_name')
+            .eq('pharmacy_name', name)
+            .limit(1);
+
+          if (!error && data && data.length > 0) {
+            setNameIsAvailable(false);
+            setIsCheckingName(false);
+            return;
+          }
+        }
+      }
+
+      setNameIsAvailable(true);
+    } catch (err) {
+      console.warn('Error checking pharmacy name availability:', err);
+      setNameIsAvailable(null);
+    } finally {
+      setIsCheckingName(false);
+    }
+  };
+
+  const generateUniquePin = async (): Promise<string> => {
+    let attempts = 0;
+    const maxAttempts = 100;
+    let newPin: string;
+    let isUnique = false;
+
+    while (!isUnique && attempts < maxAttempts) {
+      // Generate a random 4-digit PIN (1000-9999, excluding 0000)
+      newPin = String(Math.floor(1000 + Math.random() * 9000));
+
+      // Check if PIN exists in local DB
+      const localProfiles = await db.profiles
+        .where('pin_code')
+        .equals(newPin)
+        .toArray();
+
+      let existsLocally = localProfiles.length > 0;
+
+      // Check cloud if online
+      let existsInCloud = false;
+      if (!existsLocally && isOnline) {
+        const client = getSupabaseClient();
+        if (client) {
+          const { data, error } = await client
+            .from('profiles')
+            .select('pin_code')
+            .eq('pin_code', newPin)
+            .limit(1);
+
+          if (!error && data && data.length > 0) {
+            existsInCloud = true;
+          }
+        }
+      }
+
+      if (!existsLocally && !existsInCloud) {
+        isUnique = true;
+        setPinCode(newPin);
+        return newPin;
+      }
+
+      attempts++;
+    }
+
+    // Fallback: use timestamp-based PIN
+    const fallbackPin = String(Date.now() % 10000).padStart(4, '0');
+    setPinCode(fallbackPin);
+    return fallbackPin;
+  };
+
+  const handleRegeneratePin = () => {
+    generateUniquePin();
+    setPinCopied(false);
+  };
+
+  const handleCopyPin = () => {
+    if (pinCode) {
+      navigator.clipboard.writeText(pinCode);
+      setPinCopied(true);
+      setTimeout(() => setPinCopied(false), 2000);
+    }
+  };
+
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    const nameValidation = validatePharmacyName(pharmacyName);
+    if (!nameValidation.isValid) {
+      setError(nameValidation.error || 'Invalid pharmacy name');
+      return;
+    }
+
+    if (!fullName.trim()) {
+      setError('Please enter your Full Name.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please enter a valid Email Address.');
+      return;
+    }
+    if (!password.trim() || password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (nameIsAvailable === false) {
+      setError('This pharmacy name is already taken. Please choose a different name.');
+      return;
+    }
+
+    if (nameIsAvailable === null) {
+      setError('Please wait while we check name availability...');
+      return;
+    }
+
+    setShowConfirmation(true);
+    setConfirmationInput('');
+    setConfirmationError('');
+  };
+
+  const confirmRegistration = async () => {
+    const normalizedName = normalizePharmacyName(pharmacyName);
+
+    if (confirmationInput.trim().toUpperCase() !== normalizedName) {
+      setConfirmationError('Pharmacy name does not match. Please type it exactly as shown.');
+      return;
+    }
+
+    setLoading(true);
+    setConfirmationError('');
+    setShowConfirmation(false);
+
+    try {
+      const client = getSupabaseClient();
+
+      if (!client) {
+        setError('Supabase is not configured. Please set up your credentials.');
+        setLoading(false);
+        return;
+      }
+
+      // Regenerate PIN one final time to ensure uniqueness
+      const finalPin = await generateUniquePin();
+
+      const { data: authData, error: authErr } = await client.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            pharmacy_name: normalizedName
+          }
+        }
+      });
+
+      if (authErr) {
+        if (authErr.message.includes('User already registered')) {
+          setError('This email is already registered. Please login instead.');
+        } else {
+          setError('Auth error: ' + authErr.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (!authData?.user) {
+        setError('Failed to create user account.');
+        setLoading(false);
+        return;
+      }
+
+      const authUserId = authData.user.id;
+      const profileId = generateUUID();
+
+      const newProfile: Profile = {
+        id: profileId,
+        auth_user_id: authUserId,
+
+        pharmacy_name: normalizedName,
+        pharmacy_trading_name: normalizedName,
+        pharmacy_phone: phone.trim() || '+254 700 000 000',
+        pharmacy_email: email.trim(),
+        pharmacy_address: 'Main Branch',
+        pharmacy_county: 'Nairobi',
+        pharmacy_town: 'Nairobi',
+        pharmacy_receipt_header: `${normalizedName}\nTel: ${phone || '+254 700 000 000'}`,
+        pharmacy_receipt_footer: 'Thank you for trusting us with your healthcare!',
+        pharmacy_currency: 'KSh',
+        pharmacy_settings: {
+          allow_negative_stock: false,
+          low_stock_threshold: 10,
+          expiry_warning_days: 90
+        },
+        pharmacy_is_active: true,
+
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || '+254 700 000 000',
+        pin_code: finalPin, // Use the auto-generated PIN
+        role: role,
+        is_owner: role === 'owner',
+        is_active: true,
+
+        avatar_url: null,
+        last_login_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: insertError } = await client
+        .from('profiles')
+        .insert(newProfile);
+
+      if (insertError) {
+        const { error: upsertError } = await client
+          .from('profiles')
+          .upsert(newProfile, { onConflict: 'id' });
+
+        if (upsertError) {
+          await db.profiles.put(newProfile);
+          setSuccessMsg(`⚠️ Account created locally but cloud sync failed. Your PIN: ${finalPin}`);
+        } else {
+          await db.profiles.put(newProfile);
+          setSuccessMsg(`✅ Account created and synced to cloud! Your PIN: ${finalPin}`);
+        }
+      } else {
+        await db.profiles.put(newProfile);
+        setSuccessMsg(`✅ Account created and synced to cloud! Your PIN: ${finalPin}`);
+      }
+
+      localStorage.setItem('medp_authenticated', 'true');
+      localStorage.setItem('medp_current_user_id', newProfile.id);
+      localStorage.setItem('medp_pharmacy_name', newProfile.pharmacy_name);
+      localStorage.setItem('medp_user_role', newProfile.role);
+
+      setTimeout(() => setSuccessMsg(''), 5000);
+      onAuthSuccess(newProfile);
+
+    } catch (err: any) {
+      setError(err.message || 'Failed to complete registration.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generateUUID = (): string => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -87,162 +416,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       }
 
       saveSupabaseCredentials(supabaseUrl, supabaseKey);
-      setSuccessMsg(' Supabase credentials saved successfully!');
+      setSuccessMsg('✅ Supabase credentials saved successfully!');
       setTimeout(() => {
         setSuccessMsg('');
         setShowSupabaseConfig(false);
       }, 2000);
     } catch (err: any) {
       setError('❌ ' + (err.message || 'Failed to save credentials'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    // Validation
-    if (!pharmacyName.trim()) {
-      setError('Please enter your Pharmacy / Chemist Name.');
-      setLoading(false);
-      return;
-    }
-    if (!fullName.trim()) {
-      setError('Please enter your Full Name.');
-      setLoading(false);
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      setError('Please enter a valid Email Address.');
-      setLoading(false);
-      return;
-    }
-    if (!pinCode.trim() || pinCode.length < 4) {
-      setError('Please enter a 4-digit PIN Code.');
-      setLoading(false);
-      return;
-    }
-    if (!password.trim() || password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const client = getSupabaseClient();
-
-      if (!client) {
-        setError('Supabase is not configured. Please set up your credentials.');
-        setLoading(false);
-        return;
-      }
-
-      // STEP 1: CREATE SUPABASE AUTH USER
-      const { data: authData, error: authErr } = await client.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            pharmacy_name: pharmacyName.trim()
-          }
-        }
-      });
-
-      if (authErr) {
-        if (authErr.message.includes('User already registered')) {
-          setError('This email is already registered. Please login instead.');
-        } else {
-          setError('Auth error: ' + authErr.message);
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (!authData?.user) {
-        setError('Failed to create user account.');
-        setLoading(false);
-        return;
-      }
-
-      const authUserId = authData.user.id;
-
-      // STEP 2: CREATE PROFILE
-      const profileId = generateUUID();
-
-      const newProfile: Profile = {
-        id: profileId,
-        auth_user_id: authUserId,
-
-        // Pharmacy Info
-        pharmacy_name: pharmacyName.trim(),
-        pharmacy_trading_name: pharmacyName.trim(),
-        pharmacy_phone: phone.trim() || '+254 700 000 000',
-        pharmacy_email: email.trim(),
-        pharmacy_address: 'Main Branch',
-        pharmacy_county: 'Nairobi',
-        pharmacy_town: 'Nairobi',
-        pharmacy_receipt_header: `${pharmacyName.toUpperCase()}\nTel: ${phone || '+254 700 000 000'}`,
-        pharmacy_receipt_footer: 'Thank you for trusting us with your healthcare!',
-        pharmacy_currency: 'KSh',
-        pharmacy_settings: {
-          allow_negative_stock: false,
-          low_stock_threshold: 10,
-          expiry_warning_days: 90
-        },
-        pharmacy_is_active: true,
-
-        // User Info
-        full_name: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim() || '+254 700 000 000',
-        pin_code: pinCode.trim(),
-        role: role,
-        is_owner: role === 'owner',
-        is_active: true,
-
-        // Metadata
-        avatar_url: null,
-        last_login_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      // STEP 3: SAVE TO SUPABASE
-      const { error: insertError } = await client
-        .from('profiles')
-        .insert(newProfile);
-
-      if (insertError) {
-        const { error: upsertError } = await client
-          .from('profiles')
-          .upsert(newProfile, { onConflict: 'id' });
-
-        if (upsertError) {
-          await db.profiles.put(newProfile);
-          setSuccessMsg('⚠️ Account created locally but cloud sync failed.');
-        } else {
-          await db.profiles.put(newProfile);
-          setSuccessMsg(' Account created and synced to cloud!');
-        }
-      } else {
-        await db.profiles.put(newProfile);
-        setSuccessMsg(' Account created and synced to cloud!');
-      }
-
-      localStorage.setItem('medp_authenticated', 'true');
-      localStorage.setItem('medp_current_user_id', newProfile.id);
-      localStorage.setItem('medp_pharmacy_name', newProfile.pharmacy_name);
-      localStorage.setItem('medp_user_role', newProfile.role);
-
-      setTimeout(() => setSuccessMsg(''), 3000);
-      onAuthSuccess(newProfile);
-
-    } catch (err: any) {
-      setError(err.message || 'Failed to complete registration.');
     } finally {
       setLoading(false);
     }
@@ -256,7 +436,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
     try {
       const client = getSupabaseClient();
 
-      // PRIORITY: PIN Login (Fastest for staff)
       if (pinCode.trim()) {
         console.log('🔑 Fast PIN Login...');
         const allProfiles = await db.profiles.toArray();
@@ -308,7 +487,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
         }
       }
 
-      // OPTION 2: Email + Password Login (For owners/admins)
       if (email.trim() && password.trim() && client && isOnline) {
         console.log('📧 Email Login...');
         const { data: authData, error: authErr } = await client.auth.signInWithPassword({
@@ -338,7 +516,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
         }
       }
 
-      // If we get here, no login method worked
       if (!pinCode.trim() && !email.trim()) {
         setError('Please enter your PIN or Email + Password.');
       } else if (pinCode.trim() && !email.trim()) {
@@ -355,7 +532,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
     }
   };
 
-  // Get theme-specific styles - Optimized for phone
+  // Get theme-specific styles
   const bgPrimary = isDark ? 'bg-slate-950' : 'bg-white';
   const bgSecondary = isDark ? 'bg-slate-900' : 'bg-slate-50';
   const bgCard = isDark ? 'bg-slate-900' : 'bg-white';
@@ -371,7 +548,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       } backdrop-blur-sm`}>
       <div className={`${bgCard} ${borderColor} border rounded-2xl w-full max-w-md p-4 shadow-xl space-y-3 my-auto max-h-[96vh] overflow-y-auto no-scrollbar`}>
 
-        {/* Brand & Header - Smaller for phone */}
+        {/* Brand & Header */}
         <div className="text-center space-y-1.5">
           <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-emerald-500/20`}>
             P
@@ -397,7 +574,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           </p>
         </div>
 
-        {/* Supabase Config Toggle - Compact */}
+        {/* Supabase Config Toggle */}
         <button
           type="button"
           onClick={() => setShowSupabaseConfig(!showSupabaseConfig)}
@@ -411,7 +588,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
             ? isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/80' : 'text-emerald-700 bg-emerald-100 border-emerald-200'
             : isDark ? 'text-amber-400 bg-amber-950/80 border-amber-800/80' : 'text-amber-700 bg-amber-100 border-amber-200'
             }`}>
-            {creds.url && !creds.url.includes('your-supabase-project') ? '' : '⚠️'}
+            {creds.url && !creds.url.includes('your-supabase-project') ? '✅' : '⚠️'}
           </span>
         </button>
 
@@ -473,7 +650,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           </form>
         ) : (
           <>
-            {/* Mode Selector Tabs - Compact */}
+            {/* Mode Selector Tabs */}
             <div className={`grid grid-cols-2 ${isDark ? 'bg-slate-800/80' : 'bg-slate-100'} p-1 rounded-xl text-[11px] font-semibold`}>
               <button
                 type="button"
@@ -514,7 +691,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
             )}
 
             {mode === 'register' ? (
-              <form onSubmit={handleRegister} className="space-y-2.5 text-[11px]">
+              <form onSubmit={handleRegisterSubmit} className="space-y-2.5 text-[11px]">
                 <div>
                   <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
                     <Building2 className="w-3 h-3 inline mr-1" />
@@ -526,8 +703,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                     value={pharmacyName}
                     onChange={(e) => setPharmacyName(e.target.value)}
                     placeholder="e.g. Apex Healthcare Pharmacy"
-                    className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
+                    className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500 uppercase`}
                   />
+                  {normalizedPharmacyName && normalizedPharmacyName !== pharmacyName && (
+                    <p className={`text-[10px] mt-1 ${textMuted}`}>
+                      Will be saved as: <span className="font-mono font-bold text-emerald-500">{normalizedPharmacyName}</span>
+                    </p>
+                  )}
+                  {isCheckingName && (
+                    <p className={`text-[10px] mt-1 ${textMuted} flex items-center gap-1`}>
+                      <div className="w-2.5 h-2.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                      Checking availability...
+                    </p>
+                  )}
+                  {nameIsAvailable === true && normalizedPharmacyName && (
+                    <p className="text-[10px] mt-1 text-emerald-500 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Name is available ✓
+                    </p>
+                  )}
+                  {nameIsAvailable === false && normalizedPharmacyName && (
+                    <p className="text-[10px] mt-1 text-rose-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      This name is already taken. Please choose another.
+                    </p>
+                  )}
+                  <div className={`mt-1.5 p-2 rounded-lg ${isDark ? 'bg-amber-950/30 border-amber-800/30' : 'bg-amber-50 border-amber-200'} border flex items-start gap-1.5`}>
+                    <Info className={`w-3 h-3 flex-shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                    <p className={`text-[9px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                      <strong>Important:</strong> Pharmacy name is permanent, unique ID. Will be auto-converted to <strong>UPPERCASE</strong>.
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -610,24 +816,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                       <option value="storekeeper">Storekeeper</option>
                     </select>
                   </div>
+                </div>
 
-                  <div className="col-span-2">
-                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>4-Digit PIN *</label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      required
-                      value={pinCode}
-                      onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="1234"
-                      className={`w-full max-w-[120px] ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500 font-mono tracking-widest text-center`}
-                    />
+                {/* Auto-generated PIN Section */}
+                <div className={`p-3 rounded-xl ${isDark ? 'bg-emerald-950/20 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200'} border`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={`block ${textSecondary} font-medium text-[10px] flex items-center gap-1.5`}>
+                      <Fingerprint className="w-3 h-3 text-emerald-500" />
+                      Your Staff PIN (Auto-generated)
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handleRegeneratePin}
+                        className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'}`}
+                        title="Generate new PIN"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyPin}
+                        className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'}`}
+                        title="Copy PIN"
+                      >
+                        {pinCopied ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-emerald-500" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div className={`font-mono text-2xl font-bold text-center py-2 ${isDark ? 'text-emerald-400' : 'text-emerald-700'} tracking-[0.3em]`}>
+                    {pinCode || '----'}
+                  </div>
+                  <p className={`text-[9px] text-center ${textMuted} mt-1`}>
+                    Use this 4-digit PIN for quick login • Save it securely
+                  </p>
+                  <div className={`mt-1.5 p-1.5 rounded-lg ${isDark ? 'bg-amber-950/20 border-amber-800/30' : 'bg-amber-50 border-amber-200'} border`}>
+                    <p className={`text-[8px] text-center ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                      ⚠️ Auto-generated unique PIN • Cannot be changed manually
+                    </p>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || nameIsAvailable === false || isCheckingName || !pinCode}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {loading ? (
@@ -638,7 +874,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                   ) : (
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Register & Open</span>
+                      <span>Review & Confirm</span>
                     </>
                   )}
                 </button>
@@ -655,16 +891,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                   </div>
                   <div>
                     <label className={`block ${textSecondary} mb-1 font-medium text-[10px] text-center`}>Enter 4-Digit PIN</label>
-                    <input
-                      id="pin-login-input"
-                      type="password"
-                      maxLength={4}
-                      value={pinCode}
-                      onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
-                      className={`w-full max-w-[160px] mx-auto block ${bgInput} ${borderColor} border rounded-xl px-3 py-3 ${textPrimary} text-base focus:outline-none focus:border-emerald-500 font-mono tracking-[0.3em] text-center`}
-                      autoFocus
-                    />
+
+                    <div className="relative">
+                      <input
+                        id="pin-login-input"
+                        type={showPin ? "text" : "password"}
+                        maxLength={4}
+                        value={pinCode}
+                        onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••"
+                        className={`w-full max-w-[160px] mx-auto block ${bgInput} ${borderColor} border rounded-xl px-3 py-3 ${textPrimary} text-base focus:outline-none focus:border-emerald-500 font-mono tracking-[0.3em] text-center pr-12`}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPin(!showPin)}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-200 text-slate-500'
+                          }`}
+                      >
+                        {showPin ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                     <p className={`text-[9px] text-center mt-1.5 ${textMuted}`}>
                       Enter your 4-digit staff PIN to login instantly
                     </p>
@@ -739,6 +990,104 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           <span className="text-[9px]">v2.0</span>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className={`${bgCard} border ${borderColor} rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4`}>
+            {/* Header */}
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-8 h-8 text-amber-500" />
+              </div>
+              <h3 className={`text-lg font-bold ${textPrimary}`}>
+                ⚠️ Confirm Registration
+              </h3>
+              <p className={`text-[13px] ${textSecondary}`}>
+                This action is <strong className="text-rose-500">PERMANENT</strong> and cannot be changed!
+              </p>
+            </div>
+
+            {/* Info */}
+            <div className={`p-4 rounded-xl ${isDark ? 'bg-rose-950/20 border-rose-800/30' : 'bg-rose-50 border-rose-200'} border space-y-2`}>
+              <p className={`text-[12px] ${isDark ? 'text-rose-300' : 'text-rose-700'} font-medium`}>
+                <strong>Pharmacy Name:</strong> {normalizedPharmacyName}
+              </p>
+              <p className={`text-[12px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'} font-medium`}>
+                <strong>Your PIN:</strong> <span className="font-mono tracking-[0.2em]">{pinCode}</span>
+              </p>
+              <p className={`text-[11px] ${textMuted} mt-1`}>
+                This PIN is auto-generated and unique. Save it securely for login.
+              </p>
+            </div>
+
+            {/* Confirmation Input */}
+            <div>
+              <label className={`block ${textSecondary} mb-1.5 text-[12px] font-medium`}>
+                Type the pharmacy name to confirm:
+              </label>
+              <input
+                type="text"
+                value={confirmationInput}
+                onChange={(e) => {
+                  setConfirmationInput(e.target.value);
+                  setConfirmationError('');
+                }}
+                placeholder={`Type "${normalizedPharmacyName}" exactly`}
+                className={`w-full ${bgInput} ${borderColor} border rounded-xl px-4 py-3 ${textPrimary} text-[13px] focus:outline-none focus:border-emerald-500 font-mono uppercase`}
+                autoFocus
+              />
+              {confirmationError && (
+                <p className="text-[11px] text-rose-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {confirmationError}
+                </p>
+              )}
+              <p className={`text-[10px] ${textMuted} mt-1.5`}>
+                Must match <strong className="text-emerald-500">{normalizedPharmacyName}</strong> exactly
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmation(false);
+                  setConfirmationInput('');
+                  setConfirmationError('');
+                }}
+                className="flex-1 py-3 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition-colors text-[13px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRegistration}
+                disabled={loading || confirmationInput.trim().toUpperCase() !== normalizedPharmacyName}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 disabled:opacity-50 text-white font-bold rounded-xl transition-all duration-200 shadow-lg shadow-amber-500/20 text-[13px] flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Confirm & Create</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <p className={`text-[10px] ${textMuted} text-center`}>
+              <Info className="w-3 h-3 inline mr-1" />
+              Pharmacy name is permanent ID • PIN is auto-generated
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

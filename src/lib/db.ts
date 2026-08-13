@@ -1,7 +1,9 @@
+// lib/db.ts
 import Dexie, { Table } from 'dexie';
 import {
   Pharmacy,
   Profile,
+  RequestedItem,
   PharmacyUser,
   Category,
   Unit,
@@ -21,7 +23,8 @@ import {
   OfflineSyncItem,
   Payment,
   Discount,
-  Notification
+  Notification,
+  SalesReturn, // NEW - Add this import
 } from '../types';
 
 export class MedPDatabase extends Dexie {
@@ -44,8 +47,10 @@ export class MedPDatabase extends Dexie {
   stocktakes!: Table<Stocktake, string>;
   stocktake_items!: Table<StocktakeItem, string>;
   sale_returns!: Table<SaleReturn, string>;
+  sales_returns!: Table<SalesReturn, string>; // NEW - Sales Returns table
   discounts!: Table<Discount, string>;
   audit_logs!: Table<AuditLog, string>;
+  requested_items!: Table<RequestedItem, string>; // Most requested items
   notifications!: Table<Notification, string>;
   sync_queue!: Table<OfflineSyncItem, number>;
 
@@ -106,6 +111,7 @@ export class MedPDatabase extends Dexie {
       sale_returns: 'id, pharmacy_name, sale_id, created_at',
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
       sync_queue: '++id, sync_id, pharmacy_id, user_id, entity_type, status, created_at'  // ⚠️ STILL pharmacy_id
     }).upgrade(async (tx) => {
@@ -417,6 +423,7 @@ export class MedPDatabase extends Dexie {
       sale_returns: 'id, pharmacy_name, sale_id, created_at',
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
       sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
@@ -513,7 +520,7 @@ export class MedPDatabase extends Dexie {
     });
 
     // =============================================
-    // VERSION 7:  ADD LOCATION FIELDS TO PRODUCTS TABLE
+    // VERSION 7: ADD LOCATION FIELDS TO PRODUCTS TABLE
     // =============================================
     this.version(7).stores({
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
@@ -533,8 +540,10 @@ export class MedPDatabase extends Dexie {
       stocktakes: 'id, pharmacy_name, status, started_at',
       stocktake_items: 'id, stocktake_id, product_id, batch_id',
       sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at', // NEW - Sales Returns
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
       sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
@@ -611,6 +620,49 @@ export class MedPDatabase extends Dexie {
         throw error;
       }
     });
+
+    // =============================================
+    // VERSION 8: ADD SALES RETURNS TABLE
+    // =============================================
+    this.version(8).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
+      categories: 'id, pharmacy_name, name, active',
+      units: 'id, pharmacy_name, name, abbreviation',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at, shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at',
+      sales: 'id, pharmacy_name, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at',
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at', // NEW
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
+    }).upgrade(async (tx) => {
+      console.log('🔄 Migrating to version 8 - Adding Sales Returns table...');
+
+      try {
+        // Check if sales_returns table already has data
+        const existingReturns = await tx.table('sales_returns').toArray();
+        if (existingReturns.length > 0) {
+          console.log(`📊 Found ${existingReturns.length} existing sales returns`);
+        }
+
+        console.log('✅ Version 8 migration complete! Sales Returns table added.');
+      } catch (error) {
+        console.error('❌ Error during version 8 migration:', error);
+        throw error;
+      }
+    });
   }
 
   // Helper method to clear all data
@@ -628,14 +680,15 @@ export class MedPDatabase extends Dexie {
     await this.purchase_items.clear();
     await this.customers.clear();
     await this.sales.clear();
-    // sale_items removed in version 6
     await this.payments.clear();
     await this.stock_movements.clear();
     await this.stocktakes.clear();
     await this.stocktake_items.clear();
     await this.sale_returns.clear();
+    await this.sales_returns.clear(); // NEW
     await this.discounts.clear();
     await this.audit_logs.clear();
+    await this.requested_items.clear();
     await this.notifications.clear();
     await this.sync_queue.clear();
   }
@@ -651,8 +704,9 @@ export class MedPDatabase extends Dexie {
 
     const tables = [
       'products', 'product_batches', 'categories', 'units',
-      'suppliers', 'customers', 'sales', // sale_items removed
-      'stock_movements', 'audit_logs', 'sync_queue'
+      'suppliers', 'customers', 'sales',
+      'stock_movements', 'audit_logs', 'sync_queue',
+      'requested_items', 'sales_returns' // NEW
     ];
 
     for (const tableName of tables) {
@@ -680,8 +734,8 @@ export const db = new MedPDatabase();
 // Utility for initializing database schema
 export async function seedInitialDataIfNeeded() {
   try {
-    if (localStorage.getItem('medp_schema_v7_location') !== 'true') {
-      console.log('🧹 Running schema cleanup v7 (Location Fields)...');
+    if (localStorage.getItem('medp_schema_v8_sales_returns') !== 'true') {
+      console.log('🧹 Running schema cleanup v8 (Sales Returns)...');
 
       const profiles = await db.profiles.toArray();
 
@@ -741,10 +795,11 @@ export async function seedInitialDataIfNeeded() {
       }
 
       // Mark schema as clean
-      localStorage.setItem('medp_schema_v7_location', 'true');
+      localStorage.setItem('medp_schema_v8_sales_returns', 'true');
       console.log(' Database cleanup complete!');
       console.log(' Using SINGLE TABLE design for sales (all product details in sales table)');
-      console.log(' Products table now includes location fields');
+      console.log(' Products table includes location fields');
+      console.log(' Sales Returns table added for tracking returns and restoring stock');
     }
   } catch (err) {
     console.warn('Error during schema initialization:', err);

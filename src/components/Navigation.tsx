@@ -1,11 +1,14 @@
+// components/Navigation.tsx
 import React from 'react';
 import {
   Home, ShoppingBag, Package, BarChart3, MoreHorizontal,
-  Sun, Moon, ShieldCheck, Info, Shield, FileCheck
+  Sun, Moon, ShieldCheck, Info, Shield, FileCheck,
+  TrendingUp, // NEW - for Requests tab
+  Undo2 // NEW - for Returns tab
 } from 'lucide-react';
 import { Pharmacy, Profile } from '../types';
 
-export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms';
+export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns'; // ADD 'requests' and 'returns'
 
 interface NavigationProps {
   activeTab: NavTab;
@@ -32,6 +35,8 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'home' as NavTab, label: 'Dashboard', icon: Home },
     { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
     { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
+    { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp },
+    { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 }, // NEW - Add this
     { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
     { id: 'more' as NavTab, label: 'Settings & Hub', icon: MoreHorizontal },
   ];

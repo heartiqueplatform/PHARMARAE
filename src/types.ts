@@ -683,3 +683,130 @@ export interface AppSettings {
     sales: boolean;
   };
 }
+// types/index.ts
+
+// Add this near other interfaces
+export interface RequestedItem {
+  id: string;
+  pharmacy_name: string;
+  item_name: string;
+  generic_name: string | null;
+  brand_name: string | null;
+  category: string | null;
+  form: string | null;
+  strength: string | null;
+  request_count: number;
+  last_requested_at: string;
+  created_at: string;
+  updated_at: string;
+  status: 'pending' | 'ordered' | 'added_to_inventory' | 'discontinued';
+  notes: string | null;
+  requested_by: string | null;
+  customer_phone: string | null;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  estimated_demand: number;
+  added_to_inventory_at: string | null;
+  ordered_from_supplier_at: string | null;
+  supplier_name: string | null;
+}
+
+export type RequestedItemStatus = 'pending' | 'ordered' | 'added_to_inventory' | 'discontinued';
+export type RequestedItemPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+// types/index.ts - Add SalesReturn interface
+
+export interface SalesReturn {
+  id: string;
+  pharmacy_name: string;
+  sale_id: string;
+  sale_number: string;
+  product_id: string;
+  product_name: string;
+  batch_id: string | null;
+  batch_number: string | null;
+  quantity_returned: number;
+  original_quantity: number;
+  remaining_quantity: number;
+  return_reason: string;
+  return_type: 'customer_return' | 'damaged' | 'expired' | 'wrong_item';
+  refund_amount: number;
+  refund_method: 'cash' | 'mpesa' | 'bank' | 'store_credit' | null;
+  returned_by: string | null;
+  returned_by_name: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  notes: string | null;
+  status: 'completed' | 'pending' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReturnType = 'customer_return' | 'damaged' | 'expired' | 'wrong_item';
+export type RefundMethod = 'cash' | 'mpesa' | 'bank' | 'store_credit';
+// types/index.ts - Add these interfaces
+
+// =============================================
+// 🆕 SECURITY & ACCOUNT MANAGEMENT TYPES
+// =============================================
+
+/**
+ * Data required to change a user's PIN
+ */
+export interface ChangePinData {
+  /** Current 4-digit PIN */
+  currentPin: string;
+  /** New 4-digit PIN */
+  newPin: string;
+  /** Confirm new PIN (must match newPin) */
+  confirmPin: string;
+}
+
+/**
+ * Data required to change a user's password
+ */
+export interface ChangePasswordData {
+  /** Current password */
+  currentPassword: string;
+  /** New password (minimum 6 characters) */
+  newPassword: string;
+  /** Confirm new password (must match newPassword) */
+  confirmPassword: string;
+}
+
+/**
+ * Data required to delete an account
+ */
+export interface DeleteAccountData {
+  /** ID of the profile to delete */
+  profileId: string;
+  /** Confirmation text (must be "DELETE") */
+  confirmText: string;
+}
+
+/**
+ * Result of a delete account operation
+ */
+export interface DeleteAccountResult {
+  /** Whether the operation was successful */
+  success: boolean;
+  /** Whether the user deleted themselves */
+  isSelf: boolean;
+  /** Optional error message */
+  error?: string;
+}
+
+/**
+ * Result of a PIN change operation
+ */
+export interface ChangePinResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Result of a password change operation
+ */
+export interface ChangePasswordResult {
+  success: boolean;
+  error?: string;
+}

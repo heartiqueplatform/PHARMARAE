@@ -40,6 +40,66 @@ export const PosView: React.FC<PosViewProps> = ({
   const currency = 'KSh';
   const isDark = theme === 'dark';
 
+  // --- START: Sound & Vibration ---
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio on component mount
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        audioRef.current = new Audio('/pharmienta.mp3');
+        audioRef.current.load();
+        // Log success
+        console.log('Audio loaded successfully');
+      } catch (err) {
+        console.warn('Failed to load audio:', err);
+      }
+    }
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Function to play sound and vibrate
+  const playCompletionFeedback = () => {
+    // Play sound
+    if (audioRef.current) {
+      try {
+        audioRef.current.currentTime = 0; // Reset to start
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('Audio played successfully');
+            })
+            .catch(err => {
+              console.log('Audio play failed:', err.message);
+            });
+        }
+      } catch (err) {
+        console.log('Audio error:', err);
+      }
+    } else {
+      console.warn('Audio reference not available');
+    }
+
+    // Vibrate if supported (mobile devices)
+    if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+      try {
+        // Vibrate pattern: 200ms on, 100ms off, 200ms on (success pattern)
+        window.navigator.vibrate([200, 100, 200]);
+        console.log('Vibration triggered');
+      } catch (err) {
+        console.log('Vibration error:', err);
+      }
+    }
+  };
+  // --- END: Sound & Vibration ---
+
   // Base card styles
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const cardHover = isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]';
@@ -69,7 +129,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const [discountReason, setDiscountReason] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showConfirmOverlay, setShowConfirmOverlay] = useState(false); // New state for overlay
+  const [showConfirmOverlay, setShowConfirmOverlay] = useState(false);
 
   React.useEffect(() => {
     if (scannedBarcode) {
@@ -187,12 +247,20 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
 
+    // --- PLAY SOUND ON FIRST BUTTON TAP ---
+    playCompletionFeedback();
+    // --- END ---
+
     setShowConfirmOverlay(true);
   };
 
   // Actual sale completion
   const handleConfirmSale = async () => {
     if (cart.length === 0) return;
+
+    // --- PLAY SOUND ON SECOND BUTTON TAP ---
+    playCompletionFeedback();
+    // --- END ---
 
     setIsSubmitting(true);
     setShowConfirmOverlay(false);
@@ -243,13 +311,15 @@ export const PosView: React.FC<PosViewProps> = ({
 
       await onCompleteSale(saleData, cart);
 
+      // Optionally play again on success (uncomment if you want double feedback)
+      // playCompletionFeedback();
+
       // Clear cart after successful sale
       setCart([]);
       setDiscountAmount(0);
       setDiscountReason('');
       setSelectedCustomer(null);
       setPaymentMethod('cash');
-
     } catch (err: any) {
       alert('Error completing sale: ' + (err.message || err));
     } finally {

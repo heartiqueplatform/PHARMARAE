@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { Profile, UserRole, Supplier, AuditLog } from '../../types';
-import { Users, Truck, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image, FileCheck, Info, Download } from 'lucide-react';
+import { Users, Truck, Eye, EyeOff, RefreshCw as RefreshIcon, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image, FileCheck, Info, Download } from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient, processOfflineSyncQueue, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
-
 interface MoreViewProps {
   profile: Profile | null;
   profiles: Profile[];
@@ -21,6 +20,7 @@ interface MoreViewProps {
   onResetLocalCache?: () => void;
   theme?: 'dark' | 'light';
   onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void;
+  onNavigateToSecurity?: () => void; // NEW - Add this line
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -39,6 +39,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onResetLocalCache,
   theme = 'dark',
   onNavigateToTab,
+  onNavigateToSecurity, // NEW - Add this line
 }) => {
   const isDark = theme === 'dark';
 
@@ -66,7 +67,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [nameError, setNameError] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [isPullingData, setIsPullingData] = useState(false);
-
+  const [showStaffPin, setShowStaffPin] = useState(false); // <-- ADD THIS
+  const [isGeneratingPin, setIsGeneratingPin] = useState(false); // <-- ADD THIS
   const triggerToast = (msg: string) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(''), 3500);
@@ -113,7 +115,75 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
     return testName;
   };
+  // Auto-generate unique PIN for staff
+  const generateUniqueStaffPin = async (): Promise<string> => {
+    setIsGeneratingPin(true);
+    let attempts = 0;
+    const maxAttempts = 100;
+    let newPin: string;
+    let isUnique = false;
 
+    while (!isUnique && attempts < maxAttempts) {
+      // Generate a random 4-digit PIN (1000-9999, excluding 0000)
+      newPin = String(Math.floor(1000 + Math.random() * 9000));
+
+      // Check if PIN exists in local DB
+      const localProfiles = await db.profiles
+        .where('pin_code')
+        .equals(newPin)
+        .toArray();
+
+      let existsLocally = localProfiles.length > 0;
+
+      // Check cloud if online
+      let existsInCloud = false;
+      if (!existsLocally && isOnline) {
+        const client = getSupabaseClient();
+        if (client) {
+          const { data, error } = await client
+            .from('profiles')
+            .select('pin_code')
+            .eq('pin_code', newPin)
+            .limit(1);
+
+          if (!error && data && data.length > 0) {
+            existsInCloud = true;
+          }
+        }
+      }
+
+      if (!existsLocally && !existsInCloud) {
+        isUnique = true;
+        setStaffPin(newPin);
+        setIsGeneratingPin(false);
+        return newPin;
+      }
+
+      attempts++;
+    }
+
+    // Fallback: use timestamp-based PIN
+    const fallbackPin = String(Date.now() % 10000).padStart(4, '0');
+    setStaffPin(fallbackPin);
+    setIsGeneratingPin(false);
+    return fallbackPin;
+  };
+
+  // Generate PIN when modal opens
+  const handleOpenStaffModal = () => {
+    setShowAddStaffModal(true);
+    setStaffName('');
+    setStaffEmail('');
+    setStaffPhone('');
+    setStaffRole('cashier');
+    setShowStaffPin(false);
+    generateUniqueStaffPin();
+  };
+
+  // Regenerate PIN
+  const handleRegenerateStaffPin = () => {
+    generateUniqueStaffPin();
+  };
   // Handle pharmacy name change with validation
   const handlePharmacyNameChange = async (newName: string) => {
     setNameError('');
@@ -254,7 +324,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         full_name: staffName,
         email: staffEmail,
         phone: staffPhone || '+254 700 000 000',
-        pin_code: staffPin,
+        pin_code: staffPin, // PIN is already auto-generated and unique
         role: staffRole,
         is_active: true,
       });
@@ -664,6 +734,30 @@ export const MoreView: React.FC<MoreViewProps> = ({
               )}
             </button>
           </div>
+          {/* Settings Panel - Add this button at the bottom of the form */}
+          <div className={`pt-4 border-t ${borderLine}`}>
+            <button
+              onClick={() => {
+                if (onNavigateToSecurity) {
+                  onNavigateToSecurity();
+                }
+              }}
+              className={`w-full p-4 rounded-xl text-left transition-colors ${isDark ? 'bg-[#0d1117] hover:bg-[#21262d]' : 'bg-[#f6f8fa] hover:bg-slate-200'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">Security & Account</p>
+                  <p className={`text-[11px] ${textMuted}`}>Manage PIN, password, and account settings</p>
+                </div>
+                <svg className="w-4 h-4 ml-auto opacity-40 text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          </div>
         </form>
       )}
 
@@ -672,11 +766,12 @@ export const MoreView: React.FC<MoreViewProps> = ({
         <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 ${borderLine}`}>
             <h3 className={`font-bold text-base ${textTitle}`}>
-              Staff Members ({profiles.filter(p => !p.is_owner).length})
+              {/* FIXED: Count only staff from this pharmacy */}
+              Staff Members ({profiles.filter(p => !p.is_owner && p.pharmacy_name === profile?.pharmacy_name).length})
             </h3>
             {canManage && (
               <button
-                onClick={() => setShowAddStaffModal(true)}
+                onClick={handleOpenStaffModal} // <-- CHANGED HERE
                 className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm flex items-center gap-2 ${touchTargetSmall}`}
               >
                 <span>+ Add Staff</span>
@@ -685,47 +780,65 @@ export const MoreView: React.FC<MoreViewProps> = ({
           </div>
 
           <div className="space-y-3">
-            {profiles.filter(p => !p.is_owner).map(p => (
-              <div key={p.id} className={`p-4 rounded-xl flex items-center justify-between text-sm ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'
-                }`}>
-                <div className="flex items-center gap-3">
-                  {p.avatar_url ? (
-                    <img
-                      src={p.avatar_url}
-                      alt={p.full_name}
-                      className="w-10 h-10 rounded-full object-cover border border-slate-700"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#58a6ff]/20 text-[#58a6ff] font-extrabold flex items-center justify-center text-sm">
-                      {p.full_name?.charAt(0) || 'U'}
-                    </div>
-                  )}
-                  <div>
-                    <div className={`font-bold ${textTitle}`}>{p.full_name}</div>
-                    <div className={`text-[11px] ${textMuted}`}>
-                      {p.email} • Phone: {p.phone || 'N/A'} • PIN: {p.pin_code || 'None'}
-                    </div>
-                    <div className="text-[11px] mt-0.5">
-                      <span className={`px-2 py-0.5 rounded font-bold ${p.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
-                        }`}>
-                        {p.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                      <span className={`ml-1.5 px-2 py-0.5 rounded font-bold bg-blue-500/20 text-blue-400`}>
-                        {p.role}
-                      </span>
+            {/* FIXED: Filter by pharmacy_name */}
+            {profiles
+              .filter(p => !p.is_owner && p.pharmacy_name === profile?.pharmacy_name)
+              .map(p => (
+                <div key={p.id} className={`p-4 rounded-xl flex items-center justify-between text-sm ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'
+                  }`}>
+                  <div className="flex items-center gap-3">
+                    {p.avatar_url ? (
+                      <img
+                        src={p.avatar_url}
+                        alt={p.full_name}
+                        className="w-10 h-10 rounded-full object-cover border border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#58a6ff]/20 text-[#58a6ff] font-extrabold flex items-center justify-center text-sm">
+                        {p.full_name?.charAt(0) || 'U'}
+                      </div>
+                    )}
+                    <div>
+                      <div className={`font-bold ${textTitle}`}>{p.full_name}</div>
+                      <div className={`text-[11px] ${textMuted}`}>
+                        {p.email} • Phone: {p.phone || 'N/A'}
+                        {/* ONLY OWNER can see PINs */}
+                        {currentRole === 'owner' ? (
+                          <> • PIN: <span className="font-mono font-bold text-emerald-400">{p.pin_code || 'None'}</span></>
+                        ) : (
+                          <> • PIN: <span className="font-mono">****</span></>
+                        )}
+                      </div>
+                      <div className="text-[11px] mt-0.5">
+                        <span className={`px-2 py-0.5 rounded font-bold ${p.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                          {p.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                        <span className={`ml-1.5 px-2 py-0.5 rounded font-bold bg-blue-500/20 text-blue-400`}>
+                          {p.role}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  {canManage && (
+                    <button
+                      onClick={() => handleStartEditProfile(p)}
+                      className={`px-3 py-2 text-sm font-bold rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors ${touchTargetSmall}`}
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
-                {canManage && (
-                  <button
-                    onClick={() => handleStartEditProfile(p)}
-                    className={`px-3 py-2 text-sm font-bold rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors ${touchTargetSmall}`}
-                  >
-                    Edit
-                  </button>
-                )}
+              ))}
+
+            {/* Show message if no staff found */}
+            {profiles.filter(p => !p.is_owner && p.pharmacy_name === profile?.pharmacy_name).length === 0 && (
+              <div className={`p-6 text-center ${textMuted}`}>
+                <Users className="w-12 h-12 mx-auto opacity-20 mb-2" />
+                <p className="font-medium">No staff members found</p>
+                <p className="text-xs mt-1">Add your first staff member to get started.</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
@@ -942,16 +1055,50 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 />
               </div>
               <div>
-                <label className={`block mb-1.5 font-bold ${textMuted}`}>4-Digit PIN *</label>
-                <input
-                  type="text"
-                  maxLength={4}
-                  required
-                  value={staffPin}
-                  onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, ''))}
-                  className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center text-base tracking-widest ${inputBg} ${touchTarget}`}
-                  placeholder="1234"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`font-bold ${textMuted}`}>4-Digit PIN *</label>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateStaffPin}
+                    disabled={isGeneratingPin}
+                    className={`text-[11px] font-bold flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-emerald-400' : 'hover:bg-slate-200 text-emerald-600'
+                      } disabled:opacity-50`}
+                  >
+                    <RefreshIcon className="w-3.5 h-3.5" />
+                    {isGeneratingPin ? 'Generating...' : 'Generate New'}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showStaffPin ? "text" : "password"}
+                    maxLength={4}
+                    required
+                    value={staffPin}
+                    onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, ''))}
+                    className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center text-base tracking-widest ${inputBg} ${touchTarget} pr-12`}
+                    placeholder="Auto-generated"
+                    readOnly
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStaffPin(!showStaffPin)}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-200 text-slate-500'
+                      }`}
+                  >
+                    {showStaffPin ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="mt-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <p className={`text-[10px] ${textMuted} text-center`}>
+                    🔒 Auto-generated unique PIN • Click "Generate New" for a different PIN
+                  </p>
+                </div>
               </div>
               <div>
                 <label className={`block mb-1.5 font-bold ${textMuted}`}>Role *</label>

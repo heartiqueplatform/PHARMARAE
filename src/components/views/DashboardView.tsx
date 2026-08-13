@@ -1,14 +1,17 @@
+// components/views/DashboardView.tsx
 import React from 'react';
-import { Pharmacy, Profile, UserRole, Sale, Product, ProductBatch } from '../../types';
-import { ShoppingBag, PlusCircle, Package, FileText, AlertTriangle, Clock, ArrowRight, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Pharmacy, Profile, UserRole, Sale, Product, ProductBatch, RequestedItem, SalesReturn } from '../../types';
+import { ShoppingBag, PlusCircle, Package, FileText, AlertTriangle, Clock, ArrowRight, TrendingUp, CheckCircle2, Undo2, List } from 'lucide-react';
 
 interface DashboardViewProps {
   pharmacy: Pharmacy | null;
   profile: Profile | null;
   role: UserRole;
-  todaySales: Sale[]; // Now contains ALL product details directly
+  todaySales: Sale[];
   lowStockProducts: Product[];
   expiringBatches: ProductBatch[];
+  requestedItems?: RequestedItem[];
+  salesReturns?: SalesReturn[];
   onNavigate: (tab: any) => void;
   onOpenAddStockModal: () => void;
   theme?: 'dark' | 'light';
@@ -22,6 +25,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   todaySales,
   lowStockProducts,
   expiringBatches,
+  requestedItems = [],
+  salesReturns = [],
   onNavigate,
   onOpenAddStockModal,
   theme = 'dark',
@@ -56,8 +61,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   //  UPDATED: Metrics using single-table sales data
   const totalSalesRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
   const totalTransactions = todaySales.length;
-  //  Total items sold from quantity field directly
   const totalItemsSold = todaySales.reduce((acc, s) => acc + (s.quantity || 0), 0);
+
+  // 🆕 Simple metrics - just totals
+  const totalRequests = requestedItems.length;
+  const pendingRequests = requestedItems.filter(i => i.status === 'pending').length;
+  const totalReturns = salesReturns.length;
+  const todayReturns = salesReturns.filter(r => {
+    const today = new Date().toISOString().split('T')[0];
+    return r.created_at?.startsWith(today);
+  }).length;
 
   const canViewFinancials = role === 'owner' || role === 'admin' || role === 'pharmacist';
 
@@ -98,7 +111,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     </div>
   );
 
-  //  FIXED: Theme-aware Banner Skeleton
   const SkeletonBanner = () => (
     <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden animate-pulse mx-0 ${isDark
       ? 'bg-[#161b22]'
@@ -115,19 +127,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     </div>
   );
 
-  //  Helper: Get product name from sale
+  // Helper: Get product name from sale
   const getSaleProductName = (sale: Sale): string => {
     return sale.product_name || 'Unknown Product';
   };
 
-  //  Helper: Get product quantity from sale
+  // Helper: Get product quantity from sale
   const getSaleQuantity = (sale: Sale): number => {
     return sale.quantity || 1;
   };
 
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
-      {/* REMOVED padding on container for edge-to-edge on mobile */}
 
       {/* Welcome Banner - REMOVED border */}
       {isLoading ? (
@@ -163,11 +174,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Key Metrics Grid - REMOVED border from all cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-0 md:px-0">
+      {/* Key Metrics Grid - 4 original + 2 new = 6 cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 px-0 md:px-0">
         {isLoading ? (
-          // Show 4 skeleton metrics
+          // Show 6 skeleton metrics
           <>
+            <SkeletonMetric />
+            <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
@@ -186,7 +199,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ? `${currency} ${totalSalesRevenue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`
                   : '••••••'}
               </p>
-              <p className={`text-[10px] mt-1 ${textMuted}`}>Total revenue recorded</p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Total revenue</p>
             </div>
 
             {/* Transactions */}
@@ -198,10 +211,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
                 {totalTransactions}
               </p>
-              <p className={`text-[10px] mt-1 ${textMuted}`}>Receipts completed</p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Receipts today</p>
             </div>
 
-            {/* Items Sold -  Now uses quantity from sale record */}
+            {/* Items Sold */}
             <div className={`rounded-2xl p-3.5 ${cardBg}`}>
               <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
                 <span>Items Sold</span>
@@ -210,7 +223,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
                 {totalItemsSold}
               </p>
-              <p className={`text-[10px] mt-1 ${textMuted}`}>Units dispensed today</p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Units dispensed</p>
             </div>
 
             {/* Low Stock Alert */}
@@ -225,18 +238,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className={`text-lg sm:text-xl font-extrabold ${lowStockProducts.length > 0 ? 'text-amber-500' : textTitle}`}>
                 {lowStockProducts.length}
               </p>
-              <p className={`text-[10px] mt-1 ${textMuted}`}>Products below reorder</p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>Need reorder</p>
+            </button>
+
+            {/* 🆕 Requests - Simple */}
+            <button
+              onClick={() => onNavigate('requests')}
+              className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+            >
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Requests</span>
+                <List className="w-4 h-4 text-[#d2a8ff]" />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
+                {totalRequests}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>
+                {pendingRequests > 0 ? `${pendingRequests} pending` : 'No pending'}
+              </p>
+            </button>
+
+            {/* 🆕 Returns - Simple */}
+            <button
+              onClick={() => onNavigate('returns')}
+              className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+            >
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Returns</span>
+                <Undo2 className={`w-4 h-4 ${totalReturns > 0 ? 'text-amber-500' : textMuted}`} />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${totalReturns > 0 ? 'text-amber-500' : textTitle}`}>
+                {totalReturns}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>
+                {todayReturns > 0 ? `${todayReturns} today` : 'No returns'}
+              </p>
             </button>
           </>
         )}
       </div>
 
-      {/* Quick Action Hub - REMOVED border */}
+      {/* Quick Action Hub - UPDATED with 5 actions */}
       <div className={`rounded-2xl p-4 ${cardBg}`}>
         <h3 className={`text-xs font-extrabold uppercase tracking-wider mb-3 ${textMuted}`}>
           Quick Actions
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
           <button
             onClick={() => onNavigate('sell')}
             className="flex items-center gap-2.5 p-3 rounded-xl bg-[#2ea043]/15 hover:bg-[#2ea043]/25 border border-[#2ea043]/30 text-[#2ea043] font-bold text-xs transition-colors"
@@ -271,15 +318,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </button>
 
+          {/* 🆕 Requests Quick Action */}
           <button
-            onClick={() => onNavigate('reports')}
-            className={`flex items-center gap-2.5 p-3 rounded-xl border font-bold text-xs transition-colors ${isDark ? 'bg-[#21262d] border-[#30363d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] text-[#1f2328] hover:bg-slate-200'
-              }`}
+            onClick={() => onNavigate('requests')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#d2a8ff]/15 hover:bg-[#d2a8ff]/25 border border-[#d2a8ff]/30 text-[#d2a8ff] font-bold text-xs transition-colors"
           >
-            <FileText className="w-5 h-5 shrink-0" />
+            <List className="w-5 h-5 shrink-0" />
             <div className="text-left">
-              <div className="font-extrabold">REPORTS</div>
-              <div className={`text-[10px] font-normal ${textMuted}`}>Daily & PDF Audit</div>
+              <div className="font-extrabold">REQUESTS</div>
+              <div className="text-[10px] opacity-80 font-normal">
+                {pendingRequests > 0 ? `${pendingRequests} pending` : 'Track items'}
+              </div>
+            </div>
+          </button>
+
+          {/* 🆕 Returns Quick Action */}
+          <button
+            onClick={() => onNavigate('returns')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-500 font-bold text-xs transition-colors"
+          >
+            <Undo2 className="w-5 h-5 shrink-0" />
+            <div className="text-left">
+              <div className="font-extrabold">RETURNS</div>
+              <div className="text-[10px] opacity-80 font-normal">
+                {todayReturns > 0 ? `${todayReturns} today` : 'Process returns'}
+              </div>
             </div>
           </button>
         </div>
@@ -318,7 +381,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ) : (
             <div className="space-y-2 overflow-y-auto max-h-64 pr-1">
               {todaySales.slice(0, 5).map(sale => {
-                //  Get product details from the sale record directly
                 const productName = sale.product_name || 'Unknown Product';
                 const quantity = sale.quantity || 1;
 

@@ -1,6 +1,7 @@
+// components/Header.tsx
 import React, { useState } from 'react';
 import { Pharmacy, Profile, UserRole } from '../types';
-import { Wifi, WifiOff, RefreshCw, UserCheck, ChevronDown, Sun, Moon, User, Settings, LogOut, Shield, Calendar, Mail, Phone, Info, GitBranch } from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw, UserCheck, ChevronDown, Sun, Moon, User, Settings, LogOut, Shield, Calendar, Mail, Phone, Info, GitBranch, Lock, Users, AlertCircle, Key } from 'lucide-react';
 
 // =============================================
 // APP VERSION - Import from App or define here
@@ -40,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showVersionInfo, setShowVersionInfo] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [signOutConfirmText, setSignOutConfirmText] = useState('');
   const isDark = theme === 'dark';
 
   // Get the pharmacy name from current profile or pharmacy object
@@ -47,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   const pharmacyTown = currentProfile?.pharmacy_town || pharmacy?.town || '';
 
   // Filter profiles to only show those from the SAME pharmacy
-  const filteredProfiles = profiles.filter(p => {
+  const pharmacyStaff = profiles.filter(p => {
     if (currentProfile) {
       return p.pharmacy_name === currentProfile.pharmacy_name;
     }
@@ -59,24 +62,6 @@ export const Header: React.FC<HeaderProps> = ({
     if (!profile) return 'Staff';
     const nameParts = profile.full_name?.split(' ') || [];
     return nameParts.length > 1 ? nameParts[0] : profile.full_name || 'Staff';
-  };
-
-  const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case 'owner': return { bg: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: '👑 Owner' };
-      case 'admin': return { bg: 'bg-purple-500/20 text-purple-400 border-purple-500/30', label: '📋 Manager' };
-      case 'pharmacist': return { bg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: '💊 Pharmacist' };
-      case 'cashier': return { bg: 'bg-blue-500/20 text-blue-400 border-blue-500/30', label: '💰 Cashier' };
-      case 'storekeeper': return { bg: 'bg-slate-500/20 text-slate-300 border-slate-500/30', label: '📦 Storekeeper' };
-      default: return { bg: 'bg-gray-500/20 text-gray-300', label: role };
-    }
-  };
-
-  const badge = getRoleBadge(currentRole);
-
-  // Get avatar URL from profile
-  const getAvatarUrl = (profile: Profile | null): string | null => {
-    return profile?.avatar_url || null;
   };
 
   // Get user initials
@@ -99,6 +84,24 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const hasUpdate = checkForAppUpdate();
+
+  // Handle sign out with confirmation
+  const handleSignOutClick = () => {
+    setShowProfileMenu(false);
+    setShowSignOutModal(true);
+    setSignOutConfirmText('');
+  };
+
+  const handleConfirmSignOut = () => {
+    if (signOutConfirmText !== 'LOGOUT') {
+      alert('Please type "LOGOUT" to confirm.');
+      return;
+    }
+    setShowSignOutModal(false);
+    if (onSignOut) {
+      onSignOut();
+    }
+  };
 
   // Avatar component for consistent perfect circles
   const AvatarCircle = ({
@@ -162,267 +165,397 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`sticky top-0 z-30 backdrop-blur-xl border-b transition-all duration-300 px-3 py-2.5 ${isDark
-      ? 'bg-[#161b22]/95 text-[#f0f6fc] border-[#30363d]/50'
-      : 'bg-white/95 text-[#1f2328] border-[#d0d7de]/50'
-      }`}>
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <>
+      <header className={`sticky top-0 z-30 backdrop-blur-xl border-b transition-all duration-300 px-3 py-2.5 ${isDark
+        ? 'bg-[#161b22]/95 text-[#f0f6fc] border-[#30363d]/50'
+        : 'bg-white/95 text-[#1f2328] border-[#d0d7de]/50'
+        }`}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
 
-        {/* Pharmacy Title & Brand */}
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Perfect Circle Avatar with floating status */}
-          <AvatarCircle
-            src={currentProfile?.avatar_url}
-            initials={pharmacyName.charAt(0).toUpperCase()}
-            size="md"
-            showStatus={true}
-            statusPosition="bottom-right"
-          />
+          {/* Pharmacy Title & Brand */}
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Perfect Circle Avatar with floating status */}
+            <AvatarCircle
+              src={currentProfile?.avatar_url}
+              initials={pharmacyName.charAt(0).toUpperCase()}
+              size="md"
+              showStatus={true}
+              statusPosition="bottom-right"
+            />
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-extrabold text-base tracking-tight leading-none truncate max-w-[120px] sm:max-w-[200px]">
-                {pharmacyName}
-              </h1>
-              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shrink-0 ${isDark
-                ? 'bg-[#2ea043]/20 text-[#2ea043] border-[#2ea043]/30'
-                : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                }`}>
-                {currentRole === 'owner' ? 'Owner' : currentRole === 'admin' ? 'Manager' : 'Staff'}
-              </span>
-              {/* Version Badge */}
-              <button
-                onClick={() => setShowVersionInfo(!showVersionInfo)}
-                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-200 shrink-0 ${isDark
-                  ? 'bg-[#21262d]/80 text-[#8b949e] border-[#30363d] hover:bg-[#30363d]'
-                  : 'bg-[#f6f8fa]/80 text-[#656d76] border-[#d0d7de] hover:bg-slate-200'
-                  }`}
-                title={`Version ${appVersion}`}
-              >
-                v{appVersion}
-                {hasUpdate && (
-                  <span className="ml-1 inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                )}
-              </button>
-            </div>
-            <p className={`text-[10px] truncate max-w-[120px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
-              }`}>
-              {pharmacyTown ? `${pharmacyTown} • POS active` : 'Pharmacy Management System'}
-              {hasUpdate && (
-                <span className="text-[8px] text-emerald-500 font-medium animate-pulse hidden sm:inline">
-                  • Update available
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* Controls: Theme Toggle, Sync Badge, Profile Switcher */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-
-          {/* Theme Toggle Button */}
-          {onToggleTheme && (
-            <button
-              onClick={onToggleTheme}
-              className={`p-2 rounded-full border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isDark
-                ? 'bg-[#21262d]/80 border-[#30363d] text-amber-400 hover:bg-[#30363d]'
-                : 'bg-[#f6f8fa]/80 border-[#d0d7de] text-indigo-600 hover:bg-slate-200'
-                }`}
-              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          )}
-
-          {/* Sync & Network Badge */}
-          <button
-            onClick={onTriggerSync}
-            disabled={isSyncing}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isOnline
-              ? syncPendingCount > 0
-                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                : isDark
-                  ? 'bg-[#21262d]/80 text-[#2ea043] border-[#30363d] hover:bg-[#30363d]'
-                  : 'bg-[#f6f8fa]/80 text-[#1f883d] border-[#d0d7de] hover:bg-slate-200'
-              : 'bg-red-500/20 text-red-400 border-red-500/40'
-              }`}
-            title="Click to process offline sync queue"
-          >
-            {isSyncing ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2ea043]" />
-            ) : isOnline ? (
-              <Wifi className="w-3.5 h-3.5 text-[#2ea043]" />
-            ) : (
-              <WifiOff className="w-3.5 h-3.5 text-red-400" />
-            )}
-            <span className="hidden xs:inline">
-              {isSyncing ? 'Syncing...' : isOnline ? (syncPendingCount > 0 ? `${syncPendingCount} Pending` : 'Online') : 'Offline'}
-            </span>
-          </button>
-
-          {/* Profile Switcher with Avatar */}
-          {filteredProfiles.length > 0 && (
-            <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className={`flex items-center gap-2 border px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 hover:scale-105 ${isDark
-                  ? 'bg-[#21262d]/80 border-[#30363d] hover:bg-[#30363d] text-[#f0f6fc]'
-                  : 'bg-[#f6f8fa]/80 border-[#d0d7de] hover:bg-slate-200 text-[#1f2328]'
-                  }`}
-              >
-                {/* Perfect Circle Avatar - SMALL */}
-                <AvatarCircle
-                  src={currentProfile?.avatar_url}
-                  initials={getInitials(currentProfile)}
-                  size="sm"
-                  showStatus={false}
-                />
-                <span className="font-semibold max-w-[60px] sm:max-w-[100px] truncate hidden xs:inline">
-                  {getDisplayName(currentProfile)}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
-              </button>
-
-              {/* Profile Dropdown Menu */}
-              {showProfileMenu && (
-                <div className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
-                  ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
-                  : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-extrabold text-base tracking-tight leading-none truncate max-w-[120px] sm:max-w-[200px]">
+                  {pharmacyName}
+                </h1>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shrink-0 ${isDark
+                  ? 'bg-[#2ea043]/20 text-[#2ea043] border-[#2ea043]/30'
+                  : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                   }`}>
-                  {/* Current User Section with Large Avatar */}
-                  <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} flex items-center gap-3`}>
-                    {/* Large Perfect Circle Avatar */}
-                    <AvatarCircle
-                      src={currentProfile?.avatar_url}
-                      initials={getInitials(currentProfile)}
-                      size="lg"
-                      showStatus={true}
-                      statusPosition="bottom-right"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-extrabold text-base truncate">
-                        {currentProfile?.full_name || 'Staff Member'}
-                      </p>
-                      <p className={`text-[10px] capitalize flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
-                        }`}>
-                        <Shield className="w-3 h-3 flex-shrink-0" />
-                        {currentRole} • {pharmacyName}
-                      </p>
-                      {currentProfile?.email && (
-                        <p className={`text-[9px] truncate flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
-                          }`}>
-                          <Mail className="w-2.5 h-2.5 flex-shrink-0" />
-                          {currentProfile.email}
+                  {currentRole === 'owner' ? 'Owner' : currentRole === 'admin' ? 'Manager' : 'Staff'}
+                </span>
+                {/* Version Badge */}
+                <button
+                  onClick={() => setShowVersionInfo(!showVersionInfo)}
+                  className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-200 shrink-0 ${isDark
+                    ? 'bg-[#21262d]/80 text-[#8b949e] border-[#30363d] hover:bg-[#30363d]'
+                    : 'bg-[#f6f8fa]/80 text-[#656d76] border-[#d0d7de] hover:bg-slate-200'
+                    }`}
+                  title={`Version ${appVersion}`}
+                >
+                  v{appVersion}
+                  {hasUpdate && (
+                    <span className="ml-1 inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  )}
+                </button>
+              </div>
+              <p className={`text-[10px] truncate max-w-[120px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                }`}>
+                {pharmacyTown ? `${pharmacyTown} • POS active` : 'Pharmacy Management System'}
+                {hasUpdate && (
+                  <span className="text-[8px] text-emerald-500 font-medium animate-pulse hidden sm:inline">
+                    • Update available
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Controls: Theme Toggle, Sync Badge, Profile Switcher */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+
+            {/* Theme Toggle Button */}
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                className={`p-2 rounded-full border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isDark
+                  ? 'bg-[#21262d]/80 border-[#30363d] text-amber-400 hover:bg-[#30363d]'
+                  : 'bg-[#f6f8fa]/80 border-[#d0d7de] text-indigo-600 hover:bg-slate-200'
+                  }`}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+            )}
+
+            {/* Sync & Network Badge */}
+            <button
+              onClick={onTriggerSync}
+              disabled={isSyncing}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isOnline
+                ? syncPendingCount > 0
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                  : isDark
+                    ? 'bg-[#21262d]/80 text-[#2ea043] border-[#30363d] hover:bg-[#30363d]'
+                    : 'bg-[#f6f8fa]/80 text-[#1f883d] border-[#d0d7de] hover:bg-slate-200'
+                : 'bg-red-500/20 text-red-400 border-red-500/40'
+                }`}
+              title="Click to process offline sync queue"
+            >
+              {isSyncing ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2ea043]" />
+              ) : isOnline ? (
+                <Wifi className="w-3.5 h-3.5 text-[#2ea043]" />
+              ) : (
+                <WifiOff className="w-3.5 h-3.5 text-red-400" />
+              )}
+              <span className="hidden xs:inline">
+                {isSyncing ? 'Syncing...' : isOnline ? (syncPendingCount > 0 ? `${syncPendingCount} Pending` : 'Online') : 'Offline'}
+              </span>
+            </button>
+
+            {/* Profile Menu - Shows ALL staff, but NO switching */}
+            {currentProfile && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className={`flex items-center gap-2 border px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 hover:scale-105 ${isDark
+                    ? 'bg-[#21262d]/80 border-[#30363d] hover:bg-[#30363d] text-[#f0f6fc]'
+                    : 'bg-[#f6f8fa]/80 border-[#d0d7de] hover:bg-slate-200 text-[#1f2328]'
+                    }`}
+                >
+                  {/* Perfect Circle Avatar - SMALL */}
+                  <AvatarCircle
+                    src={currentProfile?.avatar_url}
+                    initials={getInitials(currentProfile)}
+                    size="sm"
+                    showStatus={false}
+                  />
+                  <span className="font-semibold max-w-[60px] sm:max-w-[100px] truncate hidden xs:inline">
+                    {getDisplayName(currentProfile)}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
+                </button>
+
+                {/* Profile Dropdown - Shows ALL staff, NO switching */}
+                {showProfileMenu && (
+                  <div className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
+                    ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
+                    : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
+                    }`}>
+                    {/* Current User Section with Large Avatar */}
+                    <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} flex items-center gap-3`}>
+                      {/* Large Perfect Circle Avatar */}
+                      <AvatarCircle
+                        src={currentProfile?.avatar_url}
+                        initials={getInitials(currentProfile)}
+                        size="lg"
+                        showStatus={true}
+                        statusPosition="bottom-right"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-extrabold text-base truncate">
+                          {currentProfile?.full_name || 'Staff Member'}
                         </p>
+                        <p className={`text-[10px] capitalize flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                          }`}>
+                          <Shield className="w-3 h-3 flex-shrink-0" />
+                          {currentRole} • {pharmacyName}
+                        </p>
+                        {currentProfile?.email && (
+                          <p className={`text-[9px] truncate flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                            }`}>
+                            <Mail className="w-2.5 h-2.5 flex-shrink-0" />
+                            {currentProfile.email}
+                          </p>
+                        )}
+                        {currentProfile?.phone && (
+                          <p className={`text-[9px] truncate flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                            }`}>
+                            <Phone className="w-2.5 h-2.5 flex-shrink-0" />
+                            {currentProfile.phone}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Staff List - SHOW ALL, NO SWITCHING */}
+                    <div className="py-1 max-h-64 overflow-y-auto">
+                      <div className={`px-3 py-1.5 flex items-center justify-between text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                        }`}>
+                        <span className="flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5" />
+                          Staff Members ({pharmacyStaff.length})
+                        </span>
+                        <span className="text-[8px] text-emerald-500 font-medium flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          View Only
+                        </span>
+                      </div>
+
+                      {/* List ALL staff from this pharmacy - READ ONLY */}
+                      {pharmacyStaff.map(p => {
+                        const isActive = p.id === currentProfile?.id;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={`px-3 py-2.5 text-xs flex items-center gap-3 ${isActive
+                              ? isDark ? 'bg-[#21262d]/80' : 'bg-[#f3f4f6]'
+                              : isDark ? 'hover:bg-[#21262d]/30' : 'hover:bg-slate-50'
+                              }`}
+                          >
+                            {/* Perfect Circle Avatar in staff list */}
+                            <AvatarCircle
+                              src={p.avatar_url}
+                              initials={getInitials(p)}
+                              size="sm"
+                              showStatus={false}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="truncate font-medium">{p.full_name}</p>
+                                {isActive && (
+                                  <span className="text-[8px] font-bold text-emerald-500 flex-shrink-0">(You)</span>
+                                )}
+                              </div>
+                              <p className={`text-[9px] truncate ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                {p.role} • {p.email?.split('@')[0] || ''}
+                              </p>
+                            </div>
+                            {isActive ? (
+                              <UserCheck className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
+                            ) : (
+                              <Lock className="w-3.5 h-3.5 text-amber-500/50 flex-shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Security message */}
+                      <div className={`px-3 py-2 text-center text-[9px] border-t ${isDark ? 'border-[#30363d]/50 text-[#8b949e]' : 'border-[#d0d7de]/50 text-[#656d76]'}`}>
+                        <Lock className="w-3 h-3 inline-block mr-1" />
+                        Account switching is disabled for security
+                      </div>
+                    </div>
+
+                    {/* Version Info Section */}
+                    <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} px-3 py-2`}>
+                      <div className={`flex items-center justify-between text-[9px] ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                        <span className="flex items-center gap-1">
+                          <GitBranch className="w-3 h-3 flex-shrink-0" />
+                          v{appVersion}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Info className="w-3 h-3 flex-shrink-0" />
+                          {hasUpdate ? (
+                            <span className="text-emerald-500 font-medium animate-pulse">
+                              Update available
+                            </span>
+                          ) : (
+                            <span>Up to date</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className={`text-[8px] mt-0.5 flex items-center justify-between ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                        <span>PHARMIENTA KENYA</span>
+                        <span>{new Date().getFullYear()}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} pt-1`}>
+                      {/* Sign Out with confirmation */}
+                      {onSignOut && (
+                        <button
+                          onClick={handleSignOutClick}
+                          className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 font-bold rounded-b-2xl ${isDark
+                            ? 'text-rose-400 hover:bg-rose-500/10'
+                            : 'text-rose-600 hover:bg-rose-50'
+                            }`}
+                        >
+                          <LogOut className="w-4 h-4 flex-shrink-0" />
+                          <span>Sign Out</span>
+                        </button>
                       )}
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+          </div>
 
-                  {/* Staff List with Perfect Circle Avatars */}
-                  <div className="py-1 max-h-56 overflow-y-auto">
-                    <p className={`px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
-                      }`}>
-                      All Staff Members ({filteredProfiles.length})
+        </div>
+
+        {/* Version Info Tooltip */}
+        {showVersionInfo && (
+          <div className={`absolute left-4 top-full mt-1 px-3 py-2 rounded-xl border shadow-lg text-xs max-w-xs z-40 backdrop-blur-xl ${isDark
+            ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
+            : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
+            }`}>
+            <p className="font-mono font-bold">PHARMIENTA KENYA</p>
+            <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+              Version: <span className="font-mono text-emerald-500">{appVersion}</span>
+            </p>
+            <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} text-[8px] mt-0.5`}>
+              {hasUpdate ? ' Update available - Refresh to install' : '✓ Up to date'}
+            </p>
+          </div>
+        )}
+      </header>
+
+      {/* =============================================
+          SIGN OUT CONFIRMATION MODAL
+          ============================================ */}
+      {showSignOutModal && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className={`rounded-2xl max-w-md w-full p-6 shadow-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'}`}>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Key className="w-6 h-6 text-amber-500" />
+              </div>
+              <div>
+                <h3 className={`font-bold text-base ${isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]'}`}>
+                  Confirm Sign Out
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                  Make sure you remember your PIN
+                </p>
+              </div>
+            </div>
+
+            {/* PIN Reminder */}
+            <div className={`p-4 rounded-xl mb-4 border ${isDark ? 'bg-amber-950/20 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className={`text-sm font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                    Remember Your PIN
+                  </p>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-amber-300/70' : 'text-amber-600'}`}>
+                    You will need your <span className="font-bold">4-digit PIN</span> to sign back in.
+                    If you forget your PIN, you will need to contact the pharmacy owner.
+                  </p>
+                  <div className={`mt-2 p-2 rounded-lg ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                    <p className={`text-center font-mono text-sm font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      PIN: ••••
                     </p>
-                    {filteredProfiles.map(p => {
-                      const isActive = p.id === currentProfile?.id;
-                      return (
-                        <button
-                          key={p.id}
-                          onClick={() => {
-                            onSwitchProfile(p);
-                            setShowProfileMenu(false);
-                          }}
-                          className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-3 transition-colors ${isActive
-                            ? isDark ? 'bg-[#21262d]/80 text-[#58a6ff] font-bold' : 'bg-[#f3f4f6] text-[#0969da] font-bold'
-                            : isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-slate-100'
-                            }`}
-                        >
-                          {/* Perfect Circle Avatar in staff list - MEDIUM */}
-                          <AvatarCircle
-                            src={p.avatar_url}
-                            initials={getInitials(p)}
-                            size="sm"
-                            showStatus={false}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate">{p.full_name}</p>
-                            <p className={`text-[9px] truncate ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                              {p.role} • {p.email?.split('@')[0] || ''}
-                            </p>
-                          </div>
-                          {isActive && <UserCheck className="w-4 h-4 text-[#2ea043] flex-shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Version Info Section */}
-                  <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} px-3 py-2`}>
-                    <div className={`flex items-center justify-between text-[9px] ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                      <span className="flex items-center gap-1">
-                        <GitBranch className="w-3 h-3 flex-shrink-0" />
-                        v{appVersion}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Info className="w-3 h-3 flex-shrink-0" />
-                        {hasUpdate ? (
-                          <span className="text-emerald-500 font-medium animate-pulse">
-                            Update available
-                          </span>
-                        ) : (
-                          <span>Up to date</span>
-                        )}
-                      </span>
-                    </div>
-                    <div className={`text-[8px] mt-0.5 flex items-center justify-between ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                      <span>PHARMIENTA KENYA</span>
-                      <span>{new Date().getFullYear()}</span>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className={`border-t ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} pt-1`}>
-                    {/* Sign Out */}
-                    {onSignOut && (
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          onSignOut();
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 font-bold rounded-b-2xl ${isDark
-                          ? 'text-rose-400 hover:bg-rose-500/10'
-                          : 'text-rose-600 hover:bg-rose-50'
-                          }`}
-                      >
-                        <LogOut className="w-4 h-4 flex-shrink-0" />
-                        <span>Sign Out</span>
-                      </button>
-                    )}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          )}
-        </div>
 
-      </div>
+            {/* Warning */}
+            <div className={`p-3 rounded-xl mb-4 ${isDark ? 'bg-rose-950/20 border border-rose-500/20' : 'bg-rose-50 border border-rose-200'}`}>
+              <p className={`text-xs ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                <span className="font-bold">⚠️ Warning:</span> You are about to sign out of your account.
+                Please ensure you have your PIN ready before continuing.
+              </p>
+            </div>
 
-      {/* Version Info Tooltip */}
-      {showVersionInfo && (
-        <div className={`absolute left-4 top-full mt-1 px-3 py-2 rounded-xl border shadow-lg text-xs max-w-xs z-40 backdrop-blur-xl ${isDark
-          ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
-          : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
-          }`}>
-          <p className="font-mono font-bold">PHARMIENTA KENYA</p>
-          <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-            Version: <span className="font-mono text-emerald-500">{appVersion}</span>
-          </p>
-          <p className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} text-[8px] mt-0.5`}>
-            {hasUpdate ? '🔄 Update available - Refresh to install' : ' Up to date'}
-          </p>
+            {/* Confirmation Input */}
+            <div className="space-y-3 text-sm">
+              <div>
+                <label className={`block mb-1.5 font-bold ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                  Type <span className="text-rose-500 font-bold">LOGOUT</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={signOutConfirmText}
+                  onChange={(e) => setSignOutConfirmText(e.target.value.toUpperCase())}
+                  className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-rose-500/50 ${isDark ? 'bg-[#0d1117] text-[#f0f6fc] border-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] border-[#d0d7de]'}`}
+                  placeholder="Type LOGOUT here"
+                  autoFocus
+                />
+              </div>
+
+              <div className={`flex justify-end gap-3 pt-2 ${isDark ? 'border-t border-[#30363d]' : 'border-t border-[#d0d7de]'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSignOutModal(false);
+                    setSignOutConfirmText('');
+                  }}
+                  className={`px-5 py-3 rounded-xl font-bold text-sm transition-colors ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSignOut}
+                  disabled={signOutConfirmText !== 'LOGOUT'}
+                  className={`px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 transition-colors`}
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Confirm Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
-    </header>
+
+      {/* CSS for animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out forwards;
+        }
+      `}</style>
+    </>
   );
 };
