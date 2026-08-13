@@ -198,14 +198,17 @@ export const useApp = (): AppState => {
     }, [isOnline, currentProfile]);
 
     // Load data
+    // hooks/useApp.ts - Update the loadDatabaseData function
+
     const loadDatabaseData = useCallback(async (showLoader: boolean = true) => {
+        // ✅ ONLY show loader if it's initial load AND showLoader is true
         const shouldShowLoader = showLoader && isInitialLoad.current;
 
         if (shouldShowLoader) {
             setIsLoading(true);
         }
 
-        console.log('Loading data...');
+        console.log('🔄 Loading data...');
 
         try {
             await seedInitialDataIfNeeded();
@@ -223,16 +226,19 @@ export const useApp = (): AppState => {
 
             if (current) {
                 const pharmacyName = normalizePharmacyName(current.pharmacy_name);
+
+                // ✅ ALWAYS update current profile (even on background sync)
                 setCurrentProfile(current);
                 setCurrentRole(current.role || 'owner');
 
                 if (pharmacyName) {
+                    // ✅ Force pull from Supabase if online
                     if (isOnline && isSupabaseConfigured()) {
-                        console.log(`Force pulling from Supabase for: ${pharmacyName}`);
+                        console.log(`🔄 Force pulling from Supabase for: ${pharmacyName}`);
                         try {
                             const success = await pullFromSupabaseToLocal(pharmacyName);
                             if (success) {
-                                console.log('Supabase data pulled successfully!');
+                                console.log('✅ Supabase data pulled successfully!');
                                 setLastSyncTime(new Date());
 
                                 if (!isInitialLoad.current) {
@@ -246,10 +252,10 @@ export const useApp = (): AppState => {
                                     setToastType('success');
                                 }
                             } else {
-                                console.warn('Failed to pull from Supabase, using local data');
+                                console.warn('⚠️ Failed to pull from Supabase, using local data');
                             }
                         } catch (err) {
-                            console.error('Error pulling from Supabase:', err);
+                            console.error('❌ Error pulling from Supabase:', err);
                             if (!isInitialLoad.current) {
                                 setToastMessage('Unable to refresh data. Using cached version.');
                                 setToastType('error');
@@ -257,8 +263,9 @@ export const useApp = (): AppState => {
                         }
                     }
 
-                    console.log(`Loading data from Dexie for: ${pharmacyName}`);
+                    console.log(`📂 Loading data from Dexie for: ${pharmacyName}`);
 
+                    // ✅ ALWAYS update ALL data (even on background sync)
                     const allProducts = await db.products.toArray();
                     setProducts(allProducts.filter(p => normalizePharmacyName(p.pharmacy_name) === pharmacyName));
 
@@ -297,12 +304,13 @@ export const useApp = (): AppState => {
                 }
             }
         } catch (err) {
-            console.error('Error loading database data:', err);
+            console.error('❌ Error loading database data:', err);
             if (!isInitialLoad.current) {
                 setToastMessage('Could not load latest data. Please check connection.');
                 setToastType('error');
             }
         } finally {
+            // ✅ Only hide loader if it was shown
             if (shouldShowLoader) {
                 const elapsed = Date.now() - startTime;
                 const minLoadTime = 500;
@@ -310,7 +318,7 @@ export const useApp = (): AppState => {
                     await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
                 }
                 setIsLoading(false);
-                console.log('Loading complete');
+                console.log('✅ Loading complete');
                 isInitialLoad.current = false;
             }
         }

@@ -1,5 +1,5 @@
 // components/views/ReportsView.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
 import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2 } from 'lucide-react';
@@ -14,6 +14,8 @@ interface ReportsViewProps {
   onProcessReturn?: (saleId: string, reason: string) => Promise<void>;
   theme?: 'dark' | 'light';
   isLoading?: boolean;
+  isSyncing?: boolean; // NEW
+  onRefresh?: () => Promise<void>; // NEW
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -26,6 +28,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onProcessReturn,
   theme = 'dark',
   isLoading = false,
+  isSyncing = false,
+  onRefresh,
 }) => {
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
@@ -53,6 +57,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   // Return modal
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [returnReason, setReturnReason] = useState<string>('Customer returned item');
+
+  // 🆕 Force re-render key when sales data changes
+  const [renderKey, setRenderKey] = useState(0);
+
+  // 🆕 Watch for sales changes and force re-render
+  useEffect(() => {
+    setRenderKey(prev => prev + 1);
+  }, [sales.length]);
 
   if (!pharmacy) return null;
 
@@ -144,6 +156,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     if (!selectedSaleForReturn || !onProcessReturn) return;
     await onProcessReturn(selectedSaleForReturn.id, returnReason);
     setSelectedSaleForReturn(null);
+  };
+
+  // 🆕 Handle manual refresh
+  const handleRefresh = async () => {
+    if (onRefresh && !isSyncing) {
+      await onRefresh();
+      setRenderKey(prev => prev + 1);
+    }
   };
 
   // Skeleton Components
@@ -340,7 +360,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
+    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6" key={renderKey}>
       {/* Header */}
       <div className={`p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cardBg}`}>
         <div>
@@ -353,30 +373,41 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </p>
         </div>
 
-        {/* Subtabs */}
-        <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'
-          }`}>
+        {/* 🆕 Refresh Button + Subtabs */}
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setActiveReportTab('daily')}
-            className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'daily' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
+            onClick={handleRefresh}
+            disabled={isSyncing}
+            className={`p-2.5 rounded-xl transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
               }`}
+            title="Refresh Data"
           >
-            Daily Report
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={() => setActiveReportTab('monthly')}
-            className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'monthly' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
-              }`}
-          >
-            Monthly Audit
-          </button>
-          <button
-            onClick={() => setActiveReportTab('history')}
-            className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'history' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
-              }`}
-          >
-            Sales Log
-          </button>
+
+          <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
+            <button
+              onClick={() => setActiveReportTab('daily')}
+              className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'daily' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
+                }`}
+            >
+              Daily Report
+            </button>
+            <button
+              onClick={() => setActiveReportTab('monthly')}
+              className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'monthly' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
+                }`}
+            >
+              Monthly Audit
+            </button>
+            <button
+              onClick={() => setActiveReportTab('history')}
+              className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'history' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
+                }`}
+            >
+              Sales Log
+            </button>
+          </div>
         </div>
       </div>
 
