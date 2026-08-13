@@ -295,20 +295,36 @@ export default function App() {
         </main>
       </div>
 
-      {/* Toast Notification */}
+      {/* TOAST NOTIFICATION - UPDATED: Centered and visible on all devices */}
       {toastMessage && toastType && (
-        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 min-w-[280px] max-w-[500px] px-5 py-3.5 rounded-xl shadow-2xl transition-all duration-300 animate-slide-down ${toastType === 'success' ? 'bg-emerald-600 text-white' :
-          toastType === 'error' ? 'bg-red-600 text-white' :
-            'bg-blue-600 text-white'
-          }`}>
-          <div className="flex items-center gap-3">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none px-4">
+          <div
+            className={`
+              pointer-events-auto
+              flex items-center gap-3
+              px-5 py-4
+              rounded-2xl
+              shadow-2xl
+              border
+              max-w-sm w-full
+              animate-slide-down
+              backdrop-blur-sm
+              bg-opacity-95
+              ${toastType === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : ''}
+              ${toastType === 'error' ? 'bg-red-500 text-white border-red-400' : ''}
+              ${toastType === 'info' ? 'bg-blue-500 text-white border-blue-400' : ''}
+            `}
+            role="alert"
+          >
             <div className="flex-shrink-0">
               {getToastIcon(toastType)}
             </div>
-            <span className="font-medium text-sm leading-relaxed flex-1">{toastMessage}</span>
+            <p className="text-sm font-medium flex-1 text-center">
+              {toastMessage}
+            </p>
             <button
               onClick={clearToast}
-              className="flex-shrink-0 ml-2 hover:opacity-70 transition-opacity"
+              className="flex-shrink-0 p-1 hover:bg-white/20 rounded-full transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -416,11 +432,11 @@ export default function App() {
         @keyframes slideDown {
           from {
             opacity: 0;
-            transform: translate(-50%, -20px);
+            transform: translateY(-20px) scale(0.95);
           }
           to {
             opacity: 1;
-            transform: translate(-50%, 0);
+            transform: translateY(0) scale(1);
           }
         }
         .animate-slide-down {

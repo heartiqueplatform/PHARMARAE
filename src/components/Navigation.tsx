@@ -1,10 +1,10 @@
 // components/Navigation.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Home, ShoppingBag, Package, BarChart3, MoreHorizontal,
   Sun, Moon, ShieldCheck, Info, Shield, FileCheck,
   TrendingUp,
-  Undo2
+  Undo2, X, Settings, ChevronRight
 } from 'lucide-react';
 import { Pharmacy, Profile } from '../types';
 
@@ -30,27 +30,34 @@ export const Navigation: React.FC<NavigationProps> = ({
   currentProfile
 }) => {
   const isDark = theme === 'dark';
+  const [showMoreOverlay, setShowMoreOverlay] = useState(false);
 
-  // Primary tabs - shown in bottom nav (max 5 for mobile)
-  const primaryTabs = [
-    { id: 'home' as NavTab, label: 'Home', icon: Home },
-    { id: 'sell' as NavTab, label: 'POS', icon: ShoppingBag, isPrimary: true, badge: cartCount },
-    { id: 'stock' as NavTab, label: 'Stock', icon: Package },
+  // Main tabs shown in bottom nav
+  const mainTabs = [
+    { id: 'home' as NavTab, label: 'Dashboard', icon: Home },
+    { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
+    { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
     { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp },
-    { id: 'more' as NavTab, label: 'More', icon: MoreHorizontal },
   ];
 
-  // Secondary tabs - shown only in "More" menu or sidebar
-  const secondaryTabs = [
+  // Tabs shown in the More overlay
+  const moreOverlayTabs = [
     { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
     { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
+    { id: 'more' as NavTab, label: 'Settings & Hub', icon: Settings },
   ];
 
   // Legal tabs
   const legalTabs = [
     { id: 'about' as NavTab, label: 'About', icon: Info },
-    { id: 'privacy' as NavTab, label: 'Privacy', icon: Shield },
-    { id: 'terms' as NavTab, label: 'Terms', icon: FileCheck },
+    { id: 'privacy' as NavTab, label: 'Privacy Policy', icon: Shield },
+    { id: 'terms' as NavTab, label: 'Terms & Conditions', icon: FileCheck },
+  ];
+
+  // All tabs for sidebar
+  const allTabs = [
+    ...mainTabs,
+    ...moreOverlayTabs,
   ];
 
   const getUserAvatar = () => {
@@ -69,20 +76,24 @@ export const Navigation: React.FC<NavigationProps> = ({
     return currentProfile.full_name.charAt(0).toUpperCase();
   };
 
-  // Check if a tab is in secondary tabs
-  const isSecondaryTab = (tabId: NavTab) => {
-    return secondaryTabs.some(t => t.id === tabId);
+  const handleTabClick = (tabId: NavTab) => {
+    onTabChange(tabId);
+    setShowMoreOverlay(false);
+  };
+
+  const handleMoreClick = () => {
+    setShowMoreOverlay(!showMoreOverlay);
   };
 
   return (
     <>
-      {/* MOBILE BOTTOM NAVIGATION - Responsive with fewer items */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 px-1 py-0.5 border-t backdrop-blur-md shadow-2xl transition-colors ${isDark
+      {/* MOBILE EDGE-TO-EDGE BOTTOM NAVIGATION */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 px-1 py-1 border-t backdrop-blur-md shadow-2xl transition-colors ${isDark
         ? 'bg-[#161b22]/95 border-[#30363d] text-[#c9d1d9]'
         : 'bg-white/95 border-[#d0d7de] text-[#1f2328]'
         }`}>
-        <div className="flex items-center justify-around max-w-md mx-auto h-14">
-          {primaryTabs.map(tab => {
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          {mainTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 
@@ -90,18 +101,18 @@ export const Navigation: React.FC<NavigationProps> = ({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => onTabChange(tab.id)}
-                  className={`relative flex flex-col items-center justify-center -mt-4 px-2 py-1.5 rounded-xl transition-all active:scale-95 shadow-lg min-w-[48px] ${isActive
-                    ? 'bg-[#2ea043] text-white ring-2 ring-[#2ea043]/30 scale-105'
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`relative flex flex-col items-center justify-center -mt-5 px-4 py-2 rounded-2xl transition-all active:scale-95 shadow-xl ${isActive
+                    ? 'bg-[#2ea043] text-white ring-4 ring-[#2ea043]/30 scale-105'
                     : 'bg-[#238636] text-white'
                     }`}
                 >
                   <Icon className="w-5 h-5 stroke-[2.5]" />
-                  <span className="text-[9px] font-extrabold tracking-wide mt-0.5 uppercase leading-none">
+                  <span className="text-[10px] font-extrabold tracking-wide mt-0.5 uppercase">
                     {tab.label}
                   </span>
                   {tab.badge && tab.badge > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">
+                    <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow">
                       {tab.badge}
                     </span>
                   ) : null}
@@ -112,21 +123,211 @@ export const Navigation: React.FC<NavigationProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-all min-w-[44px] h-12 ${isActive
+                onClick={() => handleTabClick(tab.id)}
+                className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition-all ${isActive
                   ? isDark ? 'text-[#58a6ff] font-bold' : 'text-[#0969da] font-bold'
                   : isDark ? 'text-[#8b949e] hover:text-[#f0f6fc]' : 'text-[#656d76] hover:text-[#1f2328]'
                   }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
-                <span className="text-[8px] font-medium mt-0.5 leading-none">{tab.label}</span>
+                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                <span className="text-[10px] font-medium mt-0.5">{tab.label}</span>
               </button>
             );
           })}
+
+          {/* More Button */}
+          <button
+            onClick={handleMoreClick}
+            className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition-all ${showMoreOverlay
+              ? isDark ? 'text-[#58a6ff] font-bold' : 'text-[#0969da] font-bold'
+              : isDark ? 'text-[#8b949e] hover:text-[#f0f6fc]' : 'text-[#656d76] hover:text-[#1f2328]'
+              }`}
+          >
+            <MoreHorizontal className="w-5 h-5 stroke-2" />
+            <span className="text-[10px] font-medium mt-0.5">More</span>
+          </button>
         </div>
       </nav>
 
-      {/* DESKTOP SIDEBAR - Unchanged */}
+      {/* MOBILE MORE OVERLAY - EDGE TO EDGE WITH PROFESSIONAL FOOTER */}
+      {showMoreOverlay && (
+        <div className="md:hidden fixed inset-0 z-[60] flex items-end justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            onClick={() => setShowMoreOverlay(false)}
+          />
+
+          {/* Overlay Content - Edge to Edge */}
+          <div
+            className={`relative w-full rounded-t-3xl shadow-2xl px-0 pb-0 max-h-[85vh] overflow-y-auto ${isDark
+              ? 'bg-[#0d1117] text-[#c9d1d9]'
+              : 'bg-white text-[#1f2328]'
+              }`}
+          >
+            {/* Handle Bar */}
+            <div className="flex justify-center pt-3 pb-2 sticky top-0 z-10 bg-transparent">
+              <div className={`w-12 h-1 rounded-full ${isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]'}`} />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pb-4">
+              <div>
+                <h3 className="text-xl font-bold">More Options</h3>
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                  Explore additional features
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMoreOverlay(false)}
+                className={`p-2 rounded-full transition-all ${isDark
+                  ? 'hover:bg-[#21262d] active:scale-95'
+                  : 'hover:bg-[#f3f4f6] active:scale-95'
+                  }`}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* More Tabs */}
+            <div className="space-y-1.5 px-4 pb-4">
+              {moreOverlayTabs.map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabClick(tab.id)}
+                    className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all ${isActive
+                      ? isDark
+                        ? 'bg-[#238636] text-white shadow-lg shadow-[#238636]/20'
+                        : 'bg-[#1f883d] text-white shadow-lg shadow-[#1f883d]/20'
+                      : isDark
+                        ? 'hover:bg-[#21262d] text-[#c9d1d9]'
+                        : 'hover:bg-[#f3f4f6] text-[#1f2328]'
+                      }`}
+                  >
+                    <div className={`p-2 rounded-xl ${isActive
+                      ? 'bg-white/20'
+                      : isDark
+                        ? 'bg-[#21262d]'
+                        : 'bg-[#f0f0f0]'
+                      }`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <span className="font-medium text-sm flex-1 text-left">{tab.label}</span>
+                    <ChevronRight className={`w-4 h-4 ${isActive ? 'opacity-100' : 'opacity-30'}`} />
+                  </button>
+                );
+              })}
+
+              {/* Theme Toggle in Overlay */}
+              {onToggleTheme && (
+                <button
+                  onClick={onToggleTheme}
+                  className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all ${isDark
+                    ? 'hover:bg-[#21262d] text-[#c9d1d9]'
+                    : 'hover:bg-[#f3f4f6] text-[#1f2328]'
+                    }`}
+                >
+                  <div className={`p-2 rounded-xl ${isDark ? 'bg-[#21262d]' : 'bg-[#f0f0f0]'}`}>
+                    {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  </div>
+                  <span className="font-medium text-sm flex-1 text-left">
+                    {isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  </span>
+                  <ChevronRight className="w-4 h-4 opacity-30" />
+                </button>
+              )}
+
+              {/* Legal Tabs */}
+              <div className={`pt-4 pb-2 ${isDark ? '' : ''}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-wider px-2 mb-2 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                  }`}>
+                  Legal Information
+                </p>
+                {legalTabs.map(tab => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleTabClick(tab.id)}
+                      className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${isActive
+                        ? isDark
+                          ? 'bg-[#238636] text-white shadow-lg shadow-[#238636]/20'
+                          : 'bg-[#1f883d] text-white shadow-lg shadow-[#1f883d]/20'
+                        : isDark
+                          ? 'hover:bg-[#21262d] text-[#c9d1d9]'
+                          : 'hover:bg-[#f3f4f6] text-[#1f2328]'
+                        }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="font-medium text-sm flex-1 text-left">{tab.label}</span>
+                      <ChevronRight className={`w-4 h-4 ${isActive ? 'opacity-100' : 'opacity-30'}`} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* PROFESSIONAL SMART FOOTER */}
+            <div className={`px-6 py-4 ${isDark
+              ? 'bg-[#161b22] border-t border-[#30363d]'
+              : 'bg-[#f6f8fa] border-t border-[#d0d7de]'
+              }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getUserAvatar() ? (
+                    <img
+                      src={getUserAvatar()!}
+                      alt={currentProfile?.full_name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-[#2ea043]/30"
+                    />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-sm border-2 ${currentProfile?.role === 'owner'
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      : currentProfile?.role === 'admin'
+                        ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                        : 'bg-[#58a6ff]/20 text-[#58a6ff] border-[#58a6ff]/30'
+                      }`}>
+                      {getUserInitials()}
+                    </div>
+                  )}
+                  <div className="text-left">
+                    <p className="font-bold text-sm leading-tight">
+                      {currentProfile?.full_name || 'User'}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className={`text-xs font-medium capitalize ${isDark ? 'text-emerald-400' : 'text-emerald-600'
+                        }`}>
+                        {currentProfile?.role || 'User'}
+                      </span>
+                      {pharmacy && (
+                        <>
+                          <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]'}`} />
+                          <span className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                            {pharmacy.name}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className={`text-right ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                  <p className="text-[10px] font-medium">v2.0.1</p>
+                  <p className="text-[9px]">© 2024 PHARMIENTA</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DESKTOP SIDEBAR */}
       <aside className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-300 ease-in-out border-r w-16 hover:w-60 group shadow-2xl overflow-hidden select-none ${isDark
         ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]'
         : 'bg-white border-[#d0d7de] text-[#1f2328]'
@@ -156,9 +357,9 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
         </div>
 
-        {/* Nav Items - All tabs shown here */}
+        {/* Nav Items */}
         <div className="flex-1 py-4 px-2 space-y-1.5 overflow-y-auto min-w-[240px]">
-          {[...primaryTabs, ...secondaryTabs].map(tab => {
+          {allTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 

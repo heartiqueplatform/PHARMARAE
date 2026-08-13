@@ -16,7 +16,7 @@ import {
     StockMovement,
     AuditLog,
     RequestedItem,
-    SalesReturn, // NEW - Add this import
+    SalesReturn,
 } from '../types';
 
 export interface AppState {
@@ -34,7 +34,7 @@ export interface AppState {
     movements: StockMovement[];
     auditLogs: AuditLog[];
     requestedItems: RequestedItem[];
-    salesReturns: SalesReturn[]; // NEW - Add this
+    salesReturns: SalesReturn[];
 
     // UI State
     isLoading: boolean;
@@ -45,6 +45,7 @@ export interface AppState {
     isAuthenticated: boolean;
     toastMessage: string | null;
     toastType: 'success' | 'error' | 'info' | null;
+    toastPosition: 'top' | 'center' | 'bottom'; // NEW - Added position control
 
     // Modals
     isBarcodeScannerOpen: boolean;
@@ -67,6 +68,7 @@ export interface AppState {
     setActiveTab: (tab: any) => void;
     setToastMessage: (message: string | null) => void;
     setToastType: (type: 'success' | 'error' | 'info' | null) => void;
+    setToastPosition: (position: 'top' | 'center' | 'bottom') => void; // NEW
     clearToast: () => void;
 
     // Actions
@@ -92,7 +94,7 @@ export const useApp = (): AppState => {
     const [movements, setMovements] = useState<StockMovement[]>([]);
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [requestedItems, setRequestedItems] = useState<RequestedItem[]>([]);
-    const [salesReturns, setSalesReturns] = useState<SalesReturn[]>([]); // NEW - Add this
+    const [salesReturns, setSalesReturns] = useState<SalesReturn[]>([]);
 
     // UI State
     const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +106,7 @@ export const useApp = (): AppState => {
     });
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [toastType, setToastType] = useState<'success' | 'error' | 'info' | null>(null);
+    const [toastPosition, setToastPosition] = useState<'top' | 'center' | 'bottom'>('center'); // NEW
 
     // Modals
     const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
@@ -271,7 +274,7 @@ export const useApp = (): AppState => {
                     setRequestedItems(allRequestedItems.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName));
                     console.log(`📦 Requested items in Dexie: ${allRequestedItems.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName).length}`);
 
-                    // NEW: Load sales returns
+                    // Load sales returns
                     const allSalesReturns = await db.sales_returns.toArray();
                     setSalesReturns(allSalesReturns.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName));
                     console.log(`📦 Sales returns in Dexie: ${allSalesReturns.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName).length}`);
@@ -380,7 +383,7 @@ export const useApp = (): AppState => {
         movements,
         auditLogs,
         requestedItems,
-        salesReturns, // NEW - Add this
+        salesReturns,
 
         // UI State
         isLoading,
@@ -391,6 +394,7 @@ export const useApp = (): AppState => {
         isAuthenticated,
         toastMessage,
         toastType,
+        toastPosition, // NEW - Added to return
 
         // Modals
         isBarcodeScannerOpen,
@@ -413,6 +417,7 @@ export const useApp = (): AppState => {
         setActiveTab,
         setToastMessage,
         setToastType,
+        setToastPosition, // NEW - Added to return
         clearToast,
 
         // Actions
