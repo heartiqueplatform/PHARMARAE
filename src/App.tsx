@@ -404,7 +404,50 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* FLOATING REFRESH BUTTON - Smaller with label */}
+      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-center gap-1">
+        <button
+          onClick={() => {
+            triggerSyncQueue();
+            clearToast();
+          }}
+          className={`
+      p-3 rounded-full shadow-lg
+      bg-emerald-500 hover:bg-emerald-600
+      text-white
+      transition-all duration-200
+      hover:scale-110 active:scale-95
+      flex items-center justify-center
+      ${isDark ? 'shadow-emerald-500/20' : 'shadow-emerald-500/30'}
+    `}
+          style={{
+            width: '44px',
+            height: '44px',
+          }}
+          aria-label="Refresh data"
+        >
+          {isSyncing ? (
+            <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )}
+        </button>
 
+        {/* Label below the button */}
+        <span className={`
+    text-[10px] font-medium
+    ${isDark ? 'text-gray-400' : 'text-gray-600'}
+    bg-opacity-80
+    px-2 py-0.5 rounded
+    ${isDark ? 'bg-gray-800/60' : 'bg-white/60'}
+  `}>
+          Refresh
+        </span>
+      </div>
       {/* Modals */}
       <BarcodeScannerModal
         isOpen={isBarcodeScannerOpen}

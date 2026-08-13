@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import { Profile, UserRole, Supplier, AuditLog } from '../../types';
-import { Users, Truck, Eye, EyeOff, RefreshCw as RefreshIcon, Settings, RefreshCw, Shield, Save, Check, Loader2, Database, ShieldCheck, CheckCircle2, AlertCircle, Image, FileCheck, Info, Download } from 'lucide-react';
+import {
+  Users, Truck, Eye, EyeOff, RefreshCw as RefreshIcon,
+  Settings, RefreshCw, Shield, Save, Check, Loader2,
+  Database, ShieldCheck, CheckCircle2, AlertCircle,
+  Image, FileCheck, Info, Download, X, UserPlus,
+  Truck as TruckIcon, UserCog, Cloud, CloudOff,
+  Clock, AlertTriangle, Edit, Trash2, ChevronRight
+} from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient, processOfflineSyncQueue, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
+
 interface MoreViewProps {
   profile: Profile | null;
   profiles: Profile[];
@@ -20,7 +28,7 @@ interface MoreViewProps {
   onResetLocalCache?: () => void;
   theme?: 'dark' | 'light';
   onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void;
-  onNavigateToSecurity?: () => void; // NEW - Add this line
+  onNavigateToSecurity?: () => void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -39,24 +47,21 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onResetLocalCache,
   theme = 'dark',
   onNavigateToTab,
-  onNavigateToSecurity, // NEW - Add this line
+  onNavigateToSecurity,
 }) => {
   const isDark = theme === 'dark';
 
-  // REMOVED ALL borders from card styles
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const inputBg = isDark ? 'bg-[#0d1117] text-[#f0f6fc]' : 'bg-[#f6f8fa] text-[#1f2328]';
 
-  // Large touch targets for mobile
   const touchTarget = 'min-h-[44px] min-w-[44px]';
   const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
 
   const [activeSection, setActiveSection] = useState<'staff' | 'suppliers' | 'settings' | 'sync' | 'audit'>('settings');
 
-  // Loading States
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
@@ -67,14 +72,14 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [nameError, setNameError] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [isPullingData, setIsPullingData] = useState(false);
-  const [showStaffPin, setShowStaffPin] = useState(false); // <-- ADD THIS
-  const [isGeneratingPin, setIsGeneratingPin] = useState(false); // <-- ADD THIS
+  const [showStaffPin, setShowStaffPin] = useState(false);
+  const [isGeneratingPin, setIsGeneratingPin] = useState(false);
+
   const triggerToast = (msg: string) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
-  // Pharmacy Form State
   const [pharmName, setPharmName] = useState(profile?.pharmacy_name || '');
   const [pharmTradingName, setPharmTradingName] = useState(profile?.pharmacy_trading_name || '');
   const [pharmPhone, setPharmPhone] = useState(profile?.pharmacy_phone || '');
@@ -85,11 +90,9 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [pharmFooter, setPharmFooter] = useState(profile?.pharmacy_receipt_footer || '');
   const [pharmCurrency, setPharmCurrency] = useState(profile?.pharmacy_currency || 'KSh');
 
-  // Avatar State
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [avatarPublicId, setAvatarPublicId] = useState(profile?.avatar_public_id || '');
 
-  // Check if pharmacy name already exists
   const checkPharmacyNameExists = async (name: string): Promise<boolean> => {
     if (!name.trim()) return false;
     const existingProfiles = await db.profiles
@@ -103,7 +106,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
     return existingProfiles.length > 0;
   };
 
-  // Generate unique pharmacy name suggestion
   const generateUniqueName = async (desiredName: string): Promise<string> => {
     let baseName = desiredName.trim();
     let counter = 1;
@@ -115,7 +117,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
     return testName;
   };
-  // Auto-generate unique PIN for staff
+
   const generateUniqueStaffPin = async (): Promise<string> => {
     setIsGeneratingPin(true);
     let attempts = 0;
@@ -124,10 +126,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
     let isUnique = false;
 
     while (!isUnique && attempts < maxAttempts) {
-      // Generate a random 4-digit PIN (1000-9999, excluding 0000)
       newPin = String(Math.floor(1000 + Math.random() * 9000));
 
-      // Check if PIN exists in local DB
       const localProfiles = await db.profiles
         .where('pin_code')
         .equals(newPin)
@@ -135,7 +135,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
       let existsLocally = localProfiles.length > 0;
 
-      // Check cloud if online
       let existsInCloud = false;
       if (!existsLocally && isOnline) {
         const client = getSupabaseClient();
@@ -162,14 +161,12 @@ export const MoreView: React.FC<MoreViewProps> = ({
       attempts++;
     }
 
-    // Fallback: use timestamp-based PIN
     const fallbackPin = String(Date.now() % 10000).padStart(4, '0');
     setStaffPin(fallbackPin);
     setIsGeneratingPin(false);
     return fallbackPin;
   };
 
-  // Generate PIN when modal opens
   const handleOpenStaffModal = () => {
     setShowAddStaffModal(true);
     setStaffName('');
@@ -180,11 +177,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
     generateUniqueStaffPin();
   };
 
-  // Regenerate PIN
   const handleRegenerateStaffPin = () => {
     generateUniqueStaffPin();
   };
-  // Handle pharmacy name change with validation
+
   const handlePharmacyNameChange = async (newName: string) => {
     setNameError('');
     if (!newName.trim()) {
@@ -195,7 +191,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
     const exists = await checkPharmacyNameExists(newName.trim());
     if (exists) {
       const suggestedName = await generateUniqueName(newName.trim());
-      setNameError(`⚠️ "${newName.trim()}" is already taken. Suggested: "${suggestedName}"`);
+      setNameError(`"${newName.trim()}" is already taken. Suggested: "${suggestedName}"`);
       if (confirm(`"${newName.trim()}" is already taken. Use "${suggestedName}" instead?`)) {
         setPharmName(suggestedName);
         setNameError('');
@@ -204,7 +200,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
   };
 
-  // Staff Form
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
@@ -212,7 +207,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [staffPin, setStaffPin] = useState('');
   const [staffRole, setStaffRole] = useState<UserRole>('cashier');
 
-  // Edit Staff Profile Form
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -242,7 +236,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         role: editRole,
       });
       setEditingProfile(null);
-      triggerToast(' Staff profile updated successfully!');
+      triggerToast('Staff profile updated successfully');
     } catch (err: any) {
       alert('Error updating profile: ' + (err.message || err));
     } finally {
@@ -250,7 +244,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
   };
 
-  // Supplier Form
   const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
   const [suppName, setSuppName] = useState('');
   const [suppPhone, setSuppPhone] = useState('');
@@ -286,7 +279,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         const exists = await checkPharmacyNameExists(pharmName.trim());
         if (exists) {
           const suggestedName = await generateUniqueName(pharmName.trim());
-          setNameError(`⚠️ "${pharmName.trim()}" is already taken. Suggested: "${suggestedName}"`);
+          setNameError(`"${pharmName.trim()}" is already taken. Suggested: "${suggestedName}"`);
           setIsSavingSettings(false);
           return;
         }
@@ -301,7 +294,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         await onUpdateProfile(profile.id, updates);
       }
 
-      triggerToast(' Pharmacy settings updated successfully!');
+      triggerToast('Pharmacy settings updated successfully');
     } catch (err: any) {
       alert('Error saving settings: ' + (err.message || err));
     } finally {
@@ -324,7 +317,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         full_name: staffName,
         email: staffEmail,
         phone: staffPhone || '+254 700 000 000',
-        pin_code: staffPin, // PIN is already auto-generated and unique
+        pin_code: staffPin,
         role: staffRole,
         is_active: true,
       });
@@ -333,7 +326,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setStaffEmail('');
       setStaffPhone('');
       setStaffPin('');
-      triggerToast(` Staff member "${staffName}" added successfully!`);
+      triggerToast(`Staff member "${staffName}" added successfully`);
     } catch (err: any) {
       alert('Error adding staff: ' + (err.message || err));
     } finally {
@@ -355,46 +348,41 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setShowAddSupplierModal(false);
       setSuppName('');
       setSuppPhone('');
-      triggerToast(` Supplier "${suppName}" registered successfully!`);
+      triggerToast(`Supplier "${suppName}" registered successfully`);
     } catch (err: any) {
       alert('Error adding supplier: ' + (err.message || err));
     } finally {
       setIsSavingSupplier(false);
     }
   };
-  // MoreView.tsx - REPLACE the entire handleTriggerSyncQueue function
 
   const handleTriggerSyncQueue = async () => {
     if (isTriggeringSync) return;
     setIsTriggeringSync(true);
-    setSyncStatus('🔄 Processing offline queue...');
+    setSyncStatus('Processing offline queue...');
 
     try {
-      // Step 1: Check what's in the queue FIRST
       const allPending = await db.sync_queue.where('status').equals('pending').toArray();
-      console.log(`📊 Found ${allPending.length} pending items in queue:`, allPending);
+      console.log(`Found ${allPending.length} pending items in queue:`, allPending);
 
       if (allPending.length === 0) {
-        setSyncStatus(' No pending items to sync');
-        triggerToast(' No items to sync');
+        setSyncStatus('No pending items to sync');
+        triggerToast('No items to sync');
         setIsTriggeringSync(false);
         setSyncStatus('');
         return;
       }
 
-      // Step 2: Process pending mutations (push to Supabase)
-      setSyncStatus(`📤 Pushing ${allPending.length} items to Supabase...`);
+      setSyncStatus(`Pushing ${allPending.length} items to Supabase...`);
 
       let syncedCount = 0;
       let failedCount = 0;
       const errors: string[] = [];
 
-      // Process each item individually with better error handling
       for (const item of allPending) {
         try {
-          console.log(`🔄 Processing ${item.entity_type} ${item.operation} for item ${item.id}`);
+          console.log(`Processing ${item.entity_type} ${item.operation} for item ${item.id}`);
 
-          // Get the Supabase client
           const client = getSupabaseClient();
           if (!client) {
             throw new Error('No Supabase client available');
@@ -423,21 +411,19 @@ export const MoreView: React.FC<MoreViewProps> = ({
           }
 
           if (error) {
-            console.error(`❌ Error syncing ${item.entity_type}:`, error);
+            console.error(`Error syncing ${item.entity_type}:`, error);
             throw error;
           }
 
-          // If successful, delete from queue
           await db.sync_queue.delete(item.id);
           syncedCount++;
-          console.log(`✅ Synced ${item.entity_type} ${item.operation}`);
+          console.log(`Synced ${item.entity_type} ${item.operation}`);
 
         } catch (err: any) {
           failedCount++;
           errors.push(`${item.entity_type}: ${err.message}`);
-          console.error(`❌ Failed to sync ${item.entity_type}:`, err);
+          console.error(`Failed to sync ${item.entity_type}:`, err);
 
-          // Update retry count
           if (item.id) {
             await db.sync_queue.update(item.id, {
               status: 'failed',
@@ -448,43 +434,40 @@ export const MoreView: React.FC<MoreViewProps> = ({
         }
       }
 
-      // Step 3: Show results
       if (syncedCount > 0) {
-        setSyncStatus(`✅ Pushed ${syncedCount} items to Supabase`);
-        triggerToast(`✅ ${syncedCount} items synced successfully!`);
+        setSyncStatus(`Pushed ${syncedCount} items to Supabase`);
+        triggerToast(`${syncedCount} items synced successfully`);
       }
       if (failedCount > 0) {
-        setSyncStatus(`⚠️ ${failedCount} items failed to sync: ${errors.join(', ')}`);
-        triggerToast(`⚠️ ${failedCount} items failed to sync`);
+        setSyncStatus(`${failedCount} items failed to sync: ${errors.join(', ')}`);
+        triggerToast(`${failedCount} items failed to sync`);
       }
 
-      // Step 4: Pull fresh data from Supabase (if we synced anything)
       if (syncedCount > 0 && profile) {
-        setSyncStatus('📥 Pulling fresh data from Supabase...');
+        setSyncStatus('Pulling fresh data from Supabase...');
         try {
           const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
           if (pulled) {
-            setSyncStatus('✅ Fresh data pulled from Supabase');
-            triggerToast('✅ Data refreshed from cloud!');
+            setSyncStatus('Fresh data pulled from Supabase');
+            triggerToast('Data refreshed from cloud');
           } else {
-            setSyncStatus('⚠️ Failed to pull fresh data');
+            setSyncStatus('Failed to pull fresh data');
           }
         } catch (pullErr: any) {
           console.error('Pull error:', pullErr);
-          setSyncStatus('⚠️ Pull failed: ' + pullErr.message);
+          setSyncStatus('Pull failed: ' + pullErr.message);
         }
       }
 
-      // Step 5: Update pending count and refresh UI
       const remainingCount = await db.sync_queue.where('status').equals('pending').count();
       await onTriggerSync();
 
-      setSyncStatus(`✅ Done. ${remainingCount} items still pending`);
+      setSyncStatus(`Done. ${remainingCount} items still pending`);
 
     } catch (err: any) {
-      console.error('❌ Sync error:', err);
-      setSyncStatus(`❌ Sync failed: ${err.message}`);
-      triggerToast('❌ Sync failed: ' + err.message);
+      console.error('Sync error:', err);
+      setSyncStatus(`Sync failed: ${err.message}`);
+      triggerToast('Sync failed: ' + err.message);
     } finally {
       setTimeout(() => {
         setIsTriggeringSync(false);
@@ -493,48 +476,46 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
   };
 
-  // MoreView.tsx - REPLACE the entire handlePullData function
-
   const handlePullData = async () => {
     if (!profile || isPullingData) return;
     setIsPullingData(true);
-    setSyncStatus('📥 Pulling data from Supabase...');
+    setSyncStatus('Pulling data from Supabase...');
 
     try {
-      console.log(`🔄 Pulling data for pharmacy: ${profile.pharmacy_name}`);
+      console.log(`Pulling data for pharmacy: ${profile.pharmacy_name}`);
 
       const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
 
       if (pulled) {
-        triggerToast('✅ Data pulled from Supabase successfully!');
-        setSyncStatus('✅ Data pulled successfully');
-        // Refresh the UI
+        triggerToast('Data pulled from Supabase successfully');
+        setSyncStatus('Data pulled successfully');
         await onTriggerSync();
       } else {
-        triggerToast('⚠️ Failed to pull data from Supabase');
-        setSyncStatus('⚠️ Pull failed - check console for errors');
+        triggerToast('Failed to pull data from Supabase');
+        setSyncStatus('Pull failed - check console for errors');
       }
     } catch (err: any) {
-      console.error('❌ Pull error:', err);
-      triggerToast('❌ Pull failed: ' + err.message);
-      setSyncStatus('❌ Pull failed');
+      console.error('Pull error:', err);
+      triggerToast('Pull failed: ' + err.message);
+      setSyncStatus('Pull failed');
     } finally {
       setIsPullingData(false);
       setTimeout(() => setSyncStatus(''), 3000);
     }
   };
+
   const handleResetCache = async () => {
     if (!onResetLocalCache || isResettingCache) return;
     if (confirm('Are you sure you want to clear local offline cache and re-sync fresh from Supabase cloud?')) {
       setIsResettingCache(true);
-      setSyncStatus(' Resetting cache...');
+      setSyncStatus('Resetting cache...');
       try {
         await onResetLocalCache();
-        triggerToast(' Local cache wiped & clean state synchronized!');
-        setSyncStatus(' Cache reset complete');
+        triggerToast('Local cache wiped and clean state synchronized');
+        setSyncStatus('Cache reset complete');
       } catch (err: any) {
         alert('Cache reset error: ' + (err.message || err));
-        setSyncStatus('❌ Cache reset failed');
+        setSyncStatus('Cache reset failed');
       } finally {
         setIsResettingCache(false);
         setTimeout(() => setSyncStatus(''), 3000);
@@ -542,14 +523,13 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
   };
 
-  // Only owner can manage settings - staff can only view
   const canManage = currentRole === 'owner';
   const canView = currentRole === 'owner' || currentRole === 'admin';
 
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Top Hub Navigation Cards - REMOVED borders */}
+      {/* Navigation Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <button
           onClick={() => setActiveSection('settings')}
@@ -560,7 +540,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         >
           <Settings className={`w-6 h-6 mb-1 ${canManage ? 'text-[#2ea043]' : 'text-slate-500'}`} />
           <span className={`text-sm font-bold ${canManage ? '' : 'text-slate-500'}`}>
-            Settings {!canManage && '🔒'}
+            Settings {!canManage && 'Locked'}
           </span>
         </button>
 
@@ -573,7 +553,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         >
           <Users className={`w-6 h-6 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
           <span className={`text-sm font-bold ${canView ? '' : 'text-slate-500'}`}>
-            Staff {!canView && '🔒'}
+            Staff {!canView && 'Locked'}
           </span>
         </button>
 
@@ -586,7 +566,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         >
           <Truck className={`w-6 h-6 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
           <span className={`text-sm font-bold ${canView ? '' : 'text-slate-500'}`}>
-            Suppliers {!canView && '🔒'}
+            Suppliers {!canView && 'Locked'}
           </span>
         </button>
 
@@ -613,7 +593,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </button>
       </div>
 
-      {/* Settings Panel - REMOVED border */}
+      {/* Settings Panel */}
       {activeSection === 'settings' && (
         <form onSubmit={handleSaveSettings} className={`rounded-2xl p-4 space-y-4 text-sm ${cardBg}`}>
           <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle}`}>
@@ -639,35 +619,33 @@ export const MoreView: React.FC<MoreViewProps> = ({
               onUploadSuccess={async (url, publicId) => {
                 setAvatarUrl(url);
                 setAvatarPublicId(publicId);
-                triggerToast(' Avatar uploaded successfully!');
+                triggerToast('Avatar uploaded successfully');
 
-                // Auto-save the avatar to the database
                 if (profile && onUpdateProfile) {
                   try {
                     await onUpdateProfile(profile.id, {
                       avatar_url: url,
                       avatar_public_id: publicId,
                     });
-                    triggerToast(' Avatar saved to database!');
+                    triggerToast('Avatar saved to database');
                   } catch (err) {
                     console.error('Failed to save avatar:', err);
-                    triggerToast(' Avatar uploaded but failed to save to database');
+                    triggerToast('Avatar uploaded but failed to save to database');
                   }
                 }
               }}
               onRemove={async () => {
                 setAvatarUrl('');
                 setAvatarPublicId('');
-                triggerToast(' Avatar removed');
+                triggerToast('Avatar removed');
 
-                //  Auto-save the removal to the database
                 if (profile && onUpdateProfile) {
                   try {
                     await onUpdateProfile(profile.id, {
                       avatar_url: null,
                       avatar_public_id: null,
                     });
-                    triggerToast(' Avatar removal saved to database!');
+                    triggerToast('Avatar removal saved to database');
                   } catch (err) {
                     console.error('Failed to remove avatar:', err);
                   }
@@ -818,7 +796,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
               )}
             </button>
           </div>
-          {/* Settings Panel - Add this button at the bottom of the form */}
+
           <div className={`pt-4 border-t ${borderLine}`}>
             <button
               onClick={() => {
@@ -833,38 +811,35 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <Shield className="w-6 h-6 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm">Security & Account</p>
+                  <p className="font-bold text-sm">Security and Account</p>
                   <p className={`text-[11px] ${textMuted}`}>Manage PIN, password, and account settings</p>
                 </div>
-                <svg className="w-4 h-4 ml-auto opacity-40 text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <ChevronRight className="w-4 h-4 ml-auto opacity-40 text-[#2ea043]" />
               </div>
             </button>
           </div>
         </form>
       )}
 
-      {/* Staff Management - REMOVED border */}
+      {/* Staff Management */}
       {activeSection === 'staff' && (
         <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 ${borderLine}`}>
             <h3 className={`font-bold text-base ${textTitle}`}>
-              {/* FIXED: Count only staff from this pharmacy */}
               Staff Members ({profiles.filter(p => !p.is_owner && p.pharmacy_name === profile?.pharmacy_name).length})
             </h3>
             {canManage && (
               <button
-                onClick={handleOpenStaffModal} // <-- CHANGED HERE
+                onClick={handleOpenStaffModal}
                 className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm flex items-center gap-2 ${touchTargetSmall}`}
               >
-                <span>+ Add Staff</span>
+                <UserPlus className="w-4 h-4" />
+                <span>Add Staff</span>
               </button>
             )}
           </div>
 
           <div className="space-y-3">
-            {/* FIXED: Filter by pharmacy_name */}
             {profiles
               .filter(p => !p.is_owner && p.pharmacy_name === profile?.pharmacy_name)
               .map(p => (
@@ -886,7 +861,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
                       <div className={`font-bold ${textTitle}`}>{p.full_name}</div>
                       <div className={`text-[11px] ${textMuted}`}>
                         {p.email} • Phone: {p.phone || 'N/A'}
-                        {/* ONLY OWNER can see PINs */}
                         {currentRole === 'owner' ? (
                           <> • PIN: <span className="font-mono font-bold text-emerald-400">{p.pin_code || 'None'}</span></>
                         ) : (
@@ -909,13 +883,12 @@ export const MoreView: React.FC<MoreViewProps> = ({
                       onClick={() => handleStartEditProfile(p)}
                       className={`px-3 py-2 text-sm font-bold rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors ${touchTargetSmall}`}
                     >
-                      Edit
+                      <Edit className="w-4 h-4" />
                     </button>
                   )}
                 </div>
               ))}
 
-            {/* Show message if no staff found */}
             {profiles.filter(p => !p.is_owner && p.pharmacy_name === profile?.pharmacy_name).length === 0 && (
               <div className={`p-6 text-center ${textMuted}`}>
                 <Users className="w-12 h-12 mx-auto opacity-20 mb-2" />
@@ -927,7 +900,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Suppliers Management - REMOVED border */}
+      {/* Suppliers Management */}
       {activeSection === 'suppliers' && (
         <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 ${borderLine}`}>
@@ -935,9 +908,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
             {canManage && (
               <button
                 onClick={() => setShowAddSupplierModal(true)}
-                className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm ${touchTargetSmall}`}
+                className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm flex items-center gap-2 ${touchTargetSmall}`}
               >
-                + Add Supplier
+                <TruckIcon className="w-4 h-4" />
+                <span>Add Supplier</span>
               </button>
             )}
           </div>
@@ -959,7 +933,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Offline Sync - REMOVED borders */}
+      {/* Offline Sync */}
       {activeSection === 'sync' && (
         <div className="space-y-4">
           <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
@@ -998,7 +972,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
           <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
             <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle}`}>
-              Manual Sync & Maintenance
+              Manual Sync and Maintenance
             </h3>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-1">
@@ -1051,7 +1025,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
                       <span>Resetting...</span>
                     </>
                   ) : (
-                    <span>Clear Cache & Re-Sync</span>
+                    <span>Clear Cache and Re-Sync</span>
                   )}
                 </button>
               )}
@@ -1067,7 +1041,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Audit Trail - REMOVED border */}
+      {/* Audit Trail */}
       {activeSection === 'audit' && (
         <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
           <div className={`p-4 font-bold text-base ${borderLine} ${textTitle}`}>
@@ -1180,7 +1154,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
                 <div className="mt-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <p className={`text-[10px] ${textMuted} text-center`}>
-                    🔒 Auto-generated unique PIN • Click "Generate New" for a different PIN
+                    Auto-generated unique PIN. Click "Generate New" for a different PIN
                   </p>
                 </div>
               </div>
@@ -1376,16 +1350,14 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* LEGAL & RESOURCES SECTION */}
+      {/* Legal and Resources Section */}
       {activeSection === 'settings' && (
         <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
           <h3 className={`font-bold text-base ${textTitle} flex items-center gap-2`}>
-            <span className="text-[#2ea043]">⚖️</span>
-            Legal & Resources
+            <span className="text-[#2ea043]">Legal and Resources</span>
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* About Button */}
             <button
               onClick={() => {
                 if (onNavigateToTab) {
@@ -1405,13 +1377,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <p className="font-bold text-sm truncate">About</p>
                   <p className={`text-[11px] ${textMuted} truncate`}>App version 1.0.0</p>
                 </div>
-                <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" />
               </div>
             </button>
 
-            {/* Privacy Policy Button */}
             <button
               onClick={() => {
                 if (onNavigateToTab) {
@@ -1431,13 +1400,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <p className="font-bold text-sm truncate">Privacy Policy</p>
                   <p className={`text-[11px] ${textMuted} truncate`}>Data protection</p>
                 </div>
-                <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" />
               </div>
             </button>
 
-            {/* Terms & Conditions Button */}
             <button
               onClick={() => {
                 if (onNavigateToTab) {
@@ -1454,12 +1420,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
                   <FileCheck className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm truncate">Terms & Conditions</p>
+                  <p className="font-bold text-sm truncate">Terms and Conditions</p>
                   <p className={`text-[11px] ${textMuted} truncate`}>Usage agreement</p>
                 </div>
-                <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-[#2ea043]" />
               </div>
             </button>
           </div>
