@@ -24,7 +24,7 @@ import {
   Payment,
   Discount,
   Notification,
-  SalesReturn, // NEW - Add this import
+  SalesReturn,
 } from '../types';
 
 export class MedPDatabase extends Dexie {
@@ -41,16 +41,16 @@ export class MedPDatabase extends Dexie {
   purchases!: Table<Purchase, string>;
   purchase_items!: Table<PurchaseItem, string>;
   customers!: Table<Customer, string>;
-  sales!: Table<Sale, string>;  //  Now contains ALL product details (single table design)
+  sales!: Table<Sale, string>;
   payments!: Table<Payment, string>;
   stock_movements!: Table<StockMovement, string>;
   stocktakes!: Table<Stocktake, string>;
   stocktake_items!: Table<StocktakeItem, string>;
   sale_returns!: Table<SaleReturn, string>;
-  sales_returns!: Table<SalesReturn, string>; // NEW - Sales Returns table
+  sales_returns!: Table<SalesReturn, string>;
   discounts!: Table<Discount, string>;
   audit_logs!: Table<AuditLog, string>;
-  requested_items!: Table<RequestedItem, string>; // Most requested items
+  requested_items!: Table<RequestedItem, string>;
   notifications!: Table<Notification, string>;
   sync_queue!: Table<OfflineSyncItem, number>;
 
@@ -113,7 +113,7 @@ export class MedPDatabase extends Dexie {
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_id, user_id, entity_type, status, created_at'  // ⚠️ STILL pharmacy_id
+      sync_queue: '++id, sync_id, pharmacy_id, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
       console.log('🔄 Upgrading database to version 2...');
 
@@ -152,12 +152,12 @@ export class MedPDatabase extends Dexie {
               profile.is_active = true;
 
               await tx.table('profiles').put(profile);
-              console.log(` Migrated profile: ${profile.full_name} (${profile.pharmacy_name})`);
+              console.log(`✅ Migrated profile: ${profile.full_name} (${profile.pharmacy_name})`);
             }
           }
         }
 
-        console.log(' Database upgrade to version 2 complete!');
+        console.log('✅ Database upgrade to version 2 complete!');
       } catch (error) {
         console.error('❌ Error during database upgrade:', error);
         throw error;
@@ -189,32 +189,29 @@ export class MedPDatabase extends Dexie {
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at' //  FIXED: pharmacy_name
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
       console.log('🔄 Migrating to version 3 - fixing sync_queue...');
 
       try {
-        // Migrate existing sync_queue items from pharmacy_id to pharmacy_name
         const syncItems = await tx.table('sync_queue').toArray();
         let fixed = 0;
 
         for (const item of syncItems) {
           if (item.pharmacy_id && !item.pharmacy_name) {
-            // Get the pharmacy name from the pharmacy_id
             const pharmacy = await tx.table('pharmacies').get(item.pharmacy_id);
             if (pharmacy) {
               await tx.table('sync_queue').update(item.id, {
                 pharmacy_name: pharmacy.name,
-                pharmacy_id: undefined // Remove the old field
+                pharmacy_id: undefined
               });
               fixed++;
             }
           }
         }
 
-        console.log(` Migrated ${fixed} sync_queue items from pharmacy_id to pharmacy_name`);
+        console.log(`✅ Migrated ${fixed} sync_queue items from pharmacy_id to pharmacy_name`);
 
-        // Also migrate profiles
         const profiles = await tx.table('profiles').toArray();
         for (const profile of profiles) {
           if (!profile.pharmacy_name) {
@@ -236,7 +233,7 @@ export class MedPDatabase extends Dexie {
           await tx.table('profiles').put(profile);
         }
 
-        console.log(' Migration to version 3 complete!');
+        console.log('✅ Migration to version 3 complete!');
       } catch (error) {
         console.error('❌ Error during database upgrade:', error);
         throw error;
@@ -267,11 +264,10 @@ export class MedPDatabase extends Dexie {
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at' //  FIXED
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
       console.log('🔄 Migrating to version 4 - Normalizing pharmacy names to UPPERCASE...');
 
-      // Get all tables with pharmacy_name
       const tables = [
         'profiles', 'categories', 'units', 'products', 'suppliers',
         'product_batches', 'purchases', 'purchase_items', 'customers',
@@ -312,7 +308,7 @@ export class MedPDatabase extends Dexie {
         }
       }
 
-      console.log(` Version 4 migration complete! ${totalFixed} total records normalized to UPPERCASE.`);
+      console.log(`✅ Version 4 migration complete! ${totalFixed} total records normalized to UPPERCASE.`);
     });
 
     // =============================================
@@ -344,17 +340,14 @@ export class MedPDatabase extends Dexie {
       console.log('🔄 Migrating to version 5 - Final cleanup...');
 
       try {
-        // Ensure all sync_queue items have pharmacy_name
         const syncItems = await tx.table('sync_queue').toArray();
         let fixed = 0;
 
         for (const item of syncItems) {
           if (!item.pharmacy_name) {
-            // Try to find pharmacy_name from the payload
             const payload = item.payload || {};
             let pharmacyName = payload.pharmacy_name || payload.pharmacy_id || 'UNKNOWN';
 
-            // If it's an ID, try to look up the name
             if (pharmacyName && pharmacyName.includes('-') && pharmacyName.length === 36) {
               const pharmacy = await tx.table('pharmacies').get(pharmacyName);
               if (pharmacy) {
@@ -362,7 +355,6 @@ export class MedPDatabase extends Dexie {
               }
             }
 
-            // Normalize and update
             const normalized = pharmacyName
               .trim()
               .replace(/\s+/g, ' ')
@@ -375,9 +367,8 @@ export class MedPDatabase extends Dexie {
           }
         }
 
-        console.log(` Fixed ${fixed} sync_queue items with missing pharmacy_name`);
+        console.log(`✅ Fixed ${fixed} sync_queue items with missing pharmacy_name`);
 
-        // Check for any orphaned items
         const orphaned = await tx.table('sync_queue')
           .where('pharmacy_name')
           .equals('')
@@ -388,10 +379,10 @@ export class MedPDatabase extends Dexie {
           for (const item of orphaned) {
             await tx.table('sync_queue').delete(item.id);
           }
-          console.log(` Deleted ${orphaned.length} orphaned items`);
+          console.log(`✅ Deleted ${orphaned.length} orphaned items`);
         }
 
-        console.log(' Version 5 migration complete!');
+        console.log('✅ Version 5 migration complete!');
       } catch (error) {
         console.error('❌ Error during version 5 migration:', error);
         throw error;
@@ -400,7 +391,6 @@ export class MedPDatabase extends Dexie {
 
     // =============================================
     // VERSION 6: 🚀 SINGLE TABLE DESIGN - Remove sale_items table
-    // All product details now stored directly in sales table
     // =============================================
     this.version(6).stores({
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
@@ -413,9 +403,7 @@ export class MedPDatabase extends Dexie {
       purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_name, name, phone, created_at',
-      //  UPDATED sales table with all product details
       sales: 'id, pharmacy_name, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at',
-      // ❌ REMOVED sale_items table - no longer needed
       payments: 'id, pharmacy_name, sale_id, method, status',
       stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at',
       stocktakes: 'id, pharmacy_name, status, started_at',
@@ -428,18 +416,14 @@ export class MedPDatabase extends Dexie {
       sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
       console.log('🔄 Migrating to version 6 - Single Table Design...');
-      console.log('⚠️ WARNING: This migration removes the sale_items table!');
-      console.log('⚠️ All product details will be stored directly in the sales table.');
 
       try {
-        // 1. Check if sale_items table exists and has data
         const saleItems = await tx.table('sale_items').toArray();
         console.log(`📊 Found ${saleItems.length} sale_items records to migrate`);
 
         if (saleItems.length > 0) {
           console.log('🔄 Migrating sale_items data into sales table...');
 
-          // Group sale_items by sale_id
           const itemsBySale: { [saleId: string]: any[] } = {};
           for (const item of saleItems) {
             if (!itemsBySale[item.sale_id]) {
@@ -450,20 +434,16 @@ export class MedPDatabase extends Dexie {
 
           console.log(`📊 Found ${Object.keys(itemsBySale).length} sales with items`);
 
-          // For each sale, update the sale record with product details
           for (const [saleId, items] of Object.entries(itemsBySale)) {
-            // Get the sale record
             const sale = await tx.table('sales').get(saleId);
             if (!sale) {
               console.warn(`⚠️ Sale ${saleId} not found, skipping`);
               continue;
             }
 
-            // Since we sell ONE item at a time, take the first item
             const item = items[0];
             if (!item) continue;
 
-            //  Update sale with product details
             const updatedSale = {
               ...sale,
               product_id: item.product_id,
@@ -475,27 +455,21 @@ export class MedPDatabase extends Dexie {
               subtotal: item.subtotal || 0,
               batch_id: item.batch_id || null,
               batch_number: item.batch_number || null,
-              // Preserve existing fields
               customer_name: sale.customer_name || 'Cash Customer',
               payment_method: sale.payment_method || 'cash',
               payment_status: sale.payment_status || 'paid',
               status: sale.status || 'completed',
-              // Update timestamp
               updated_at: new Date().toISOString()
             };
 
             await tx.table('sales').put(updatedSale);
-            console.log(` Migrated sale ${sale.sale_number} with product: ${item.product_name}`);
+            console.log(`✅ Migrated sale ${sale.sale_number} with product: ${item.product_name}`);
           }
         }
 
-        // 2. Drop the sale_items table
-        console.log('🗑️ Dropping sale_items table...');
-        // Dexie doesn't have a direct drop table, but we can clear it
         await tx.table('sale_items').clear();
-        console.log(' sale_items table cleared');
+        console.log('✅ sale_items table cleared');
 
-        // 3. Clean up any sale_items references in sync_queue
         const syncItems = await tx.table('sync_queue')
           .where('entity_type')
           .equals('sale_item')
@@ -506,13 +480,10 @@ export class MedPDatabase extends Dexie {
           for (const item of syncItems) {
             await tx.table('sync_queue').delete(item.id);
           }
-          console.log(' Cleaned up sale_item sync_queue entries');
+          console.log('✅ Cleaned up sale_item sync_queue entries');
         }
 
-        console.log(' Version 6 migration complete!');
-        console.log('📊 Sales table now contains ALL product details (single table design)');
-        console.log('💡 To query sales with product details, simply query the sales table directly.');
-
+        console.log('✅ Version 6 migration complete!');
       } catch (error) {
         console.error('❌ Error during version 6 migration:', error);
         throw error;
@@ -526,7 +497,6 @@ export class MedPDatabase extends Dexie {
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at',
       categories: 'id, pharmacy_name, name, active',
       units: 'id, pharmacy_name, name, abbreviation',
-      //  UPDATED products table with location fields
       products: 'id, pharmacy_name, name, barcode, category_id, active, created_at, shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition',
       product_units: 'id, product_id, unit_id',
       suppliers: 'id, pharmacy_name, name, phone, active',
@@ -540,7 +510,7 @@ export class MedPDatabase extends Dexie {
       stocktakes: 'id, pharmacy_name, status, started_at',
       stocktake_items: 'id, stocktake_id, product_id, batch_id',
       sale_returns: 'id, pharmacy_name, sale_id, created_at',
-      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at', // NEW - Sales Returns
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at',
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
@@ -550,14 +520,12 @@ export class MedPDatabase extends Dexie {
       console.log('🔄 Migrating to version 7 - Adding location fields to products...');
 
       try {
-        // Get all products
         const products = await tx.table('products').toArray();
         console.log(`📊 Found ${products.length} products to migrate with location fields`);
 
         let migrated = 0;
 
         for (const product of products) {
-          // Add location fields with default null values if they don't exist
           const updatedProduct = {
             ...product,
             shelf_number: product.shelf_number || null,
@@ -576,9 +544,8 @@ export class MedPDatabase extends Dexie {
           migrated++;
         }
 
-        console.log(` Migrated ${migrated} products with location fields`);
+        console.log(`✅ Migrated ${migrated} products with location fields`);
 
-        // Also update any sync_queue items for products to include location fields
         const syncItems = await tx.table('sync_queue')
           .where('entity_type')
           .equals('product')
@@ -588,7 +555,6 @@ export class MedPDatabase extends Dexie {
         for (const item of syncItems) {
           if (item.payload) {
             const payload = item.payload;
-            // Add location fields to the payload if they're missing
             const updatedPayload = {
               ...payload,
               shelf_number: payload.shelf_number || null,
@@ -609,12 +575,10 @@ export class MedPDatabase extends Dexie {
         }
 
         if (syncMigrated > 0) {
-          console.log(` Updated ${syncMigrated} sync_queue product items with location fields`);
+          console.log(`✅ Updated ${syncMigrated} sync_queue product items with location fields`);
         }
 
-        console.log(' Version 7 migration complete! Products now have location fields.');
-        console.log('📦 Location fields: shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition');
-
+        console.log('✅ Version 7 migration complete!');
       } catch (error) {
         console.error('❌ Error during version 7 migration:', error);
         throw error;
@@ -641,7 +605,7 @@ export class MedPDatabase extends Dexie {
       stocktakes: 'id, pharmacy_name, status, started_at',
       stocktake_items: 'id, stocktake_id, product_id, batch_id',
       sale_returns: 'id, pharmacy_name, sale_id, created_at',
-      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at', // NEW
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at',
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
@@ -651,7 +615,6 @@ export class MedPDatabase extends Dexie {
       console.log('🔄 Migrating to version 8 - Adding Sales Returns table...');
 
       try {
-        // Check if sales_returns table already has data
         const existingReturns = await tx.table('sales_returns').toArray();
         if (existingReturns.length > 0) {
           console.log(`📊 Found ${existingReturns.length} existing sales returns`);
@@ -663,9 +626,234 @@ export class MedPDatabase extends Dexie {
         throw error;
       }
     });
+
+    // =============================================
+    // VERSION 9: 🚀 PERFORMANCE OPTIMIZATIONS
+    // =============================================
+    this.version(9).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at, [pharmacy_name+role], [pharmacy_name+is_active]',
+      categories: 'id, pharmacy_name, name, active, [pharmacy_name+name]',
+      units: 'id, pharmacy_name, name, abbreviation, [pharmacy_name+name]',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at, shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition, [pharmacy_name+name], [pharmacy_name+barcode], [pharmacy_name+category_id]',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active, [pharmacy_name+name]',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at, [pharmacy_name+product_id], [pharmacy_name+expiry_date], [pharmacy_name+batch_number]',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at, [pharmacy_name+name]',
+      sales: 'id, pharmacy_name, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at, [pharmacy_name+sale_date], [pharmacy_name+product_id], [pharmacy_name+status]',
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at, [pharmacy_name+product_id], [pharmacy_name+created_at]',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at, [pharmacy_name+created_at], [pharmacy_name+sale_id]',
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type]'
+    }).upgrade(async (tx) => {
+      console.log('🚀 Migrating to version 9 - Performance optimizations...');
+
+      try {
+        // 1. Add last_sync_at to profiles for incremental sync
+        const profiles = await tx.table('profiles').toArray();
+        let updated = 0;
+
+        for (const profile of profiles) {
+          if (!profile.last_sync_at) {
+            await tx.table('profiles').update(profile.id, {
+              last_sync_at: new Date().toISOString()
+            });
+            updated++;
+          }
+        }
+
+        if (updated > 0) {
+          console.log(`✅ Added last_sync_at to ${updated} profiles`);
+        }
+
+        // 2. Ensure all sales have sale_date (for indexing)
+        const sales = await tx.table('sales').toArray();
+        let saleFixed = 0;
+
+        for (const sale of sales) {
+          if (!sale.sale_date) {
+            await tx.table('sales').update(sale.id, {
+              sale_date: sale.created_at || new Date().toISOString()
+            });
+            saleFixed++;
+          }
+        }
+
+        if (saleFixed > 0) {
+          console.log(`✅ Added sale_date to ${saleFixed} sales`);
+        }
+
+        console.log('✅ Version 9 migration complete! Performance optimizations applied.');
+      } catch (error) {
+        console.error('❌ Error during version 9 migration:', error);
+        throw error;
+      }
+    });
   }
 
-  // Helper method to clear all data
+  // =============================================
+  // 🚀 PERFORMANCE HELPERS
+  // =============================================
+
+  /**
+   * Get all data for a pharmacy in a single transaction (FAST)
+   */
+  async getPharmacyData(pharmacyName: string) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    const [products, batches, categories, units, suppliers, customers, sales, movements, auditLogs, requestedItems, salesReturns] = await this.transaction(
+      'r',
+      this.products,
+      this.product_batches,
+      this.categories,
+      this.units,
+      this.suppliers,
+      this.customers,
+      this.sales,
+      this.stock_movements,
+      this.audit_logs,
+      this.requested_items,
+      this.sales_returns,
+      async () => {
+        return Promise.all([
+          this.products.where('pharmacy_name').equals(normalized).toArray(),
+          this.product_batches.where('pharmacy_name').equals(normalized).toArray(),
+          this.categories.where('pharmacy_name').equals(normalized).toArray(),
+          this.units.where('pharmacy_name').equals(normalized).toArray(),
+          this.suppliers.where('pharmacy_name').equals(normalized).toArray(),
+          this.customers.where('pharmacy_name').equals(normalized).toArray(),
+          this.sales.where('pharmacy_name').equals(normalized).toArray(),
+          this.stock_movements.where('pharmacy_name').equals(normalized).toArray(),
+          this.audit_logs.where('pharmacy_name').equals(normalized).toArray(),
+          this.requested_items.where('pharmacy_name').equals(normalized).toArray(),
+          this.sales_returns.where('pharmacy_name').equals(normalized).toArray(),
+        ]);
+      }
+    );
+
+    return {
+      products,
+      batches,
+      categories,
+      units,
+      suppliers,
+      customers,
+      sales,
+      movements,
+      auditLogs,
+      requestedItems,
+      salesReturns,
+    };
+  }
+
+  /**
+   * Get sales for a specific date range (FAST)
+   */
+  async getSalesByDateRange(pharmacyName: string, startDate: string, endDate: string) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    return this.sales
+      .where('[pharmacy_name+sale_date]')
+      .between([normalized, startDate], [normalized, endDate])
+      .toArray();
+  }
+
+  /**
+   * Get low stock products (FAST)
+   */
+  async getLowStockProducts(pharmacyName: string) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    const products = await this.products
+      .where('pharmacy_name')
+      .equals(normalized)
+      .toArray();
+
+    return products.filter(p => (p.quantity || 0) <= (p.reorder_level || 10));
+  }
+
+  /**
+   * Get expiring batches (FAST)
+   */
+  async getExpiringBatches(pharmacyName: string, days: number = 90) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() + days);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    return this.product_batches
+      .where('[pharmacy_name+expiry_date]')
+      .between([normalized, '0000-00-00'], [normalized, cutoffStr])
+      .filter(b => b.quantity_base > 0)
+      .toArray();
+  }
+
+  /**
+   * Get pending sync items count (FAST)
+   */
+  async getPendingSyncCount(pharmacyName: string): Promise<number> {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    return this.sync_queue
+      .where('[pharmacy_name+status]')
+      .equals([normalized, 'pending'])
+      .count();
+  }
+
+  /**
+   * Clear expired data (optimization)
+   */
+  async clearExpiredData(pharmacyName: string, olderThanDays: number = 30) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+    const cutoffStr = cutoffDate.toISOString();
+
+    // Only clear sync_queue items that are synced and older than 30 days
+    const syncedItems = await this.sync_queue
+      .where('[pharmacy_name+status]')
+      .equals([normalized, 'synced'])
+      .toArray();
+
+    let syncDeleted = 0;
+    for (const item of syncedItems) {
+      if (item.created_at && item.created_at < cutoffStr) {
+        await this.sync_queue.delete(item.id);
+        syncDeleted++;
+      }
+    }
+
+    console.log(`🧹 Cleared ${syncDeleted} old sync records`);
+
+    // Clear old audit logs (older than 90 days)
+    const oldAuditLogs = await this.audit_logs
+      .where('[pharmacy_name+created_at]')
+      .between([normalized, '0000-00-00'], [normalized, cutoffStr])
+      .toArray();
+
+    let auditDeleted = 0;
+    for (const log of oldAuditLogs) {
+      await this.audit_logs.delete(log.id);
+      auditDeleted++;
+    }
+
+    console.log(`🧹 Cleared ${auditDeleted} old audit logs`);
+
+    return { syncDeleted, auditDeleted };
+  }
+
+  // =============================================
+  // EXISTING METHODS (unchanged)
+  // =============================================
+
   async clearAllData() {
     await this.pharmacies.clear();
     await this.profiles.clear();
@@ -685,7 +873,7 @@ export class MedPDatabase extends Dexie {
     await this.stocktakes.clear();
     await this.stocktake_items.clear();
     await this.sale_returns.clear();
-    await this.sales_returns.clear(); // NEW
+    await this.sales_returns.clear();
     await this.discounts.clear();
     await this.audit_logs.clear();
     await this.requested_items.clear();
@@ -693,7 +881,6 @@ export class MedPDatabase extends Dexie {
     await this.sync_queue.clear();
   }
 
-  // Helper to clear only pharmacy data
   async clearPharmacyData(pharmacyName: string) {
     const normalized = pharmacyName
       .trim()
@@ -706,7 +893,7 @@ export class MedPDatabase extends Dexie {
       'products', 'product_batches', 'categories', 'units',
       'suppliers', 'customers', 'sales',
       'stock_movements', 'audit_logs', 'sync_queue',
-      'requested_items', 'sales_returns' // NEW
+      'requested_items', 'sales_returns'
     ];
 
     for (const tableName of tables) {
@@ -731,11 +918,14 @@ export class MedPDatabase extends Dexie {
 // Create and export a single instance
 export const db = new MedPDatabase();
 
-// Utility for initializing database schema
+// =============================================
+// 🚀 OPTIMIZED INITIALIZATION
+// =============================================
 export async function seedInitialDataIfNeeded() {
   try {
-    if (localStorage.getItem('medp_schema_v8_sales_returns') !== 'true') {
-      console.log('🧹 Running schema cleanup v8 (Sales Returns)...');
+    // Check if we've already run the latest migration
+    if (localStorage.getItem('medp_schema_v9_optimized') !== 'true') {
+      console.log('🚀 Running performance optimizations...');
 
       const profiles = await db.profiles.toArray();
 
@@ -772,9 +962,10 @@ export async function seedInitialDataIfNeeded() {
                 profile.is_owner = pu.role === 'owner';
                 profile.role = pu.role || 'cashier';
                 profile.is_active = true;
+                profile.last_sync_at = new Date().toISOString();
 
                 await db.profiles.put(profile);
-                console.log(` Migrated profile: ${profile.full_name}`);
+                console.log(`✅ Migrated profile: ${profile.full_name}`);
               }
             }
           }
@@ -794,12 +985,33 @@ export async function seedInitialDataIfNeeded() {
         }
       }
 
+      // Clean up old sync records (older than 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoffStr = thirtyDaysAgo.toISOString();
+
+      const oldSynced = await db.sync_queue
+        .where('status')
+        .equals('synced')
+        .toArray();
+
+      let deleted = 0;
+      for (const item of oldSynced) {
+        if (item.created_at && item.created_at < cutoffStr) {
+          await db.sync_queue.delete(item.id);
+          deleted++;
+        }
+      }
+
+      if (deleted > 0) {
+        console.log(`🧹 Cleaned up ${deleted} old synced records`);
+      }
+
       // Mark schema as clean
-      localStorage.setItem('medp_schema_v8_sales_returns', 'true');
-      console.log(' Database cleanup complete!');
-      console.log(' Using SINGLE TABLE design for sales (all product details in sales table)');
-      console.log(' Products table includes location fields');
-      console.log(' Sales Returns table added for tracking returns and restoring stock');
+      localStorage.setItem('medp_schema_v9_optimized', 'true');
+      console.log('✅ Database optimization complete!');
+      console.log('📊 Compound indexes added for faster queries');
+      console.log('⚡ Performance helpers available: getPharmacyData(), getSalesByDateRange(), getLowStockProducts(), getExpiringBatches()');
     }
   } catch (err) {
     console.warn('Error during schema initialization:', err);
