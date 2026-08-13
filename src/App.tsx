@@ -58,6 +58,9 @@ export default function App() {
     isAuthenticated,
     toastMessage,
     toastType,
+    toastPosition,
+    hasNewData,
+    newDataCount,
     isBarcodeScannerOpen,
     scannedBarcode,
     receiptSale,
@@ -117,6 +120,14 @@ export default function App() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       );
+    }
+  };
+
+  // Handle refresh when toast is clicked
+  const handleToastClick = () => {
+    if (toastType === 'info' && hasNewData) {
+      triggerSyncQueue();
+      clearToast();
     }
   };
 
@@ -295,9 +306,9 @@ export default function App() {
         </main>
       </div>
 
-    // App.tsx - Update the Toast section (around line 200-220)
-
-      {/* TOAST NOTIFICATION - TOP CENTERED */}
+      {/* =============================================
+          SMART TOAST NOTIFICATION - WhatsApp Style
+          ============================================ */}
       {toastMessage && toastType && (
         <div className="fixed top-4 left-0 right-0 z-[100] pointer-events-none px-4 flex justify-center">
           <div
@@ -312,20 +323,37 @@ export default function App() {
               animate-slide-down
               backdrop-blur-sm
               bg-opacity-95
+              transition-all duration-200
               ${toastType === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : ''}
               ${toastType === 'error' ? 'bg-red-500 text-white border-red-400' : ''}
-              ${toastType === 'info' ? 'bg-blue-500 text-white border-blue-400' : ''}
+              ${toastType === 'info' && hasNewData ? 'bg-blue-500 text-white border-blue-400 cursor-pointer hover:scale-[1.02] active:scale-95' : ''}
+              ${toastType === 'info' && !hasNewData ? 'bg-blue-500 text-white border-blue-400' : ''}
             `}
             role="alert"
+            onClick={handleToastClick}
           >
             <div className="flex-shrink-0">
-              {getToastIcon(toastType)}
+              {toastType === 'info' && hasNewData ? (
+                <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ) : (
+                getToastIcon(toastType)
+              )}
             </div>
             <p className="text-sm font-medium flex-1 text-center">
               {toastMessage}
+              {toastType === 'info' && hasNewData && (
+                <span className="block text-[10px] opacity-80 mt-0.5 font-normal">
+                  Tap to refresh now
+                </span>
+              )}
             </p>
             <button
-              onClick={clearToast}
+              onClick={(e) => {
+                e.stopPropagation();
+                clearToast();
+              }}
               className="flex-shrink-0 p-1 hover:bg-white/20 rounded-full transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
