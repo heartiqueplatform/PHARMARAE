@@ -3,12 +3,12 @@ import React from 'react';
 import {
   Home, ShoppingBag, Package, BarChart3, MoreHorizontal,
   Sun, Moon, ShieldCheck, Info, Shield, FileCheck,
-  TrendingUp, // NEW - for Requests tab
-  Undo2 // NEW - for Returns tab
+  TrendingUp,
+  Undo2
 } from 'lucide-react';
 import { Pharmacy, Profile } from '../types';
 
-export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns'; // ADD 'requests' and 'returns'
+export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns';
 
 interface NavigationProps {
   activeTab: NavTab;
@@ -31,24 +31,28 @@ export const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const isDark = theme === 'dark';
 
-  const tabs = [
-    { id: 'home' as NavTab, label: 'Dashboard', icon: Home },
-    { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
-    { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
+  // Primary tabs - shown in bottom nav (max 5 for mobile)
+  const primaryTabs = [
+    { id: 'home' as NavTab, label: 'Home', icon: Home },
+    { id: 'sell' as NavTab, label: 'POS', icon: ShoppingBag, isPrimary: true, badge: cartCount },
+    { id: 'stock' as NavTab, label: 'Stock', icon: Package },
     { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp },
-    { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 }, // NEW - Add this
-    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
-    { id: 'more' as NavTab, label: 'Settings & Hub', icon: MoreHorizontal },
+    { id: 'more' as NavTab, label: 'More', icon: MoreHorizontal },
   ];
 
-  // Legal tabs - these will be shown in a separate section
+  // Secondary tabs - shown only in "More" menu or sidebar
+  const secondaryTabs = [
+    { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
+    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
+  ];
+
+  // Legal tabs
   const legalTabs = [
     { id: 'about' as NavTab, label: 'About', icon: Info },
-    { id: 'privacy' as NavTab, label: 'Privacy Policy', icon: Shield },
-    { id: 'terms' as NavTab, label: 'Terms & Conditions', icon: FileCheck },
+    { id: 'privacy' as NavTab, label: 'Privacy', icon: Shield },
+    { id: 'terms' as NavTab, label: 'Terms', icon: FileCheck },
   ];
 
-  // Get user avatar or initials
   const getUserAvatar = () => {
     if (currentProfile?.avatar_url) {
       return currentProfile.avatar_url;
@@ -65,15 +69,20 @@ export const Navigation: React.FC<NavigationProps> = ({
     return currentProfile.full_name.charAt(0).toUpperCase();
   };
 
+  // Check if a tab is in secondary tabs
+  const isSecondaryTab = (tabId: NavTab) => {
+    return secondaryTabs.some(t => t.id === tabId);
+  };
+
   return (
     <>
-      {/* MOBILE EDGE-TO-EDGE BOTTOM NAVIGATION */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 px-1 py-1 border-t backdrop-blur-md shadow-2xl transition-colors ${isDark
+      {/* MOBILE BOTTOM NAVIGATION - Responsive with fewer items */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 px-1 py-0.5 border-t backdrop-blur-md shadow-2xl transition-colors ${isDark
         ? 'bg-[#161b22]/95 border-[#30363d] text-[#c9d1d9]'
         : 'bg-white/95 border-[#d0d7de] text-[#1f2328]'
         }`}>
-        <div className="flex items-center justify-around max-w-md mx-auto">
-          {tabs.map(tab => {
+        <div className="flex items-center justify-around max-w-md mx-auto h-14">
+          {primaryTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 
@@ -82,17 +91,17 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
-                  className={`relative flex flex-col items-center justify-center -mt-5 px-4 py-2 rounded-2xl transition-all active:scale-95 shadow-xl ${isActive
-                    ? 'bg-[#2ea043] text-white ring-4 ring-[#2ea043]/30 scale-105'
+                  className={`relative flex flex-col items-center justify-center -mt-4 px-2 py-1.5 rounded-xl transition-all active:scale-95 shadow-lg min-w-[48px] ${isActive
+                    ? 'bg-[#2ea043] text-white ring-2 ring-[#2ea043]/30 scale-105'
                     : 'bg-[#238636] text-white'
                     }`}
                 >
                   <Icon className="w-5 h-5 stroke-[2.5]" />
-                  <span className="text-[10px] font-extrabold tracking-wide mt-0.5 uppercase">
+                  <span className="text-[9px] font-extrabold tracking-wide mt-0.5 uppercase leading-none">
                     {tab.label}
                   </span>
                   {tab.badge && tab.badge > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow">
+                    <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">
                       {tab.badge}
                     </span>
                   ) : null}
@@ -104,26 +113,26 @@ export const Navigation: React.FC<NavigationProps> = ({
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition-all ${isActive
+                className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-all min-w-[44px] h-12 ${isActive
                   ? isDark ? 'text-[#58a6ff] font-bold' : 'text-[#0969da] font-bold'
                   : isDark ? 'text-[#8b949e] hover:text-[#f0f6fc]' : 'text-[#656d76] hover:text-[#1f2328]'
                   }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
-                <span className="text-[10px] font-medium mt-0.5">{tab.label}</span>
+                <Icon className={`w-4 h-4 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                <span className="text-[8px] font-medium mt-0.5 leading-none">{tab.label}</span>
               </button>
             );
           })}
         </div>
       </nav>
 
-      {/* DESKTOP HOVER-EXPANDING SIDEBAR */}
+      {/* DESKTOP SIDEBAR - Unchanged */}
       <aside className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-300 ease-in-out border-r w-16 hover:w-60 group shadow-2xl overflow-hidden select-none ${isDark
         ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]'
         : 'bg-white border-[#d0d7de] text-[#1f2328]'
         }`}>
 
-        {/* Sidebar Header / Brand */}
+        {/* Sidebar Header */}
         <div className={`p-3.5 border-b flex items-center gap-3 min-w-[240px] ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'
           }`}>
           <img
@@ -147,9 +156,9 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
         </div>
 
-        {/* Nav Items List */}
+        {/* Nav Items - All tabs shown here */}
         <div className="flex-1 py-4 px-2 space-y-1.5 overflow-y-auto min-w-[240px]">
-          {tabs.map(tab => {
+          {[...primaryTabs, ...secondaryTabs].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 
@@ -172,7 +181,6 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap font-medium text-xs">
                   {tab.label}
                 </span>
-
                 {tab.badge && tab.badge > 0 ? (
                   <span className="ml-auto bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0">
                     {tab.badge}
@@ -182,7 +190,6 @@ export const Navigation: React.FC<NavigationProps> = ({
             );
           })}
 
-          {/* Divider */}
           <div className={`my-3 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'}`} />
 
           {/* Legal Tabs */}
@@ -214,11 +221,9 @@ export const Navigation: React.FC<NavigationProps> = ({
           })}
         </div>
 
-        {/* Sidebar Footer Controls */}
+        {/* Sidebar Footer */}
         <div className={`p-2.5 border-t min-w-[240px] space-y-2 ${isDark ? 'border-[#30363d] bg-[#0d1117]/60' : 'border-[#d0d7de] bg-[#f6f8fa]/80'
           }`}>
-
-          {/* Theme Toggle */}
           {onToggleTheme && (
             <button
               onClick={onToggleTheme}
@@ -241,7 +246,6 @@ export const Navigation: React.FC<NavigationProps> = ({
             </button>
           )}
 
-          {/* Active User Badge */}
           {currentProfile && (
             <div className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs ${isDark ? 'bg-[#161b22]' : 'bg-white'
               }`}>
