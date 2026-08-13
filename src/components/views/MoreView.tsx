@@ -362,83 +362,167 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setIsSavingSupplier(false);
     }
   };
+  // MoreView.tsx - REPLACE the entire handleTriggerSyncQueue function
 
-  //  UPDATED: Full sync with push and pull
   const handleTriggerSyncQueue = async () => {
     if (isTriggeringSync) return;
     setIsTriggeringSync(true);
     setSyncStatus('🔄 Processing offline queue...');
 
     try {
-      // Step 1: Process pending mutations (push to Supabase)
-      setSyncStatus('📤 Pushing pending items to Supabase...');
-      const { synced, failed } = await processOfflineSyncQueue();
+      // Step 1: Check what's in the queue FIRST
+      const allPending = await db.sync_queue.where('status').equals('pending').toArray();
+      console.log(`📊 Found ${allPending.length} pending items in queue:`, allPending);
 
-      if (synced > 0) {
-        setSyncStatus(` Pushed ${synced} items to Supabase`);
-      }
-      if (failed > 0) {
-        setSyncStatus(`⚠️ ${failed} items failed to sync`);
+      if (allPending.length === 0) {
+        setSyncStatus(' No pending items to sync');
+        triggerToast(' No items to sync');
+        setIsTriggeringSync(false);
+        setSyncStatus('');
+        return;
       }
 
-      // Step 2: Pull fresh data from Supabase
-      if (profile) {
-        setSyncStatus('📥 Pulling fresh data from Supabase...');
-        const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
-        if (pulled) {
-          setSyncStatus(' Fresh data pulled from Supabase');
-        } else {
-          setSyncStatus('⚠️ Failed to pull fresh data');
+      // Step 2: Process pending mutations (push to Supabase)
+      setSyncStatus(`📤 Pushing ${allPending.length} items to Supabase...`);
+
+      let syncedCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      // Process each item individually with better error handling
+      for (const item of allPending) {
+        try {
+          console.log(`🔄 Processing ${item.entity_type} ${item.operation} for item ${item.id}`);
+
+          // Get the Supabase client
+          const client = getSupabaseClient();
+          if (!client) {
+            throw new Error('No Supabase client available');
+          }
+
+          const tableName = mapEntityTypeToTable(item.entity_type);
+          let error: any = null;
+
+          if (item.operation === 'INSERT') {
+            const { error: insertErr } = await client
+              .from(tableName)
+              .upsert(item.payload, { onConflict: 'id' });
+            error = insertErr;
+          } else if (item.operation === 'UPDATE') {
+            const { error: updateErr } = await client
+              .from(tableName)
+              .update(item.payload)
+              .eq('id', item.payload.id);
+            error = updateErr;
+          } else if (item.operation === 'DELETE') {
+            const { error: delErr } = await client
+              .from(tableName)
+              .delete()
+              .eq('id', item.payload.id);
+            error = delErr;
+          }
+
+          if (error) {
+            console.error(`❌ Error syncing ${item.entity_type}:`, error);
+            throw error;
+          }
+
+          // If successful, delete from queue
+          await db.sync_queue.delete(item.id);
+          syncedCount++;
+          console.log(`✅ Synced ${item.entity_type} ${item.operation}`);
+
+        } catch (err: any) {
+          failedCount++;
+          errors.push(`${item.entity_type}: ${err.message}`);
+          console.error(`❌ Failed to sync ${item.entity_type}:`, err);
+
+          // Update retry count
+          if (item.id) {
+            await db.sync_queue.update(item.id, {
+              status: 'failed',
+              retry_count: (item.retry_count || 0) + 1,
+              error: err.message || 'Sync error'
+            });
+          }
         }
       }
 
-      // Step 3: Update pending count and refresh
-      const count = await db.sync_queue.where('status').equals('pending').count();
+      // Step 3: Show results
+      if (syncedCount > 0) {
+        setSyncStatus(`✅ Pushed ${syncedCount} items to Supabase`);
+        triggerToast(`✅ ${syncedCount} items synced successfully!`);
+      }
+      if (failedCount > 0) {
+        setSyncStatus(`⚠️ ${failedCount} items failed to sync: ${errors.join(', ')}`);
+        triggerToast(`⚠️ ${failedCount} items failed to sync`);
+      }
 
-      // Call the parent trigger to refresh the UI
+      // Step 4: Pull fresh data from Supabase (if we synced anything)
+      if (syncedCount > 0 && profile) {
+        setSyncStatus('📥 Pulling fresh data from Supabase...');
+        try {
+          const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
+          if (pulled) {
+            setSyncStatus('✅ Fresh data pulled from Supabase');
+            triggerToast('✅ Data refreshed from cloud!');
+          } else {
+            setSyncStatus('⚠️ Failed to pull fresh data');
+          }
+        } catch (pullErr: any) {
+          console.error('Pull error:', pullErr);
+          setSyncStatus('⚠️ Pull failed: ' + pullErr.message);
+        }
+      }
+
+      // Step 5: Update pending count and refresh UI
+      const remainingCount = await db.sync_queue.where('status').equals('pending').count();
       await onTriggerSync();
 
-      triggerToast(` Sync complete! ${synced} items synced, ${count} pending`);
-      setSyncStatus('');
+      setSyncStatus(`✅ Done. ${remainingCount} items still pending`);
+
     } catch (err: any) {
-      console.error('Sync error:', err);
+      console.error('❌ Sync error:', err);
       setSyncStatus(`❌ Sync failed: ${err.message}`);
       triggerToast('❌ Sync failed: ' + err.message);
     } finally {
       setTimeout(() => {
         setIsTriggeringSync(false);
         setSyncStatus('');
-      }, 2000);
+      }, 3000);
     }
   };
 
-  //  NEW: Force pull data from Supabase
+  // MoreView.tsx - REPLACE the entire handlePullData function
+
   const handlePullData = async () => {
     if (!profile || isPullingData) return;
     setIsPullingData(true);
-    setSyncStatus(' Pulling data from Supabase...');
+    setSyncStatus('📥 Pulling data from Supabase...');
 
     try {
+      console.log(`🔄 Pulling data for pharmacy: ${profile.pharmacy_name}`);
+
       const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
+
       if (pulled) {
-        triggerToast(' Data pulled from Supabase successfully!');
-        setSyncStatus(' Data pulled successfully');
+        triggerToast('✅ Data pulled from Supabase successfully!');
+        setSyncStatus('✅ Data pulled successfully');
         // Refresh the UI
         await onTriggerSync();
       } else {
-        triggerToast(' Failed to pull data from Supabase');
-        setSyncStatus(' Pull failed');
+        triggerToast('⚠️ Failed to pull data from Supabase');
+        setSyncStatus('⚠️ Pull failed - check console for errors');
       }
     } catch (err: any) {
-      console.error('Pull error:', err);
-      triggerToast(' Pull failed: ' + err.message);
-      setSyncStatus(' Pull failed');
+      console.error('❌ Pull error:', err);
+      triggerToast('❌ Pull failed: ' + err.message);
+      setSyncStatus('❌ Pull failed');
     } finally {
       setIsPullingData(false);
       setTimeout(() => setSyncStatus(''), 3000);
     }
   };
-
   const handleResetCache = async () => {
     if (!onResetLocalCache || isResettingCache) return;
     if (confirm('Are you sure you want to clear local offline cache and re-sync fresh from Supabase cloud?')) {

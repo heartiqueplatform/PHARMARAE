@@ -1,7 +1,7 @@
 // hooks/useApp.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, seedInitialDataIfNeeded } from '../lib/db';
-import { processOfflineSyncQueue, pullFromSupabaseToLocal, isSupabaseConfigured } from '../lib/supabase';
+import { processOfflineSyncQueue, pullFromSupabaseToLocal, isSupabaseConfigured, getSupabaseClient, mapEntityTypeToTable } from '../lib/supabase';
 import { normalizePharmacyName } from '../utils/helpers';
 import {
     Profile,
@@ -45,7 +45,7 @@ export interface AppState {
     isAuthenticated: boolean;
     toastMessage: string | null;
     toastType: 'success' | 'error' | 'info' | null;
-    toastPosition: 'top' | 'center' | 'bottom'; // NEW - Added position control
+    toastPosition: 'top' | 'center' | 'bottom';
 
     // Modals
     isBarcodeScannerOpen: boolean;
@@ -68,7 +68,7 @@ export interface AppState {
     setActiveTab: (tab: any) => void;
     setToastMessage: (message: string | null) => void;
     setToastType: (type: 'success' | 'error' | 'info' | null) => void;
-    setToastPosition: (position: 'top' | 'center' | 'bottom') => void; // NEW
+    setToastPosition: (position: 'top' | 'center' | 'bottom') => void;
     clearToast: () => void;
 
     // Actions
@@ -106,7 +106,7 @@ export const useApp = (): AppState => {
     });
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [toastType, setToastType] = useState<'success' | 'error' | 'info' | null>(null);
-    const [toastPosition, setToastPosition] = useState<'top' | 'center' | 'bottom'>('center'); // NEW
+    const [toastPosition, setToastPosition] = useState<'top' | 'center' | 'bottom'>('center');
 
     // Modals
     const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
@@ -180,7 +180,6 @@ export const useApp = (): AppState => {
 
     // Load data - with option to show/hide loader
     const loadDatabaseData = useCallback(async (showLoader: boolean = true) => {
-        // Only show loader if this is initial load or explicitly requested
         const shouldShowLoader = showLoader && isInitialLoad.current;
 
         if (shouldShowLoader) {
@@ -217,7 +216,6 @@ export const useApp = (): AppState => {
                                 console.log('✅ Supabase data pulled successfully!');
                                 setLastSyncTime(new Date());
 
-                                // Show toast for background updates (not initial load)
                                 if (!isInitialLoad.current) {
                                     const now = new Date();
                                     const timeStr = now.toLocaleTimeString('en-US', {
@@ -269,12 +267,10 @@ export const useApp = (): AppState => {
                     const allAuditLogs = await db.audit_logs.toArray();
                     setAuditLogs(allAuditLogs.filter(a => normalizePharmacyName(a.pharmacy_name) === pharmacyName));
 
-                    // Load requested items
                     const allRequestedItems = await db.requested_items.toArray();
                     setRequestedItems(allRequestedItems.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName));
                     console.log(`📦 Requested items in Dexie: ${allRequestedItems.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName).length}`);
 
-                    // Load sales returns
                     const allSalesReturns = await db.sales_returns.toArray();
                     setSalesReturns(allSalesReturns.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName));
                     console.log(`📦 Sales returns in Dexie: ${allSalesReturns.filter(r => normalizePharmacyName(r.pharmacy_name) === pharmacyName).length}`);
@@ -303,29 +299,148 @@ export const useApp = (): AppState => {
         }
     }, [isOnline]);
 
-    // Store startTime for the loader
     let startTime = Date.now();
 
-    // Trigger sync
+    // =============================================
+    // 🔧 FIXED: TRIGGER SYNC QUEUE - WITH DEBUG
+    // =============================================
     const triggerSyncQueue = useCallback(async () => {
-        if (isSyncing) return;
+        if (isSyncing) {
+            console.log('⏳ Sync already in progress, skipping...');
+            return;
+        }
+
         setIsSyncing(true);
+        console.log('🔄 Starting background sync...');
+
         try {
-            console.log('🔄 Starting background sync...');
+            // STEP 1: Check what's in the queue first
+            const pendingItems = await db.sync_queue.where('status').equals('pending').toArray();
+            console.log(`📊 Found ${pendingItems.length} pending items in queue:`, pendingItems.map(i => ({
+                id: i.id,
+                entity_type: i.entity_type,
+                operation: i.operation,
+                status: i.status
+            })));
 
-            const { synced, failed } = await processOfflineSyncQueue();
-            if (synced > 0) console.log(`✅ Pushed ${synced} items to Supabase`);
-            if (failed > 0) console.warn(`⚠️ ${failed} items failed to sync`);
+            if (pendingItems.length === 0) {
+                console.log('✅ No pending items to sync');
+                // Still try to pull fresh data
+                if (currentProfile && isSupabaseConfigured() && isOnline) {
+                    console.log('🔄 Pulling fresh data from Supabase...');
+                    const success = await pullFromSupabaseToLocal(normalizePharmacyName(currentProfile.pharmacy_name));
+                    if (success) {
+                        console.log('✅ Fresh data pulled from Supabase');
+                        setLastSyncTime(new Date());
+                        if (!isInitialLoad.current) {
+                            const now = new Date();
+                            const timeStr = now.toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                            });
+                            setToastMessage(`Data up to date as of ${timeStr}`);
+                            setToastType('success');
+                        }
+                    }
+                }
+                const count = await db.sync_queue.where('status').equals('pending').count();
+                setSyncPendingCount(count);
+                await loadDatabaseData(false);
+                console.log('✅ Background sync complete! (no pending items)');
+                return;
+            }
 
+            // STEP 2: Process each pending item individually
+            let syncedCount = 0;
+            let failedCount = 0;
+            const errors: string[] = [];
+
+            for (const item of pendingItems) {
+                try {
+                    console.log(`🔄 Processing ${item.entity_type} ${item.operation} (ID: ${item.id})`);
+
+                    // Get Supabase client
+                    const client = getSupabaseClient();
+                    if (!client) {
+                        throw new Error('No Supabase client available');
+                    }
+
+                    const tableName = mapEntityTypeToTable(item.entity_type);
+                    let error: any = null;
+
+                    // Perform the operation
+                    if (item.operation === 'INSERT') {
+                        const { error: insertErr } = await client
+                            .from(tableName)
+                            .upsert(item.payload, { onConflict: 'id' });
+                        error = insertErr;
+                    } else if (item.operation === 'UPDATE') {
+                        const { error: updateErr } = await client
+                            .from(tableName)
+                            .update(item.payload)
+                            .eq('id', item.payload.id);
+                        error = updateErr;
+                    } else if (item.operation === 'DELETE') {
+                        const { error: delErr } = await client
+                            .from(tableName)
+                            .delete()
+                            .eq('id', item.payload.id);
+                        error = delErr;
+                    }
+
+                    if (error) {
+                        console.error(`❌ Error syncing ${item.entity_type}:`, error);
+                        throw new Error(error.message || 'Sync error');
+                    }
+
+                    // If successful, delete from queue
+                    await db.sync_queue.delete(item.id);
+                    syncedCount++;
+                    console.log(`✅ Synced ${item.entity_type} ${item.operation}`);
+
+                } catch (err: any) {
+                    failedCount++;
+                    errors.push(`${item.entity_type}: ${err.message}`);
+                    console.error(`❌ Failed to sync ${item.entity_type}:`, err);
+
+                    // Update retry count
+                    if (item.id) {
+                        const retryCount = (item.retry_count || 0) + 1;
+                        await db.sync_queue.update(item.id, {
+                            status: 'failed',
+                            retry_count: retryCount,
+                            error: err.message || 'Sync error'
+                        });
+
+                        // If retry count > 5, keep it but don't retry indefinitely
+                        if (retryCount > 5) {
+                            console.warn(`⚠️ ${item.entity_type} failed ${retryCount} times, marking as permanent failure`);
+                            await db.sync_queue.update(item.id, {
+                                status: 'permanent_failure',
+                                error: `Failed ${retryCount} times: ${err.message}`
+                            });
+                        }
+                    }
+                }
+            }
+
+            // STEP 3: Show results
+            if (syncedCount > 0) {
+                console.log(`✅ Pushed ${syncedCount} items to Supabase`);
+            }
+            if (failedCount > 0) {
+                console.warn(`⚠️ ${failedCount} items failed to sync:`, errors);
+            }
+
+            // STEP 4: Pull fresh data from Supabase
             if (currentProfile && isSupabaseConfigured() && isOnline) {
-                const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
-                console.log(`🔄 Pulling fresh data from Supabase for: ${pharmacyName}`);
-                const success = await pullFromSupabaseToLocal(pharmacyName);
+                console.log(`🔄 Pulling fresh data from Supabase for: ${normalizePharmacyName(currentProfile.pharmacy_name)}`);
+                const success = await pullFromSupabaseToLocal(normalizePharmacyName(currentProfile.pharmacy_name));
                 if (success) {
                     console.log('✅ Fresh data pulled from Supabase');
                     setLastSyncTime(new Date());
 
-                    // Show toast for successful sync - with time
                     if (!isInitialLoad.current) {
                         const now = new Date();
                         const timeStr = now.toLocaleTimeString('en-US', {
@@ -333,26 +448,30 @@ export const useApp = (): AppState => {
                             minute: '2-digit',
                             hour12: true
                         });
-                        const pendingCount = await db.sync_queue.where('status').equals('pending').count();
-                        if (pendingCount > 0) {
-                            setToastMessage(`${pendingCount} items pending sync. Will retry automatically.`);
+                        if (syncedCount > 0 && failedCount === 0) {
+                            setToastMessage(`✅ ${syncedCount} items synced. Data up to date as of ${timeStr}`);
+                            setToastType('success');
+                        } else if (syncedCount > 0 && failedCount > 0) {
+                            setToastMessage(`⚠️ ${syncedCount} synced, ${failedCount} failed. Check console for details.`);
                             setToastType('info');
                         } else {
-                            setToastMessage(`All data up to date as of ${timeStr}`);
+                            setToastMessage(`Data refreshed at ${timeStr}`);
                             setToastType('success');
                         }
                     }
                 }
             }
 
-            const count = await db.sync_queue.where('status').equals('pending').count();
-            setSyncPendingCount(count);
+            // STEP 5: Update pending count
+            const remainingCount = await db.sync_queue.where('status').equals('pending').count();
+            setSyncPendingCount(remainingCount);
 
-            // Load data silently (no loader)
+            // STEP 6: Load data silently (no loader)
             await loadDatabaseData(false);
 
-            console.log('✅ Background sync complete!');
-        } catch (err) {
+            console.log(`✅ Background sync complete! ${syncedCount} synced, ${failedCount} failed, ${remainingCount} pending`);
+
+        } catch (err: any) {
             console.error('❌ Sync queue error:', err);
             if (!isInitialLoad.current) {
                 setToastMessage('Sync in progress. Data will update shortly.');
@@ -394,7 +513,7 @@ export const useApp = (): AppState => {
         isAuthenticated,
         toastMessage,
         toastType,
-        toastPosition, // NEW - Added to return
+        toastPosition,
 
         // Modals
         isBarcodeScannerOpen,
@@ -417,7 +536,7 @@ export const useApp = (): AppState => {
         setActiveTab,
         setToastMessage,
         setToastType,
-        setToastPosition, // NEW - Added to return
+        setToastPosition,
         clearToast,
 
         // Actions

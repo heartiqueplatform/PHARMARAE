@@ -295,14 +295,16 @@ export default function App() {
         </main>
       </div>
 
-      {/* TOAST NOTIFICATION - UPDATED: Centered and visible on all devices */}
+    // App.tsx - Update the Toast section (around line 200-220)
+
+      {/* TOAST NOTIFICATION - TOP CENTERED */}
       {toastMessage && toastType && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none px-4">
+        <div className="fixed top-4 left-0 right-0 z-[100] pointer-events-none px-4 flex justify-center">
           <div
             className={`
               pointer-events-auto
               flex items-center gap-3
-              px-5 py-4
+              px-4 sm:px-5 py-3 sm:py-4
               rounded-2xl
               shadow-2xl
               border

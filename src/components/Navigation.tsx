@@ -33,17 +33,19 @@ export const Navigation: React.FC<NavigationProps> = ({
   const [showMoreOverlay, setShowMoreOverlay] = useState(false);
 
   // Main tabs shown in bottom nav
+  // Main tabs shown in bottom nav
   const mainTabs = [
     { id: 'home' as NavTab, label: 'Dashboard', icon: Home },
     { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
     { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
-    { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp },
+    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 }, // Changed from 'requests' to 'reports'
   ];
 
   // Tabs shown in the More overlay
+  // Tabs shown in the More overlay
   const moreOverlayTabs = [
+    { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp }, // Moved from main to here
     { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
-    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
     { id: 'more' as NavTab, label: 'Settings & Hub', icon: Settings },
   ];
 
