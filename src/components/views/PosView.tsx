@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+// components/views/PosView.tsx
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Pharmacy, Profile, UserRole, Product, ProductBatch, Customer, Sale, SaleItem, PaymentMethod } from '../../types';
-import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
+import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X, Check } from 'lucide-react';
 
 interface CartItem {
   product: Product;
@@ -41,15 +42,13 @@ export const PosView: React.FC<PosViewProps> = ({
   const isDark = theme === 'dark';
 
   // --- START: Sound & Vibration ---
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize audio on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         audioRef.current = new Audio('/pharmienta.mp3');
         audioRef.current.load();
-        // Log success
         console.log('Audio loaded successfully');
       } catch (err) {
         console.warn('Failed to load audio:', err);
@@ -64,35 +63,22 @@ export const PosView: React.FC<PosViewProps> = ({
     };
   }, []);
 
-  // Function to play sound and vibrate
   const playCompletionFeedback = () => {
-    // Play sound
     if (audioRef.current) {
       try {
-        audioRef.current.currentTime = 0; // Reset to start
+        audioRef.current.currentTime = 0;
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log('Audio played successfully');
-            })
-            .catch(err => {
-              console.log('Audio play failed:', err.message);
-            });
+          playPromise.catch(err => console.log('Audio play failed:', err.message));
         }
       } catch (err) {
         console.log('Audio error:', err);
       }
-    } else {
-      console.warn('Audio reference not available');
     }
 
-    // Vibrate if supported (mobile devices)
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       try {
-        // Vibrate pattern: 200ms on, 100ms off, 200ms on (success pattern)
         window.navigator.vibrate([200, 100, 200]);
-        console.log('Vibration triggered');
       } catch (err) {
         console.log('Vibration error:', err);
       }
@@ -119,7 +105,6 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
-  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -130,8 +115,10 @@ export const PosView: React.FC<PosViewProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmOverlay, setShowConfirmOverlay] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<'idle' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
+  const [processingMessage, setProcessingMessage] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (scannedBarcode) {
       setSearchQuery(scannedBarcode);
       const match = products.find(p => p.barcode === scannedBarcode || p.sku === scannedBarcode);
@@ -234,11 +221,10 @@ export const PosView: React.FC<PosViewProps> = ({
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.subtotal, 0), [cart]);
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
-  // Show confirmation overlay instead of directly completing
+  // Show confirmation overlay
   const handleCheckoutClick = () => {
     if (cart.length === 0 || isSubmitting) return;
 
-    // Validate stock first
     for (const item of cart) {
       const availableQty = getAvailableQuantity(item.product);
       if (item.quantity > availableQty) {
@@ -247,23 +233,19 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
 
-    // --- PLAY SOUND ON FIRST BUTTON TAP ---
     playCompletionFeedback();
-    // --- END ---
-
     setShowConfirmOverlay(true);
   };
 
-  // Actual sale completion
+  // Actual sale completion with persistent loading
   const handleConfirmSale = async () => {
     if (cart.length === 0) return;
 
-    // --- PLAY SOUND ON SECOND BUTTON TAP ---
     playCompletionFeedback();
-    // --- END ---
-
     setIsSubmitting(true);
     setShowConfirmOverlay(false);
+    setProcessingStatus('saving');
+    setProcessingMessage('Saving sale locally...');
 
     try {
       const item = cart[0];
@@ -309,10 +291,16 @@ export const PosView: React.FC<PosViewProps> = ({
         pharmacy_name: pharmacyName || 'Unknown Pharmacy'
       };
 
+      setProcessingStatus('syncing');
+      setProcessingMessage('Syncing to cloud...');
+
       await onCompleteSale(saleData, cart);
 
-      // Optionally play again on success (uncomment if you want double feedback)
-      // playCompletionFeedback();
+      setProcessingStatus('complete');
+      setProcessingMessage('Sale completed successfully!');
+
+      // Play success sound
+      playCompletionFeedback();
 
       // Clear cart after successful sale
       setCart([]);
@@ -320,8 +308,23 @@ export const PosView: React.FC<PosViewProps> = ({
       setDiscountReason('');
       setSelectedCustomer(null);
       setPaymentMethod('cash');
+
+      // Close processing overlay after delay
+      setTimeout(() => {
+        setProcessingStatus('idle');
+        setProcessingMessage('');
+      }, 1500);
+
     } catch (err: any) {
-      alert('Error completing sale: ' + (err.message || err));
+      console.error('Sale error:', err);
+      setProcessingStatus('error');
+      setProcessingMessage(`Error: ${err.message || 'Failed to complete sale'}`);
+
+      // Allow user to dismiss error after 3 seconds
+      setTimeout(() => {
+        setProcessingStatus('idle');
+        setProcessingMessage('');
+      }, 3000);
     } finally {
       setIsSubmitting(false);
     }
@@ -725,9 +728,11 @@ export const PosView: React.FC<PosViewProps> = ({
 
       </div>
 
-      {/* CONFIRMATION OVERLAY */}
+      {/* =============================================
+          CONFIRMATION OVERLAY (Persistent)
+          ============================================ */}
       {showConfirmOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div className={`max-w-md w-full rounded-2xl shadow-2xl p-6 ${cardBg} border ${borderLine} max-h-[90vh] overflow-y-auto`}>
 
             {/* Header */}
@@ -840,6 +845,85 @@ export const PosView: React.FC<PosViewProps> = ({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* =============================================
+          PROCESSING OVERLAY - Shows progress during sale
+          ============================================ */}
+      {processingStatus !== 'idle' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`max-w-sm w-full rounded-2xl shadow-2xl p-8 ${cardBg} border ${borderLine} text-center`}>
+
+            {/* Status Icon */}
+            <div className="flex justify-center mb-4">
+              {processingStatus === 'saving' && (
+                <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center animate-pulse">
+                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                </div>
+              )}
+              {processingStatus === 'syncing' && (
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center animate-pulse">
+                  <div className="relative">
+                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-3 h-3 bg-amber-500 rounded-full animate-ping" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {processingStatus === 'complete' && (
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center animate-bounce">
+                  <Check className="w-10 h-10 text-emerald-500" />
+                </div>
+              )}
+              {processingStatus === 'error' && (
+                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertCircle className="w-10 h-10 text-red-500" />
+                </div>
+              )}
+            </div>
+
+            {/* Status Message */}
+            <h3 className={`text-lg font-bold ${textTitle} mb-2`}>
+              {processingStatus === 'saving' && 'Saving Sale...'}
+              {processingStatus === 'syncing' && 'Syncing to Cloud...'}
+              {processingStatus === 'complete' && 'Sale Complete!'}
+              {processingStatus === 'error' && 'Sale Failed'}
+            </h3>
+
+            <p className={`text-sm ${textMuted}`}>
+              {processingMessage}
+            </p>
+
+            {/* Progress Bar */}
+            {processingStatus !== 'complete' && processingStatus !== 'error' && (
+              <div className="mt-4 w-full bg-slate-700/30 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${processingStatus === 'saving' ? 'bg-blue-500 w-1/3' :
+                      processingStatus === 'syncing' ? 'bg-amber-500 w-2/3' :
+                        'w-0'
+                    }`}
+                />
+              </div>
+            )}
+
+            {/* Complete/Error button */}
+            {(processingStatus === 'complete' || processingStatus === 'error') && (
+              <button
+                onClick={() => {
+                  setProcessingStatus('idle');
+                  setProcessingMessage('');
+                }}
+                className={`mt-4 px-6 py-2.5 rounded-xl font-bold text-sm transition-colors ${processingStatus === 'complete'
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                  }`}
+              >
+                {processingStatus === 'complete' ? 'Continue' : 'Try Again'}
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -1343,10 +1343,19 @@ export const MoreView: React.FC<MoreViewProps> = ({
       )}
 
       {/* Floating Toast */}
+      {/* Floating Toast - Top Right */}
       {successToast && (
-        <div className="fixed bottom-16 right-4 z-50 bg-[#2ea043] text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle2 className="w-5 h-5" />
-          <span>{successToast}</span>
+        <div className="fixed top-4 right-4 z-[9999] bg-[#2ea043] text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200 max-w-sm">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          <span className="flex-1">{successToast}</span>
+          <button
+            onClick={() => setSuccessToast('')}
+            className="flex-shrink-0 ml-2 hover:bg-white/20 rounded-full p-1 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 
