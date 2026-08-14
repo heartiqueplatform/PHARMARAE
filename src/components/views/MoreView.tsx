@@ -1091,8 +1091,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-
-// Now update the Audit Trail section JSX (around line 570-600):
       {activeSection === 'audit' && (
         <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
           <div className={`p-4 flex items-center justify-between ${borderLine}`}>
