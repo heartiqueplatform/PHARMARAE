@@ -179,17 +179,13 @@ export default function App() {
           appVersion="1.0.0"
         />
 
-        {/* ✅ STATUS BAR - for sync/data updates */}
-        <div className="h-[30px] flex-shrink-0 relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0">
-            <StatusBar
-              message={statusMessage}
-              type={statusType}
-              show={showStatusBar}
-              onClose={clearStatus}
-            />
-          </div>
-        </div>
+
+        <StatusBar
+          message={statusMessage}
+          type={statusType}
+          show={showStatusBar}
+          onClose={clearStatus}
+        />
 
         <main className="flex-1 w-full px-2 sm:px-3 md:px-4 pt-2 sm:pt-4 pb-24 min-w-0 overflow-y-auto">
           {/* =============================================
