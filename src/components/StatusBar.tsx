@@ -21,29 +21,23 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     const [isLeaving, setIsLeaving] = useState(false);
     const [shouldRender, setShouldRender] = useState(false);
 
-    // Handle enter/exit animations
     useEffect(() => {
         if (show && message) {
-            // Show the component
             setShouldRender(true);
-            // Small delay to trigger enter animation
             requestAnimationFrame(() => {
                 setIsVisible(true);
                 setIsLeaving(false);
             });
         } else if (shouldRender) {
-            // Start exit animation
             setIsLeaving(true);
             setIsVisible(false);
-            // Remove from DOM after animation completes
             const timer = setTimeout(() => {
                 setShouldRender(false);
-            }, 400); // Match animation duration
+            }, 400);
             return () => clearTimeout(timer);
         }
     }, [show, message]);
 
-    // Auto-close after 1.5 seconds for non-loading states
     useEffect(() => {
         if (type && type !== 'loading' && show && message && onClose) {
             const timer = setTimeout(() => {
@@ -53,30 +47,27 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         }
     }, [type, show, message, onClose]);
 
-    // Don't render if not needed
     if (!shouldRender || !message) return null;
 
-    // Get icon based on type with specific colors
     const getIcon = () => {
         switch (type) {
             case 'loading':
                 return (
                     <div className="relative flex-shrink-0">
-                        <Loader2 className={`w-4 h-4 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
-                        <span className={`absolute inset-0 rounded-full border-2 ${isDark ? 'border-blue-400/20' : 'border-blue-500/20'} animate-pulse`} />
+                        <Loader2 className={`w-3 h-3 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
+                        <span className={`absolute inset-0 rounded-full border ${isDark ? 'border-blue-400/20' : 'border-blue-500/20'} animate-pulse`} />
                     </div>
                 );
             case 'success':
-                return <CheckCircle className={`w-4 h-4 flex-shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />;
+                return <CheckCircle className={`w-3 h-3 flex-shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />;
             case 'error':
-                return <AlertCircle className={`w-4 h-4 flex-shrink-0 ${isDark ? 'text-red-400' : 'text-red-600'}`} />;
+                return <AlertCircle className={`w-3 h-3 flex-shrink-0 ${isDark ? 'text-red-400' : 'text-red-600'}`} />;
             case 'info':
             default:
-                return <Info className={`w-4 h-4 flex-shrink-0 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />;
+                return <Info className={`w-3 h-3 flex-shrink-0 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />;
         }
     };
 
-    // Get text color based on type
     const getTextColor = () => {
         if (isDark) {
             switch (type) {
@@ -97,49 +88,46 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         }
     };
 
-    // Get background color based on type and theme
     const getBackgroundColor = () => {
         if (isDark) {
             switch (type) {
-                case 'loading': return 'bg-[#0d1a2d]';
-                case 'success': return 'bg-[#0d1f0d]';
-                case 'error': return 'bg-[#1f0d0d]';
-                case 'info': return 'bg-[#0d1a2d]';
-                default: return 'bg-[#1c2333]';
+                case 'loading': return 'bg-[#0d1a2d]/95';
+                case 'success': return 'bg-[#0d1f0d]/95';
+                case 'error': return 'bg-[#1f0d0d]/95';
+                case 'info': return 'bg-[#0d1a2d]/95';
+                default: return 'bg-[#1c2333]/95';
             }
         } else {
             switch (type) {
-                case 'loading': return 'bg-[#e8f0fe]';
-                case 'success': return 'bg-[#e6f4ea]';
-                case 'error': return 'bg-[#fce8e8]';
-                case 'info': return 'bg-[#e8f0fe]';
-                default: return 'bg-[#f0f2f5]';
+                case 'loading': return 'bg-[#e8f0fe]/95';
+                case 'success': return 'bg-[#e6f4ea]/95';
+                case 'error': return 'bg-[#fce8e8]/95';
+                case 'info': return 'bg-[#e8f0fe]/95';
+                default: return 'bg-[#f0f2f5]/95';
             }
         }
     };
 
-    // Get border color based on type and theme
     const getBorderColor = () => {
         if (isDark) {
             switch (type) {
-                case 'loading': return 'border-blue-500/30';
-                case 'success': return 'border-emerald-500/30';
-                case 'error': return 'border-red-500/30';
-                case 'info': return 'border-cyan-500/30';
+                case 'loading': return 'border-blue-500/40';
+                case 'success': return 'border-emerald-500/40';
+                case 'error': return 'border-red-500/40';
+                case 'info': return 'border-cyan-500/40';
                 default: return 'border-[#30363d]';
             }
         } else {
             switch (type) {
-                case 'loading': return 'border-blue-400/30';
-                case 'success': return 'border-emerald-400/30';
-                case 'error': return 'border-red-400/30';
-                case 'info': return 'border-cyan-400/30';
+                case 'loading': return 'border-blue-400/40';
+                case 'success': return 'border-emerald-400/40';
+                case 'error': return 'border-red-400/40';
+                case 'info': return 'border-cyan-400/40';
                 default: return 'border-[#d0d7de]';
             }
         }
     };
 
-    // Get dot colors for loading state
     const getDotColors = () => {
         if (isDark) {
             return {
@@ -158,7 +146,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
     const dotColors = getDotColors();
 
-    // Loading spinner with animated dots
     const LoadingSpinner = () => {
         const dots = [
             { color: dotColors.dot1, delay: '0ms' },
@@ -167,13 +154,13 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         ];
 
         return (
-            <div className="flex items-center gap-2 flex-shrink-0">
-                <Loader2 className={`w-4 h-4 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
-                <div className="flex items-center gap-1 ml-0.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+                <Loader2 className={`w-3 h-3 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
+                <div className="flex items-center gap-0.5 ml-0.5">
                     {dots.map((dot, index) => (
                         <span
                             key={index}
-                            className={`w-1.5 h-1.5 rounded-full ${dot.color} animate-pulse`}
+                            className={`w-1 h-1 rounded-full ${dot.color} animate-pulse`}
                             style={{ animationDelay: dot.delay }}
                         />
                     ))}
@@ -182,34 +169,41 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         );
     };
 
-    // Animation classes - smooth transitions
     const getAnimationClasses = () => {
         if (isLeaving) {
-            // Exit animation: fade out + slide up + shrink
             return 'opacity-0 -translate-y-3 scale-95';
         }
         if (isVisible) {
-            // Enter animation: fade in + slide down + grow
             return 'opacity-100 translate-y-0 scale-100';
         }
-        // Initial state (will be invisible then animate in)
         return 'opacity-0 -translate-y-3 scale-95';
     };
 
     return (
-        <div className={`
-            flex items-center justify-center gap-3 px-4 py-2.5 text-sm
-            ${getBackgroundColor()}
-            ${getBorderColor()}
-            border-b
-            transition-all duration-300 ease-out
-            ${getAnimationClasses()}
-        `}>
-            <div className="flex items-center gap-3">
-                {type === 'loading' ? <LoadingSpinner /> : getIcon()}
-                <span className={`font-medium text-center ${getTextColor()}`}>
-                    {message}
-                </span>
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+            <div className={`
+                flex items-center justify-center
+                w-fit max-w-[90%]
+                px-3 py-1.5 rounded-lg
+                ${getBackgroundColor()}
+                ${getBorderColor()}
+                border
+                shadow-lg backdrop-blur-sm
+                transition-all duration-300 ease-out
+                ${getAnimationClasses()}
+                pointer-events-auto
+            `}>
+                <div className="flex items-center gap-1.5">
+                    {type === 'loading' ? <LoadingSpinner /> : getIcon()}
+                    <span className={`
+                        font-serif text-[10px] tracking-wide leading-relaxed
+                        font-medium
+                        ${getTextColor()}
+                        whitespace-nowrap
+                    `}>
+                        {message}
+                    </span>
+                </div>
             </div>
         </div>
     );

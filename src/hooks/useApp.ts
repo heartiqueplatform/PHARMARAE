@@ -146,6 +146,9 @@ export const useApp = (): AppState => {
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isMountedRef = useRef(false);
+    const versionToastShownRef = useRef(false);
+    const versionCheckDoneRef = useRef(false);
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
@@ -207,6 +210,40 @@ export const useApp = (): AppState => {
         position: 'top' | 'center' | 'bottom' = 'bottom',
         autoHide: boolean = true
     ) => {
+        console.log(`📣 [showToast] Called with: "${message}" (${type})`);
+        console.log(`📣 [showToast] isMounted: ${isMountedRef.current}`);
+
+        // ✅ Force show even if not mounted (queue it)
+        if (!isMountedRef.current) {
+            console.log('🔴 Toast skipped: Component not mounted yet, queueing...');
+            // Store toast to show after mount
+            const checkAndShow = () => {
+                if (isMountedRef.current) {
+                    console.log('✅ Mounted now, showing queued toast');
+                    setToastMessage(message);
+                    setToastType(type);
+                    setToastPosition(position);
+
+                    if (toastTimeoutRef.current) {
+                        clearTimeout(toastTimeoutRef.current);
+                        toastTimeoutRef.current = null;
+                    }
+
+                    if (autoHide) {
+                        toastTimeoutRef.current = setTimeout(() => {
+                            clearToast();
+                        }, 4000);
+                    }
+                } else {
+                    console.log('⏳ Still not mounted, checking again...');
+                    setTimeout(checkAndShow, 500);
+                }
+            };
+            setTimeout(checkAndShow, 300);
+            return;
+        }
+
+        console.log(`✅ Showing toast: ${message}`);
         setToastMessage(message);
         setToastType(type);
         setToastPosition(position);
@@ -224,32 +261,116 @@ export const useApp = (): AppState => {
     }, [clearToast]);
 
     // =============================================
-    // ✅ APP VERSION CHECK - Using Toast (NO TEST)
-    // =============================================
-    // =============================================
-    // ✅ APP VERSION CHECK - Using Toast (NO AUTO-HIDE)
+    // ✅ APP VERSION CHECK - FIXED FOR MOBILE
     // =============================================
     useEffect(() => {
-        const storedVersion = localStorage.getItem(VERSION_KEY);
-        const lastCheck = localStorage.getItem(LAST_UPDATE_CHECK);
-        const now = Date.now();
-        const shouldCheck = !lastCheck || (now - parseInt(lastCheck) > 3600000);
+        // Mark component as mounted
+        isMountedRef.current = true;
+        console.log('📱 Component mounted, checking for updates...');
 
-        if (storedVersion !== APP_VERSION && shouldCheck) {
-            console.log(`🔄 App update detected: ${storedVersion} → ${APP_VERSION}`);
-            localStorage.setItem(VERSION_KEY, APP_VERSION);
-            localStorage.setItem(LAST_UPDATE_CHECK, now.toString());
+        const checkForUpdate = () => {
+            // Prevent multiple checks
+            if (versionCheckDoneRef.current) {
+                console.log('⏭️ Version check already done, skipping...');
+                return;
+            }
 
-            // ✅ ADD 'false' as the 4th parameter
-            showToast(`Version ${APP_VERSION} is available!`, 'info', 'bottom', false);
-        }
+            const storedVersion = localStorage.getItem(VERSION_KEY);
+            const lastCheck = localStorage.getItem(LAST_UPDATE_CHECK);
+            const now = Date.now();
+            const shouldCheck = !lastCheck || (now - parseInt(lastCheck) > 3600000);
 
-        if (shouldCheck) {
-            localStorage.setItem(LAST_UPDATE_CHECK, now.toString());
-        }
-    }, []);
+            console.log(`🔍 Version check: stored=${storedVersion}, current=${APP_VERSION}, shouldCheck=${shouldCheck}`);
 
+            // ✅ Check if version has changed
+            if (storedVersion !== APP_VERSION && shouldCheck) {
+                console.log(`🔄 App update detected: ${storedVersion} → ${APP_VERSION}`);
+                localStorage.setItem(VERSION_KEY, APP_VERSION);
+                localStorage.setItem(LAST_UPDATE_CHECK, now.toString());
+                versionCheckDoneRef.current = true;
 
+                // ✅ Don't show again
+                versionToastShownRef.current = true;
+
+                // ✅ Show toast with multiple attempts to ensure it shows
+                const showUpdateToast = (attempt = 0) => {
+                    console.log(`📢 Showing update toast (attempt ${attempt + 1})`);
+                    if (isMountedRef.current) {
+                        showToast(
+                            `✨ Version ${APP_VERSION} is available! Tap "Update Now" to refresh.`,
+                            'info',
+                            'bottom',
+                            false // Don't auto-hide
+                        );
+                        console.log('✅ Update toast shown successfully!');
+                    } else if (attempt < 5) {
+                        console.log(`⏳ Waiting for mount (attempt ${attempt + 1})...`);
+                        setTimeout(() => showUpdateToast(attempt + 1), 500);
+                    } else {
+                        console.log('❌ Failed to show toast after 5 attempts');
+                    }
+                };
+
+                // Show immediately if mounted, or wait
+                if (isMountedRef.current) {
+                    setTimeout(() => showUpdateToast(0), 500);
+                } else {
+                    // Wait for mount
+                    const waitForMount = setInterval(() => {
+                        if (isMountedRef.current) {
+                            clearInterval(waitForMount);
+                            showUpdateToast(0);
+                        }
+                    }, 200);
+                    setTimeout(() => clearInterval(waitForMount), 5000);
+                }
+            } else if (storedVersion !== APP_VERSION && !shouldCheck) {
+                console.log('⏳ Version changed but check skipped (cooldown)');
+            } else {
+                console.log('✅ Version is up to date');
+            }
+
+            if (shouldCheck) {
+                localStorage.setItem(LAST_UPDATE_CHECK, now.toString());
+            }
+        };
+
+        // Check immediately
+        setTimeout(checkForUpdate, 500);
+
+        // Also check after a longer delay (in case UI needs to render first)
+        setTimeout(checkForUpdate, 3000);
+
+        // Check again when tab becomes visible
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('👁️ Tab became visible, checking for updates...');
+                checkForUpdate();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Check on page show (for bfcache)
+        const handlePageShow = (e: PageTransitionEvent) => {
+            if (e.persisted) {
+                console.log('📄 Page restored, checking for updates...');
+                checkForUpdate();
+            }
+        };
+        window.addEventListener('pageshow', handlePageShow);
+
+        return () => {
+            isMountedRef.current = false;
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pageshow', handlePageShow);
+            if (statusTimeoutRef.current) {
+                clearTimeout(statusTimeoutRef.current);
+            }
+            if (toastTimeoutRef.current) {
+                clearTimeout(toastTimeoutRef.current);
+            }
+        };
+    }, [showToast]);
 
     // Auto-clear status on unmount
     useEffect(() => {
