@@ -22,7 +22,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
             icon: FileCheck,
             title: 'Acceptance of Terms',
             items: [
-                'By using PHARMIENTA Pro, you agree to these Terms & Conditions',
+                'By using Pharmienta Pro, you agree to these Terms & Conditions',
                 'If you do not agree, please do not use the application',
                 'These terms apply to all users including owners, staff, and administrators',
                 'Continued use constitutes acceptance of any updates or modifications',
@@ -58,7 +58,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
             icon: Shield,
             title: 'License & Access Rights',
             items: [
-                'PHARMIENTA Pro is licensed per pharmacy location/branch',
+                'Pharmienta Pro is licensed per pharmacy location/branch',
                 'Access is granted to pharmacy staff based on role-specific permissions',
                 'You may not share your account credentials with non-staff members',
                 'We reserve the right to suspend or terminate access for violations',
@@ -72,7 +72,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
             items: [
                 'All pharmacy data is owned by the pharmacy entity',
                 'Customer information must be handled with strict confidentiality',
-                'PHARMIENTA does not share your data with third parties without consent',
+                'Pharmienta does not share your data with third parties without consent',
                 'You may export and backup your data at any time',
                 'Data stored in compliance with Kenyan Data Protection Act (2019)',
                 'You retain full ownership of your business and customer data'
@@ -130,7 +130,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
             icon: Clipboard,
             title: 'Limitation of Liability',
             items: [
-                'PHARMIENTA is provided "as is" without warranties of any kind',
+                'Pharmienta is provided "as is" without warranties of any kind',
                 'We are not liable for data loss, system failures, or business interruptions',
                 'Users are responsible for maintaining regular backups',
                 'We recommend having a secondary backup system in place',
@@ -189,7 +189,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                     <h2 className="text-lg font-semibold">Terms at a Glance</h2>
                 </div>
                 <p className="text-sm leading-relaxed">
-                    Welcome to PHARMIENTA Pro. By using our pharmacy management platform, you agree to these terms
+                    Welcome to Pharmienta Pro. By using our pharmacy management platform, you agree to these terms
                     and conditions which govern your use of the application. We've designed these terms to be clear,
                     fair, and in compliance with Kenyan law while protecting both your pharmacy's data and our intellectual property.
                 </p>
@@ -321,7 +321,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                             <div className="space-y-2">
                                 <p className="flex items-center gap-2">
                                     <Mail className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>pharmienta@gmail.com</span>
+                                    <span>Pharmienta@gmail.com</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Phone className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
@@ -335,7 +335,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Building2 className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>PHARMIENTA KENYA</span>
+                                    <span>Pharmienta Kenya</span>
                                 </p>
                             </div>
                         </div>
@@ -350,7 +350,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                             <span>Legal Agreement • Last reviewed: {new Date().toLocaleDateString()}</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span>© {new Date().getFullYear()} PHARMIENTA KENYA</span>
+                            <span>© {new Date().getFullYear()} Pharmienta Kenya</span>
                             <span>|</span>
                             <span className="flex items-center gap-1">
                                 <RefreshCw className="w-3 h-3" />

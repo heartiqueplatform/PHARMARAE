@@ -15,7 +15,7 @@ import {
     SalesReturn, // NEW - Add this import
 } from '../types';
 import { normalizePharmacyName, genUUID } from '../utils/helpers';
-
+import { getNotificationService } from '../lib/notificationService';
 interface UseActionsProps {
     currentProfile: Profile | null;
     currentRole: string;
@@ -48,6 +48,9 @@ export const useActions = (props: UseActionsProps) => {
         return normalizePharmacyName(currentProfile.pharmacy_name);
     }, [currentProfile]);
 
+    // =============================================
+    // HANDLE COMPLETE SALE
+    // =============================================
     // =============================================
     // HANDLE COMPLETE SALE
     // =============================================
@@ -102,8 +105,8 @@ export const useActions = (props: UseActionsProps) => {
             subtotal: item.subtotal,
             batch_id: usedBatch?.id || null,
             batch_number: usedBatch?.batch_number || null,
-            discount: saleData.discount || 0,
-            discount_reason: saleData.discount_reason || null,
+            discount: saleData.discount || 0,  // ✓ Goes to sales.discount
+            discount_reason: saleData.discount_reason || null, // ✓ Goes to sales.discount_reason
             tax: saleData.tax || 0,
             total: saleData.total || item.subtotal,
             payment_method: saleData.payment_method || 'cash',
@@ -131,12 +134,49 @@ export const useActions = (props: UseActionsProps) => {
             offline_id: null
         };
 
+        // 1. Save sale to local DB
         await db.sales.put(newSale);
 
-        // Queue for sync
+        // 2. Queue sale for sync
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'INSERT', newSale);
 
-        // Update stock
+        // 3. 🆕 If discount was applied, save to discounts table
+        if (saleData.discount && saleData.discount > 0) {
+            const discountId = genUUID();
+            const discountData = {
+                id: discountId,
+                sale_id: saleId,
+                approved_by: currentProfile?.id || null,
+                amount: saleData.discount,
+                percentage: null, // Could calculate: (saleData.discount / saleData.subtotal) * 100
+                reason: saleData.discount_reason || 'Discount applied at POS',
+                pharmacy_name: pharmacyName,
+                created_at: now.toISOString()
+            };
+
+            await db.discounts.put(discountData);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'discount', 'INSERT', discountData);
+            console.log('✅ Discount record saved to discounts table');
+
+            // 🆕 ADD THIS: Audit log specifically for the discount
+            const discountAuditLog = {
+                id: genUUID(),
+                pharmacy_name: pharmacyName,
+                user_id: currentProfile?.id,
+                user_name: currentProfile?.full_name,
+                action: 'DISCOUNT_APPLIED',
+                entity_type: 'DISCOUNT',
+                entity_id: discountId,
+                details: `Discount of ${saleData.discount} applied to sale #${saleNumber}${saleData.discount_reason ? ` (Reason: ${saleData.discount_reason})` : ''}`,
+                created_at: now.toISOString()
+            };
+
+            await db.audit_logs.put(discountAuditLog);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', discountAuditLog);
+            console.log('✅ Discount audit log saved');
+        }
+
+        // 4. Update stock
         const todayStr = now.toISOString().split('T')[0];
         const quantitySold = item.quantity;
 
@@ -179,7 +219,7 @@ export const useActions = (props: UseActionsProps) => {
             });
         }
 
-        // Record movement
+        // 5. Record movement with performed_by_name
         const movId = genUUID();
         const movement: StockMovement = {
             id: movId,
@@ -193,7 +233,7 @@ export const useActions = (props: UseActionsProps) => {
             reference_type: 'sale',
             reference_id: saleId,
             performed_by: currentProfile?.id,
-            performed_by_name: currentProfile?.full_name,
+            performed_by_name: currentProfile?.full_name || 'System User', // ✓ This ensures column exists
             reason: `Sale transaction #${saleNumber}`,
             created_at: now.toISOString()
         };
@@ -201,7 +241,7 @@ export const useActions = (props: UseActionsProps) => {
         await db.stock_movements.put(movement);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', movement);
 
-        // Audit log
+        // 6. Audit log
         const auditLog = {
             id: genUUID(),
             pharmacy_name: pharmacyName,
@@ -210,7 +250,7 @@ export const useActions = (props: UseActionsProps) => {
             action: 'SALE_COMPLETED',
             entity_type: 'SALE',
             entity_id: saleId,
-            details: `Sale #${saleNumber}: ${item.product.name} x${item.quantity} for ${saleData.total || item.subtotal}`,
+            details: `Sale #${saleNumber}: ${item.product.name} x${item.quantity} for ${saleData.total || item.subtotal}${saleData.discount ? ` (Discount: ${saleData.discount})` : ''}`,
             created_at: now.toISOString()
         };
 
@@ -220,10 +260,39 @@ export const useActions = (props: UseActionsProps) => {
         await loadDatabaseData();
         setReceiptSale(newSale);
         setIsReceiptModalOpen(true);
+        // 👇 ADD THIS BLOCK RIGHT HERE (after setReceiptSale)
+        // 🆕 Send push notification for new sale
+        try {
+            const notificationService = getNotificationService();
+
+            // Check if notifications are supported and permission granted
+            if (notificationService.isSupportedBrowser() &&
+                Notification.permission === 'granted') {
+
+                // Get pharmacy currency from profile
+                const currency = currentProfile?.pharmacy_currency || 'KSh';
+
+                // Send sale notification
+                await notificationService.notifySale({
+                    ...newSale,
+                    pharmacy_currency: currency
+                }, pharmacyName);
+
+                console.log('🔔 Sale notification sent successfully');
+            }
+        } catch (notifError) {
+            console.warn('Could not send notification:', notifError);
+            // Don't fail the sale if notification fails
+        }
+
 
         console.log('✅ Sale completed successfully!');
+        console.log(`   Sale #${saleNumber} - Total: ${saleData.total || item.subtotal}`);
+        if (saleData.discount && saleData.discount > 0) {
+            console.log(`   Discount: ${saleData.discount} (${saleData.discount_reason || 'No reason'})`);
+            console.log('   ✅ Discount also saved to discounts table');
+        }
     }, [currentProfile, getPharmacyName, batches, sales, loadDatabaseData, setReceiptSale, setIsReceiptModalOpen]);
-
     // =============================================
     // ADD PRODUCT
     // =============================================

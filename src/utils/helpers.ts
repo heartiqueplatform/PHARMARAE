@@ -1,8 +1,8 @@
 // utils/helpers.ts
 export const APP_VERSION = '1.0.0';
-export const APP_NAME = 'PHARMIENTA KENYA';
-export const VERSION_KEY = 'PHARMIENTA_app_version';
-export const LAST_UPDATE_CHECK = 'PHARMIENTA_last_update_check';
+export const APP_NAME = 'Pharmienta Kenya';
+export const VERSION_KEY = 'Pharmienta_app_version';
+export const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';
 
 export const normalizePharmacyName = (name: string): string => {
     if (!name) return '';

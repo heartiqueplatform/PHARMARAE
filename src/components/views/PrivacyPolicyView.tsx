@@ -131,7 +131,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                     <h2 className="text-lg font-semibold">Privacy at a Glance</h2>
                 </div>
                 <p className="text-sm leading-relaxed">
-                    PHARMIENTA Pro is committed to protecting your privacy and ensuring the security of your data.
+                    Pharmienta Pro is committed to protecting your privacy and ensuring the security of your data.
                     We collect only the information necessary to provide our pharmacy management services and maintain
                     compliance with Kenyan and international data protection regulations. Your data is stored securely,
                     encrypted, and never shared with third parties without your explicit consent.
@@ -217,7 +217,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                                 <div>
                                     <p className="font-semibold">Data Processor</p>
                                     <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                        PHARMIENTA KENYA acts as data processor
+                                        Pharmienta Kenya acts as data processor
                                     </p>
                                 </div>
                             </div>
@@ -258,7 +258,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                             <div className="space-y-2">
                                 <p className="flex items-center gap-2">
                                     <Mail className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>pharmienta@gmail.com</span>
+                                    <span>Pharmienta@gmail.com</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Phone className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
@@ -287,7 +287,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                             <span>Secure Connection • All data encrypted</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span>© {new Date().getFullYear()} PHARMIENTA KENYA</span>
+                            <span>© {new Date().getFullYear()} Pharmienta Kenya</span>
                             <span>|</span>
                             <span className="flex items-center gap-1">
                                 <RefreshCw className="w-3 h-3" />

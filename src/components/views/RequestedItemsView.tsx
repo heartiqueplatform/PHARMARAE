@@ -8,10 +8,10 @@ import {
     ShoppingCart, User, Phone, Calendar,
     Tag, Star, StarOff, BarChart3,
     ChevronDown, ChevronUp, Zap,
-    Target, Award, Flame
+    Target, Award, Flame, FileText
 } from 'lucide-react';
 import { RequestedItem, RequestedItemStatus, RequestedItemPriority } from '../../types';
-
+import { generateMostRequestedReportPdf } from '../../utils/requestedItemsPdfGenerator'; // <-- Import the new PDF generator
 interface RequestedItemsViewProps {
     requestedItems: RequestedItem[];
     pharmacyName: string | null;
@@ -21,6 +21,12 @@ interface RequestedItemsViewProps {
     onAddRequestedItem: (data: Partial<RequestedItem>) => Promise<void>;
     onUpdateRequestedItem: (id: string, data: Partial<RequestedItem>) => Promise<void>;
     onDeleteRequestedItem: (id: string) => Promise<void>;
+    pharmacy: {
+        name: string;
+        address?: string;
+        phone: string;
+        currency?: string;
+    };
 }
 
 export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
@@ -32,6 +38,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
     onAddRequestedItem,
     onUpdateRequestedItem,
     onDeleteRequestedItem,
+    pharmacy,
 }) => {
     const isDark = theme === 'dark';
 
@@ -237,7 +244,20 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
             setIsSaving(false);
         }
     };
+    // Add the PDF download handler
+    const handleDownloadReport = () => {
+        if (!pharmacy) {
+            alert('Pharmacy data not found.');
+            return;
+        }
 
+        // Call the PDF generator with your data
+        generateMostRequestedReportPdf(
+            pharmacy,
+            requestedItems,
+            currency || 'KSh'
+        );
+    };
     const handleEditItem = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingItem) { alert('No item selected.'); return; }
@@ -591,6 +611,14 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                     <button
+                        onClick={handleDownloadReport}
+                        className={`px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+                        title="Download PDF Report"
+                    >
+                        <FileText className="w-5 h-5" />
+                        <span>Download Report</span>
+                    </button>
+                    <button
                         onClick={() => setShowStats(!showStats)}
                         className={`p-2.5 rounded-xl transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
                             }`}
@@ -598,6 +626,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                     >
                         <BarChart3 className={`w-4 h-4 ${showStats ? 'text-[#2ea043]' : textMuted}`} />
                     </button>
+
                     <button
                         onClick={() => setShowAddModal(true)}
                         className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}

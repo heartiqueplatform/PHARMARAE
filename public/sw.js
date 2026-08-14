@@ -1,8 +1,7 @@
-// Service Worker for PHARMIENTA KENYA - Pharmacy Management System
-// Version: 1.0.0 - Update this when releasing new versions
-const APP_VERSION = '1.0.0';
-const CACHE_NAME = `PHARMIENTA-${APP_VERSION}`;
-const PRECACHE_NAME = `PHARMIENTA-precache-${APP_VERSION}`;
+// public/sw.js - FIXED VERSION
+const APP_VERSION = '1.0.1';
+const CACHE_NAME = `Pharmienta-${APP_VERSION}`;
+const PRECACHE_NAME = `Pharmienta-precache-${APP_VERSION}`;
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -14,324 +13,210 @@ const STATIC_ASSETS = [
   '/favicon.ico'
 ];
 
-// URLs that should never be cached (dynamic content)
-const SKIP_CACHE_URLS = [
-  '/api/',
-  '/supabase/',
-  '/auth/'
-];
-
-// Check if URL should be skipped from caching
-const shouldSkipCache = (url) => {
-  return SKIP_CACHE_URLS.some(skipUrl => url.includes(skipUrl));
-};
-
 // ============================================
-// INSTALL EVENT - Cache static assets
+// INSTALL EVENT
 // ============================================
 self.addEventListener('install', (event) => {
-  console.log(`📦 Service Worker v${APP_VERSION}: Installing...`);
-
+  console.log(`📦 SW v${APP_VERSION}: Installing...`);
   event.waitUntil(
     caches.open(PRECACHE_NAME)
       .then((cache) => {
-        console.log('📦 Service Worker: Caching static assets');
+        console.log('📦 Caching static assets');
         return cache.addAll(STATIC_ASSETS);
       })
-      .then(() => {
-        console.log(` Service Worker v${APP_VERSION}: Installation complete`);
-        // Force the waiting service worker to become active
-        return self.skipWaiting();
-      })
-      .catch((error) => {
-        console.error('❌ Service Worker: Installation failed:', error);
-      })
+      .then(() => self.skipWaiting())
+      .catch((error) => console.error('❌ Installation failed:', error))
   );
 });
 
 // ============================================
-// ACTIVATE EVENT - Clean up old caches
+// ACTIVATE EVENT
 // ============================================
 self.addEventListener('activate', (event) => {
-  console.log(` Service Worker v${APP_VERSION}: Activating...`);
-
+  console.log(`✅ SW v${APP_VERSION}: Activating...`);
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            // Delete old caches that don't match current version
-            if (cacheName !== PRECACHE_NAME &&
-              cacheName !== CACHE_NAME &&
-              cacheName.startsWith('PHARMIENTA-')) {
-              console.log(`🗑️ Service Worker: Removing old cache:`, cacheName);
+            if (cacheName !== PRECACHE_NAME && cacheName !== CACHE_NAME) {
+              console.log(`🗑️ Removing old cache: ${cacheName}`);
               return caches.delete(cacheName);
             }
           })
         );
       })
-      .then(() => {
-        console.log(` Service Worker v${APP_VERSION}: Activation complete`);
-        // Claim all clients to take control immediately
-        return self.clients.claim();
-      })
+      .then(() => self.clients.claim())
   );
 });
 
 // ============================================
-// FETCH EVENT - Smart caching strategy
+// FETCH EVENT
 // ============================================
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Skip cross-origin requests
-  if (!url.origin.startsWith(self.location.origin)) {
+  // Skip non-GET or cross-origin
+  if (request.method !== 'GET' || !url.origin.startsWith(self.location.origin)) {
     return;
   }
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') {
+  // Skip API calls
+  if (url.pathname.includes('/api/') || url.pathname.includes('/supabase/')) {
     return;
   }
 
-  // Skip browser extension requests
-  if (request.url.includes('chrome-extension')) {
-    return;
-  }
-
-  // Skip analytics/tracking requests
-  if (request.url.includes('analytics') || request.url.includes('tracking')) {
-    return;
-  }
-
-  // For HTML pages - Network first, then cache
+  // HTML - Network first
   if (request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache the fresh HTML
-          const responseClone = response.clone();
-          caches.open(PRECACHE_NAME)
-            .then((cache) => {
-              cache.put(request, responseClone);
-            })
-            .catch((err) => {
-              console.warn('⚠️ Service Worker: Cache HTML error:', err);
-            });
+          const clone = response.clone();
+          caches.open(PRECACHE_NAME).then(cache => cache.put(request, clone));
           return response;
         })
-        .catch(() => {
-          // If network fails, serve cached HTML
-          return caches.match(request)
-            .then((cachedResponse) => {
-              if (cachedResponse) {
-                console.log('📂 Service Worker: Serving HTML from cache');
-                return cachedResponse;
-              }
-              // Fallback to index.html for SPA routing
-              return caches.match('/index.html');
-            });
-        })
+        .catch(() => caches.match(request).then(res => res || caches.match('/index.html')))
     );
     return;
   }
 
-  // For static assets (JS, CSS, images) - Cache first, then network
+  // Static assets - Cache first
   if (request.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$/)) {
     event.respondWith(
       caches.match(request)
-        .then((cachedResponse) => {
-          if (cachedResponse) {
-            // Return cached version immediately
-            // Then fetch and update cache in background
+        .then((cached) => {
+          if (cached) {
             event.waitUntil(
               fetch(request)
-                .then((networkResponse) => {
-                  if (networkResponse.status === 200) {
-                    caches.open(PRECACHE_NAME)
-                      .then((cache) => {
-                        cache.put(request, networkResponse);
-                      });
+                .then((res) => {
+                  if (res.status === 200) {
+                    caches.open(PRECACHE_NAME).then(cache => cache.put(request, res));
                   }
                 })
-                .catch(() => {
-                  // Silently fail - cache is fine
-                })
+                .catch(() => { })
             );
-            return cachedResponse;
+            return cached;
           }
-
-          // Not in cache - fetch from network
-          return fetch(request)
-            .then((response) => {
-              const responseClone = response.clone();
-              if (response.status === 200) {
-                caches.open(PRECACHE_NAME)
-                  .then((cache) => {
-                    cache.put(request, responseClone);
-                  });
-              }
-              return response;
-            });
+          return fetch(request).then((res) => {
+            if (res.status === 200) {
+              const clone = res.clone();
+              caches.open(PRECACHE_NAME).then(cache => cache.put(request, clone));
+            }
+            return res;
+          });
         })
     );
     return;
   }
 
-  // For everything else - Network first with cache fallback
+  // Default - Network first
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Cache successful responses that aren't API calls
-        if (response.status === 200 && !shouldSkipCache(request.url)) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(request, responseClone);
-            })
-            .catch((err) => {
-              console.warn('⚠️ Service Worker: Cache put error:', err);
-            });
+        if (response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
         return response;
       })
-      .catch(() => {
-        // Network failed - try cache
-        return caches.match(request)
-          .then((cachedResponse) => {
-            if (cachedResponse) {
-              console.log('📂 Service Worker: Serving from cache:', request.url);
-              return cachedResponse;
-            }
-
-            // Return offline page for HTML requests
-            if (request.headers.get('accept')?.includes('text/html')) {
-              return caches.match('/index.html');
-            }
-
-            // Return default offline response
-            return new Response('Offline - Please connect to the internet', {
-              status: 503,
-              statusText: 'Service Unavailable',
-              headers: new Headers({
-                'Content-Type': 'text/plain'
-              })
-            });
-          });
-      })
+      .catch(() => caches.match(request))
   );
 });
 
 // ============================================
-// MESSAGE HANDLER - For update notifications
-// ============================================
-self.addEventListener('message', (event) => {
-  console.log('💬 Service Worker: Message received:', event.data);
-
-  if (event.data) {
-    switch (event.data.type) {
-      case 'SKIP_WAITING':
-        console.log('⏭️ Service Worker: Skipping waiting...');
-        self.skipWaiting();
-        break;
-
-      case 'CHECK_UPDATE':
-        console.log('🔍 Service Worker: Checking for updates...');
-        event.waitUntil(
-          self.registration.update()
-            .then(() => {
-              event.ports[0].postMessage({
-                type: 'UPDATE_CHECK_COMPLETE',
-                version: APP_VERSION,
-                hasUpdate: false
-              });
-            })
-        );
-        break;
-
-      case 'GET_VERSION':
-        event.ports[0].postMessage({
-          type: 'VERSION_INFO',
-          version: APP_VERSION,
-          cacheName: PRECACHE_NAME
-        });
-        break;
-    }
-  }
-});
-
-// ============================================
-// BACKGROUND SYNC - For offline data sync
-// ============================================
-self.addEventListener('sync', (event) => {
-  console.log('🔄 Service Worker: Background sync triggered:', event.tag);
-
-  if (event.tag === 'sync-offline-data') {
-    event.waitUntil(
-      // Notify all clients about sync
-      self.clients.matchAll()
-        .then((clients) => {
-          clients.forEach((client) => {
-            client.postMessage({
-              type: 'SYNC_TRIGGERED',
-              timestamp: new Date().toISOString()
-            });
-          });
-        })
-        .then(() => {
-          console.log(' Service Worker: Background sync complete');
-        })
-    );
-  }
-});
-
-// ============================================
-// PUSH NOTIFICATIONS
+// 🔔 PUSH NOTIFICATIONS - ENHANCED
 // ============================================
 self.addEventListener('push', (event) => {
-  console.log('🔔 Service Worker: Push notification received');
+  console.log('🔔 Push notification received:', event);
 
-  const data = event.data ? event.data.json() : {};
-  const options = {
-    body: data.body || 'New update available for PHARMIENTA',
+  let payload = {
+    title: '📦 Pharmienta Kenya',
+    body: 'New notification',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
+    tag: 'Pharmienta-notification',
+    renotify: true,
+    requireInteraction: true,
     vibrate: [200, 100, 200],
-    data: {
-      url: data.url || '/',
-      date: new Date().toISOString()
-    },
     actions: [
-      {
-        action: 'open',
-        title: 'Open App'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
-    ]
+      { action: 'open', title: '📱 Open App' },
+      { action: 'dismiss', title: '❌ Dismiss' }
+    ],
+    data: {
+      url: '/',
+      type: 'default'
+    }
   };
 
+  if (event.data) {
+    try {
+      const parsed = event.data.json();
+      payload = { ...payload, ...parsed };
+
+      if (parsed.data?.type === 'sale') {
+        payload.tag = `sale-${parsed.data.saleId || Date.now()}`;
+        payload.actions = [
+          { action: 'view-sale', title: '💰 View Sale' },
+          { action: 'dismiss', title: '❌ Dismiss' }
+        ];
+        payload.requireInteraction = true;
+        payload.vibrate = [300, 150, 300, 150, 300];
+      }
+
+      if (parsed.data?.type === 'inventory') {
+        payload.tag = `stock-${parsed.data.productId || Date.now()}`;
+        payload.actions = [
+          { action: 'view-stock', title: '📦 Check Stock' },
+          { action: 'dismiss', title: '❌ Dismiss' }
+        ];
+        payload.vibrate = [200, 100, 200];
+      }
+
+    } catch (e) {
+      console.warn('Could not parse push data, using defaults');
+    }
+  }
+
   event.waitUntil(
-    self.registration.showNotification(
-      data.title || 'PHARMIENTA KENYA',
-      options
-    )
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: payload.icon,
+      badge: payload.badge,
+      tag: payload.tag,
+      renotify: payload.renotify,
+      requireInteraction: payload.requireInteraction,
+      vibrate: payload.vibrate,
+      data: payload.data,
+      actions: payload.actions,
+      silent: false
+    })
   );
 });
 
 // ============================================
-// NOTIFICATION CLICK HANDLER
+// 🔔 NOTIFICATION CLICK - ENHANCED
 // ============================================
 self.addEventListener('notificationclick', (event) => {
-  console.log('🔔 Service Worker: Notification clicked:', event.action);
+  console.log('🔔 Notification clicked:', event.action);
 
-  event.notification.close();
+  const notification = event.notification;
+  notification.close();
 
-  if (event.action === 'dismiss') {
+  const action = event.action;
+
+  if (action === 'dismiss') {
     return;
+  }
+
+  let targetUrl = notification.data?.url || '/';
+
+  if (action === 'view-sale' && notification.data?.saleId) {
+    targetUrl = `/?tab=sell&saleId=${notification.data.saleId}`;
+  }
+
+  if (action === 'view-stock' && notification.data?.productId) {
+    targetUrl = `/?tab=stock&productId=${notification.data.productId}`;
   }
 
   event.waitUntil(
@@ -340,48 +225,91 @@ self.addEventListener('notificationclick', (event) => {
       includeUncontrolled: true
     })
       .then((clientList) => {
-        // If a client window exists, focus it
         for (const client of clientList) {
-          if (client.url === '/' && 'focus' in client) {
-            return client.focus();
+          if (client.url === '/' || client.url.includes('Pharmienta')) {
+            client.focus();
+            client.postMessage({
+              type: 'NOTIFICATION_CLICKED',
+              action: action,
+              data: notification.data
+            });
+            return;
           }
         }
-        // Otherwise open a new window
-        return clients.openWindow(event.notification.data.url || '/');
+        return clients.openWindow(targetUrl);
       })
   );
 });
 
 // ============================================
-// PERIODIC SYNC (Chrome only)
+// 📱 MESSAGE HANDLER - FIXED
 // ============================================
-self.addEventListener('periodicsync', (event) => {
-  console.log('🔄 Service Worker: Periodic sync triggered:', event.tag);
+self.addEventListener('message', async (event) => {
+  console.log('💬 SW Message received:', event.data);
 
-  if (event.tag === 'periodic-sync') {
-    event.waitUntil(
-      // Check for updates
-      self.registration.update()
-        .then(() => {
-          console.log(' Service Worker: Periodic check complete');
-        })
-    );
+  if (!event.data) return;
+
+  switch (event.data.type) {
+    case 'SKIP_WAITING':
+      console.log('⏭️ Skipping waiting...');
+      self.skipWaiting();
+      break;
+
+    case 'SHOW_NOTIFICATION': {
+      const { payload } = event.data;
+      console.log('📢 Showing notification:', payload);
+
+      try {
+        await self.registration.showNotification(payload.title, {
+          body: payload.body,
+          icon: payload.icon || '/pwa-192x192.png',
+          badge: payload.badge || '/pwa-192x192.png',
+          tag: payload.tag || `notif-${Date.now()}`,
+          renotify: true,
+          requireInteraction: payload.requireInteraction !== false,
+          vibrate: payload.vibrate || [200, 100, 200],
+          data: payload.data || {},
+          actions: payload.actions || [
+            { action: 'open', title: '📱 Open App' },
+            { action: 'dismiss', title: '❌ Dismiss' }
+          ]
+        });
+        console.log('✅ Notification shown successfully');
+      } catch (error) {
+        console.error('❌ Error showing notification:', error);
+      }
+      break;
+    }
+
+    case 'GET_VERSION':
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({
+          type: 'VERSION_INFO',
+          version: APP_VERSION
+        });
+      }
+      break;
   }
 });
 
 // ============================================
-// ERROR HANDLING
+// 🔄 BACKGROUND SYNC
 // ============================================
-self.addEventListener('error', (event) => {
-  console.error('❌ Service Worker Error:', event.message, event.filename, event.lineno);
+self.addEventListener('sync', (event) => {
+  console.log('🔄 Background sync:', event.tag);
+
+  if (event.tag === 'sync-notifications') {
+    event.waitUntil(
+      self.clients.matchAll().then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({
+            type: 'SYNC_COMPLETE',
+            timestamp: new Date().toISOString()
+          });
+        });
+      })
+    );
+  }
 });
 
-self.addEventListener('unhandledrejection', (event) => {
-  console.error('❌ Service Worker Unhandled Rejection:', event.reason);
-});
-
-// ============================================
-// Log service worker version on startup
-// ============================================
 console.log(`🚀 Service Worker v${APP_VERSION} loaded`);
-console.log(`📦 Cache: ${PRECACHE_NAME}`);

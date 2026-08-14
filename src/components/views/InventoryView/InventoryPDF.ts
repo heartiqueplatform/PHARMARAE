@@ -15,8 +15,8 @@ const addBrandingFooter = (doc: jsPDF, y?: number) => {
     doc.setFont('helvetica', 'italic');
 
     const footerTexts = [
-        'Powered by PHARMIENTA KENYA',
-        'For more info: support@pharmienta.com | 0704473503'
+        'Powered by Pharmienta Kenya',
+        'For more info: support@Pharmienta.com | 0704473503'
     ];
 
     footerTexts.forEach((line, index) => {
@@ -41,7 +41,7 @@ export function generateInventoryCatalogPdf(
 
     // ---------- PAGE 1: HEADER & SUMMARY ----------
 
-    // PHARMIENTA Header
+    // Pharmienta Header
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
 

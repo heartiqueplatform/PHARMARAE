@@ -41,7 +41,7 @@ export function generateReceiptPdf(
 
   const currency = pharmacy.currency || 'KSh';
 
-  // Header - PHARMIENTA KENYA
+  // Header - Pharmienta Kenya
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
 
@@ -208,7 +208,7 @@ export function generateDailyReportPdf(
   const doc = new jsPDF();
   const currency = pharmacy.currency || 'KSh';
 
-  // Title & Header - PHARMIENTA together
+  // Title & Header - Pharmienta together
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
 
@@ -420,7 +420,7 @@ export function generateMonthlyReportPdf(
   const doc = new jsPDF();
   const currency = pharmacy.currency || 'KSh';
 
-  // Title - PHARMIENTA together
+  // Title - Pharmienta together
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
 

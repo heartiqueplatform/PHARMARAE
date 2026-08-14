@@ -554,7 +554,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
             P
           </div>
           <h2 className={`text-lg font-black tracking-tight ${textPrimary}`}>
-            PHARMIENTA KENYA POS
+            Pharmienta Kenya POS
           </h2>
           <p className={`text-[11px] ${textSecondary} flex items-center justify-center gap-1.5 flex-wrap`}>
             {showSupabaseConfig

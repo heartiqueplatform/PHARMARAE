@@ -47,7 +47,7 @@ export const PosView: React.FC<PosViewProps> = ({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        audioRef.current = new Audio('/pharmienta.mp3');
+        audioRef.current = new Audio('/Pharmienta.mp3');
         audioRef.current.load();
         console.log('Audio loaded successfully');
       } catch (err) {
@@ -250,6 +250,7 @@ export const PosView: React.FC<PosViewProps> = ({
     try {
       const item = cart[0];
 
+      // 1. Prepare sale data (includes discount fields for sales table)
       const saleData: Partial<Sale> = {
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || 'Cash Customer',
@@ -264,8 +265,8 @@ export const PosView: React.FC<PosViewProps> = ({
         subtotal: item.subtotal,
         batch_id: item.batch?.id || null,
         batch_number: item.batch?.batch_number || null,
-        discount: discountAmount,
-        discount_reason: discountReason || null,
+        discount: discountAmount,              // ✓ Goes to sales.discount
+        discount_reason: discountReason || null, // ✓ Goes to sales.discount_reason
         tax: 0,
         total: finalTotal,
         payment_method: paymentMethod,
@@ -294,22 +295,45 @@ export const PosView: React.FC<PosViewProps> = ({
       setProcessingStatus('syncing');
       setProcessingMessage('Syncing to cloud...');
 
-      await onCompleteSale(saleData, cart);
+      // 2. Complete the sale and get the result
+      const result = await onCompleteSale(saleData, cart);
+
+      // 3. If discount was applied, ALSO save to discounts table for tracking
+      if (discountAmount > 0 && result?.id) {
+        setProcessingMessage('Saving discount details...');
+
+        const discountData = {
+          sale_id: result.id,  // Link to the sale we just created
+          approved_by: currentProfile?.id || null,
+          amount: discountAmount,
+          percentage: null, // Could calculate: (discountAmount / subtotal) * 100
+          reason: discountReason || 'Discount applied at POS',
+          pharmacy_name: pharmacyName || 'Unknown Pharmacy'
+        };
+
+        // Insert into discounts table (for audit/tracking)
+        const { error: discountError } = await supabase
+          .from('discounts')
+          .insert(discountData);
+
+        if (discountError) {
+          console.warn('Failed to save discount record:', discountError);
+          // Don't fail the sale - the sale already has the discount info
+        }
+      }
 
       setProcessingStatus('complete');
       setProcessingMessage('Sale completed successfully!');
 
-      // Play success sound
       playCompletionFeedback();
 
-      // Clear cart after successful sale
+      // Clear cart
       setCart([]);
       setDiscountAmount(0);
       setDiscountReason('');
       setSelectedCustomer(null);
       setPaymentMethod('cash');
 
-      // Close processing overlay after delay
       setTimeout(() => {
         setProcessingStatus('idle');
         setProcessingMessage('');
@@ -320,7 +344,6 @@ export const PosView: React.FC<PosViewProps> = ({
       setProcessingStatus('error');
       setProcessingMessage(`Error: ${err.message || 'Failed to complete sale'}`);
 
-      // Allow user to dismiss error after 3 seconds
       setTimeout(() => {
         setProcessingStatus('idle');
         setProcessingMessage('');
@@ -902,8 +925,8 @@ export const PosView: React.FC<PosViewProps> = ({
               <div className="mt-4 w-full bg-slate-700/30 rounded-full h-1.5 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${processingStatus === 'saving' ? 'bg-blue-500 w-1/3' :
-                      processingStatus === 'syncing' ? 'bg-amber-500 w-2/3' :
-                        'w-0'
+                    processingStatus === 'syncing' ? 'bg-amber-500 w-2/3' :
+                      'w-0'
                     }`}
                 />
               </div>
@@ -917,8 +940,8 @@ export const PosView: React.FC<PosViewProps> = ({
                   setProcessingMessage('');
                 }}
                 className={`mt-4 px-6 py-2.5 rounded-xl font-bold text-sm transition-colors ${processingStatus === 'complete'
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    : 'bg-red-500 hover:bg-red-600 text-white'
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
                   }`}
               >
                 {processingStatus === 'complete' ? 'Continue' : 'Try Again'}

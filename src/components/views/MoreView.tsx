@@ -11,6 +11,7 @@ import {
 import { isSupabaseConfigured, getSupabaseClient, processOfflineSyncQueue, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
+import { generateAuditReportPdf } from '../../utils/auditPdfGenerator';
 
 interface MoreViewProps {
   profile: Profile | null;
@@ -29,6 +30,7 @@ interface MoreViewProps {
   theme?: 'dark' | 'light';
   onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void;
   onNavigateToSecurity?: () => void;
+  onNavigateToHardReset?: () => void; // ADD THIS
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -48,6 +50,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   theme = 'dark',
   onNavigateToTab,
   onNavigateToSecurity,
+  onNavigateToHardReset,
 }) => {
   const isDark = theme === 'dark';
 
@@ -300,6 +303,31 @@ export const MoreView: React.FC<MoreViewProps> = ({
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+
+  // Then, in the MoreView component, add the download handler:
+  const handleDownloadAuditReport = () => {
+    if (!profile) {
+      alert('Pharmacy profile not found.');
+      return;
+    }
+
+    // Create pharmacy object from profile
+    const pharmacy = {
+      name: profile.pharmacy_name || 'Pharmacy',
+      address: profile.pharmacy_address || '',
+      phone: profile.pharmacy_phone || '',
+      currency: profile.pharmacy_currency || 'KSh'
+    };
+
+    // Call the PDF generator
+    generateAuditReportPdf(
+      pharmacy,
+      auditLogs,
+      profile,
+      { from: '2024-01-01', to: new Date().toISOString().split('T')[0] } // Optional date range
+    );
   };
 
   const handleSaveStaff = async (e: React.FormEvent) => {
@@ -818,6 +846,28 @@ export const MoreView: React.FC<MoreViewProps> = ({
               </div>
             </button>
           </div>
+          {/* ADD THIS NEW SECTION - Hard Reset Button */}
+          <div className={`pt-4 border-t ${borderLine}`}>
+            <button
+              onClick={() => {
+                if (onNavigateToHardReset) {
+                  onNavigateToHardReset();
+                }
+              }}
+              className={`w-full p-4 rounded-xl text-left transition-colors ${isDark ? 'bg-[#0d1117] hover:bg-[#21262d]' : 'bg-[#f6f8fa] hover:bg-slate-200'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                  <Trash2 className="w-6 h-6 text-red-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-red-400">Factory Reset</p>
+                  <p className={`text-[11px] ${textMuted}`}>Clear all local data and restart fresh</p>
+                </div>
+                <ChevronRight className="w-4 h-4 ml-auto opacity-40 text-red-400" />
+              </div>
+            </button>
+          </div>
         </form>
       )}
 
@@ -1041,11 +1091,22 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Audit Trail */}
+
+// Now update the Audit Trail section JSX (around line 570-600):
       {activeSection === 'audit' && (
         <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-          <div className={`p-4 font-bold text-base ${borderLine} ${textTitle}`}>
-            Activity Audit Trail
+          <div className={`p-4 flex items-center justify-between ${borderLine}`}>
+            <div className={`font-bold text-base ${textTitle}`}>
+              Activity Audit Trail
+            </div>
+            <button
+              onClick={handleDownloadAuditReport}
+              className={`px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+              title="Download Audit Report PDF"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Report</span>
+            </button>
           </div>
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="w-full text-left text-sm">

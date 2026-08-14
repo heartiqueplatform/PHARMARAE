@@ -44,7 +44,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
             <div className="flex items-center gap-4 mb-8">
                 <img
                     src="/pwa-192x192.png"
-                    alt="PHARMIENTA KENYA"
+                    alt="Pharmienta Kenya"
                     className="w-16 h-16 rounded-xl object-cover border-2 border-[#2ea043]/30 shadow-lg"
                 />
                 <div>
@@ -75,7 +75,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                     <h2 className="text-lg font-semibold">Company Overview</h2>
                 </div>
                 <p className="text-sm leading-relaxed">
-                    PHARMIENTA Pro is a cutting-edge pharmacy management platform designed to transform how pharmacies operate in Kenya and across Africa.
+                    Pharmienta Pro is a cutting-edge pharmacy management platform designed to transform how pharmacies operate in Kenya and across Africa.
                     By combining innovative technology with deep industry knowledge, we provide a comprehensive solution that streamlines operations,
                     enhances patient care, and drives sustainable business growth. Our platform is trusted by pharmacies of all sizes, from independent
                     community pharmacies to multi-branch chains.
@@ -190,7 +190,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                 <section>
                     <div className="flex items-center gap-2 mb-3">
                         <TrendingUp className="w-5 h-5 text-[#2ea043]" />
-                        <h2 className="text-lg font-semibold">Why Choose PHARMIENTA?</h2>
+                        <h2 className="text-lg font-semibold">Why Choose Pharmienta?</h2>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {benefits.map((Benefit, index) => (
@@ -258,11 +258,11 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Mail className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>pharmienta@gmail.com</span>
+                                    <span>Pharmienta@gmail.com</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Globe className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>www.pharmienta.com</span>
+                                    <span>www.Pharmienta.com</span>
                                 </p>
                             </div>
                             <div className="space-y-2">
@@ -281,7 +281,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                             </div>
                         </div>
                         <div className={`mt-3 pt-3 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} flex items-center justify-between text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                            <span>© 2024 PHARMIENTA KENYA. All rights reserved.</span>
+                            <span>© 2024 Pharmienta Kenya. All rights reserved.</span>
                             <span className="flex items-center gap-1">
                                 <Lock className="w-3 h-3" />
                                 <span>Secure Connection</span>

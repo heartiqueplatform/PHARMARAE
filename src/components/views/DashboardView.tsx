@@ -33,7 +33,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isLoading = false,
 }) => {
   // Get pharmacy details from profile (since we store everything in profiles now)
-  const pharmacyName = profile?.pharmacy_name || pharmacy?.name || 'PHARMIENTA KENYA';
+  const pharmacyName = profile?.pharmacy_name || pharmacy?.name || 'Pharmienta Kenya';
   const pharmacyCurrency = profile?.pharmacy_currency || pharmacy?.currency || 'KSh';
   const pharmacyReceiptHeader = profile?.pharmacy_receipt_header || pharmacy?.receipt_header || 'Quality Medicines & Professional Care';
   const pharmacyReceiptFooter = profile?.pharmacy_receipt_footer || pharmacy?.receipt_footer || 'Thank you for your visit. Get well soon!';

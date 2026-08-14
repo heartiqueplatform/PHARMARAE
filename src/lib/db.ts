@@ -26,7 +26,19 @@ import {
   Notification,
   SalesReturn,
 } from '../types';
-
+// 👇 ADD THIS INTERFACE DEFINITION
+export interface PushSubscription {
+  id?: string;
+  user_id: string;
+  pharmacy_name: string;
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
 export class MedPDatabase extends Dexie {
   // Tables
   pharmacies!: Table<Pharmacy, string>;
@@ -53,7 +65,7 @@ export class MedPDatabase extends Dexie {
   requested_items!: Table<RequestedItem, string>;
   notifications!: Table<Notification, string>;
   sync_queue!: Table<OfflineSyncItem, number>;
-
+  push_subscriptions!: Table<PushSubscription, string>;
   constructor() {
     super('MedPPharmacyDB');
 
@@ -652,7 +664,9 @@ export class MedPDatabase extends Dexie {
       audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type]'
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type]',
+      // 👆 ADD COMMA HERE
+      push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]'
     }).upgrade(async (tx) => {
       console.log('🚀 Migrating to version 9 - Performance optimizations...');
 

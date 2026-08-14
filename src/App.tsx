@@ -1,12 +1,12 @@
-// App.tsx
+// App.tsx - CLEAN VERSION (No useAppUpdate)
 import React, { useState } from 'react';
 import { useApp } from './hooks/useApp';
 import { useActions } from './hooks/useActions';
 import { useTheme } from './hooks/useTheme';
-import { useAppUpdate } from './hooks/useAppUpdate';
+// ❌ REMOVED: import { useAppUpdate } from './hooks/useAppUpdate';
 import { getPharmacyFromProfile, getTodayStr, getExpiryCutoffStr } from './utils/helpers';
 import { SecurityView } from './components/views/SecurityView';
-
+import { HardResetView } from './components/views/HardResetView';
 import { Header } from './components/Header';
 import { Navigation, NavTab } from './components/Navigation';
 import { BarcodeScannerModal } from './components/BarcodeScannerModal';
@@ -22,16 +22,20 @@ import { SalesReturnsView } from './components/views/SalesReturnsView';
 import { AboutView } from '@/components/views/AboutView';
 import { PrivacyPolicyView } from '@/components/views/PrivacyPolicyView';
 import { TermsConditionsView } from '@/components/views/TermsConditionsView';
+import { StatusBar } from './components/StatusBar';
 
 export default function App() {
   // Theme
   const { theme, toggleTheme, isDark } = useTheme();
 
-  // App Updates
-  const { showUpdateNotification, isUpdateAvailable, handleUpdate, handleDismissUpdate } = useAppUpdate();
+  // ❌ REMOVED: useAppUpdate hook
+  // const { showUpdateNotification, isUpdateAvailable, handleUpdate, handleDismissUpdate } = useAppUpdate();
 
   // Security View State
   const [showSecurityView, setShowSecurityView] = useState(false);
+
+  // Hard Reset View State
+  const [showHardResetView, setShowHardResetView] = useState(false);
 
   // App State
   const app = useApp();
@@ -56,6 +60,11 @@ export default function App() {
     syncPendingCount,
     lastSyncTime,
     isAuthenticated,
+    // ✅ Status Bar props
+    statusMessage,
+    statusType,
+    showStatusBar,
+    // ✅ Toast props (from useApp)
     toastMessage,
     toastType,
     toastPosition,
@@ -76,6 +85,7 @@ export default function App() {
     setActiveTab,
     loadDatabaseData,
     triggerSyncQueue,
+    clearStatus,
     clearToast,
   } = app;
 
@@ -169,139 +179,181 @@ export default function App() {
           appVersion="1.0.0"
         />
 
-        <main className="flex-1 w-full px-2 sm:px-3 md:px-4 pt-2 sm:pt-4 pb-0 min-w-0 overflow-y-auto">
-          {/* Security View - Full page */}
-          {showSecurityView ? (
-            <SecurityView
-              profile={currentProfile}
-              currentRole={currentRole}
-              profiles={profiles}
+        {/* ✅ STATUS BAR - for sync/data updates */}
+        <div className="h-[30px] flex-shrink-0 relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0">
+            <StatusBar
+              message={statusMessage}
+              type={statusType}
+              show={showStatusBar}
+              onClose={clearStatus}
+            />
+          </div>
+        </div>
+
+        <main className="flex-1 w-full px-2 sm:px-3 md:px-4 pt-2 sm:pt-4 pb-24 min-w-0 overflow-y-auto">
+          {/* =============================================
+              HARD RESET VIEW - Full page (rendered FIRST)
+              ============================================ */}
+          {showHardResetView ? (
+            <HardResetView
               theme={theme}
-              onBack={() => setShowSecurityView(false)}
-              onChangePin={actions.handleChangePin}
-              onChangePassword={actions.handleChangePassword}
-              onDeleteAccount={actions.handleDeleteAccount}
-              onSignOut={() => {
-                localStorage.removeItem('medp_authenticated');
-                localStorage.removeItem('medp_current_user_id');
-                setIsAuthenticated(false);
+              pharmacyName={currentProfile?.pharmacy_name}
+              onCancel={() => setShowHardResetView(false)}
+              onComplete={() => {
+                setShowHardResetView(false);
+                window.location.reload();
               }}
+              onTriggerSync={triggerSyncQueue}
             />
           ) : (
             <>
-              {activeTab === 'home' && (
-                <DashboardView
-                  pharmacyName={currentProfile?.pharmacy_name || null}
+              {/* Security View - Full page */}
+              {showSecurityView ? (
+                <SecurityView
                   profile={currentProfile}
-                  role={currentRole}
-                  todaySales={todaySales}
-                  lowStockProducts={lowStockProducts}
-                  expiringBatches={expiringBatches}
-                  onNavigate={(tab) => setActiveTab(tab)}
-                  onOpenAddStockModal={() => setActiveTab('stock')}
-                  theme={theme}
-                  isLoading={isLoading}
-                  requestedItems={requestedItems}
-                  salesReturns={salesReturns}
-                />
-              )}
-
-              {activeTab === 'sell' && (
-                <PosView
-                  pharmacyName={currentProfile?.pharmacy_name || null}
-                  currentProfile={currentProfile}
-                  role={currentRole}
-                  products={products}
-                  batches={batches}
-                  customers={customers}
-                  onCompleteSale={actions.handleCompleteSale}
-                  onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
-                  scannedBarcode={scannedBarcode}
-                  theme={theme}
-                  isLoading={isLoading}
-                />
-              )}
-
-              {activeTab === 'stock' && (
-                <InventoryView
-                  pharmacy={getPharmacyFromProfile(currentProfile)}
-                  products={products}
-                  batches={batches}
-                  categories={categories}
-                  suppliers={suppliers}
-                  units={units}
-                  movements={movements}
-                  onAddProduct={actions.handleAddProduct}
-                  onAddBatch={actions.handleAddBatch}
-                  onUpdateProduct={actions.handleUpdateProduct}
-                  onDeleteProduct={actions.handleDeleteProduct}
-                  onUpdateBatch={actions.handleUpdateBatch}
-                  isLoading={isLoading}
-                  theme={theme}
-                />
-              )}
-
-              {activeTab === 'reports' && (
-                <ReportsView
-                  pharmacy={getPharmacyFromProfile(currentProfile)}
-                  role={currentRole}
-                  sales={sales}
-                  products={products}
-                  batches={batches}
-                  movements={movements}
-                  theme={theme}
-                  isLoading={isLoading}
-                  isSyncing={isSyncing}
-                  onRefresh={triggerSyncQueue}
-                />
-              )}
-
-              {activeTab === 'requests' && (
-                <RequestedItemsView
-                  requestedItems={requestedItems || []}
-                  pharmacyName={currentProfile?.pharmacy_name || null}
-                  currency={currentProfile?.pharmacy_currency || 'KSh'}
-                  theme={theme}
-                  isLoading={isLoading}
-                  onAddRequestedItem={actions.handleAddRequestedItem}
-                  onUpdateRequestedItem={actions.handleUpdateRequestedItem}
-                  onDeleteRequestedItem={actions.handleDeleteRequestedItem}
-                />
-              )}
-
-              {activeTab === 'returns' && (
-                <SalesReturnsView
-                  sales={sales}
-                  products={products}
-                  batches={batches}
-                  salesReturns={salesReturns || []}
-                  pharmacyName={currentProfile?.pharmacy_name || null}
-                  currency={currentProfile?.pharmacy_currency || 'KSh'}
-                  theme={theme}
-                  isLoading={isLoading}
-                  onSalesReturn={actions.handleSalesReturn}
-                />
-              )}
-
-              {activeTab === 'more' && (
-                <MoreView
-                  profile={currentProfile}
-                  profiles={profiles}
                   currentRole={currentRole}
-                  suppliers={suppliers}
-                  auditLogs={auditLogs}
-                  isOnline={isOnline}
-                  syncPendingCount={syncPendingCount}
-                  onUpdateProfile={actions.handleUpdateProfile}
-                  onUpdatePharmacyName={actions.handleUpdatePharmacyName}
-                  onAddSupplier={actions.handleAddSupplier}
-                  onAddStaff={actions.handleAddStaff}
-                  onTriggerSync={triggerSyncQueue}
+                  profiles={profiles}
                   theme={theme}
-                  onResetLocalCache={actions.handleResetLocalCache}
-                  onNavigateToTab={(tab) => setActiveTab(tab)}
-                  onNavigateToSecurity={() => setShowSecurityView(true)}
+                  onBack={() => setShowSecurityView(false)}
+                  onChangePin={actions.handleChangePin}
+                  onChangePassword={actions.handleChangePassword}
+                  onDeleteAccount={actions.handleDeleteAccount}
+                  onSignOut={() => {
+                    localStorage.removeItem('medp_authenticated');
+                    localStorage.removeItem('medp_current_user_id');
+                    setIsAuthenticated(false);
+                  }}
                 />
+              ) : (
+                <>
+                  {activeTab === 'home' && (
+                    <DashboardView
+                      pharmacyName={currentProfile?.pharmacy_name || null}
+                      profile={currentProfile}
+                      role={currentRole}
+                      todaySales={todaySales}
+                      lowStockProducts={lowStockProducts}
+                      expiringBatches={expiringBatches}
+                      onNavigate={(tab) => setActiveTab(tab)}
+                      onOpenAddStockModal={() => setActiveTab('stock')}
+                      theme={theme}
+                      isLoading={isLoading}
+                      requestedItems={requestedItems}
+                      salesReturns={salesReturns}
+                    />
+                  )}
+
+                  {activeTab === 'sell' && (
+                    <PosView
+                      pharmacyName={currentProfile?.pharmacy_name || null}
+                      currentProfile={currentProfile}
+                      role={currentRole}
+                      products={products}
+                      batches={batches}
+                      customers={customers}
+                      onCompleteSale={actions.handleCompleteSale}
+                      onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
+                      scannedBarcode={scannedBarcode}
+                      theme={theme}
+                      isLoading={isLoading}
+                    />
+                  )}
+
+                  {activeTab === 'stock' && (
+                    <InventoryView
+                      pharmacy={getPharmacyFromProfile(currentProfile)}
+                      products={products}
+                      batches={batches}
+                      categories={categories}
+                      suppliers={suppliers}
+                      units={units}
+                      movements={movements}
+                      onAddProduct={actions.handleAddProduct}
+                      onAddBatch={actions.handleAddBatch}
+                      onUpdateProduct={actions.handleUpdateProduct}
+                      onDeleteProduct={actions.handleDeleteProduct}
+                      onUpdateBatch={actions.handleUpdateBatch}
+                      isLoading={isLoading}
+                      theme={theme}
+                    />
+                  )}
+
+                  {activeTab === 'reports' && (
+                    <ReportsView
+                      pharmacy={getPharmacyFromProfile(currentProfile)}
+                      role={currentRole}
+                      sales={sales}
+                      products={products}
+                      batches={batches}
+                      movements={movements}
+                      theme={theme}
+                      isLoading={isLoading}
+                      isSyncing={isSyncing}
+                      onRefresh={triggerSyncQueue}
+                    />
+                  )}
+
+                  {activeTab === 'requests' && (
+                    <RequestedItemsView
+                      requestedItems={requestedItems || []}
+                      pharmacyName={currentProfile?.pharmacy_name || null}
+                      currency={currentProfile?.pharmacy_currency || 'KSh'}
+                      theme={theme}
+                      isLoading={isLoading}
+                      onAddRequestedItem={actions.handleAddRequestedItem}
+                      onUpdateRequestedItem={actions.handleUpdateRequestedItem}
+                      onDeleteRequestedItem={actions.handleDeleteRequestedItem}
+                      pharmacy={{
+                        name: currentProfile?.pharmacy_name || 'Pharmacy',
+                        address: currentProfile?.pharmacy_address || '',
+                        phone: currentProfile?.pharmacy_phone || '',
+                        currency: currentProfile?.pharmacy_currency || 'KSh'
+                      }}
+                    />
+                  )}
+
+                  {activeTab === 'returns' && (
+                    <SalesReturnsView
+                      sales={sales}
+                      products={products}
+                      batches={batches}
+                      salesReturns={salesReturns || []}
+                      pharmacyName={currentProfile?.pharmacy_name || null}
+                      currency={currentProfile?.pharmacy_currency || 'KSh'}
+                      theme={theme}
+                      isLoading={isLoading}
+                      onSalesReturn={actions.handleSalesReturn}
+                    />
+                  )}
+
+                  {activeTab === 'more' && (
+                    <MoreView
+                      profile={currentProfile}
+                      profiles={profiles}
+                      currentRole={currentRole}
+                      suppliers={suppliers}
+                      auditLogs={auditLogs}
+                      isOnline={isOnline}
+                      syncPendingCount={syncPendingCount}
+                      onUpdateProfile={actions.handleUpdateProfile}
+                      onUpdatePharmacyName={actions.handleUpdatePharmacyName}
+                      onAddSupplier={actions.handleAddSupplier}
+                      onAddStaff={actions.handleAddStaff}
+                      onTriggerSync={triggerSyncQueue}
+                      theme={theme}
+                      onResetLocalCache={actions.handleResetLocalCache}
+                      onNavigateToTab={(tab) => setActiveTab(tab)}
+                      onNavigateToSecurity={() => setShowSecurityView(true)}
+                      onNavigateToHardReset={() => setShowHardResetView(true)}
+                    />
+                  )}
+
+                  {/* Other Views */}
+                  {activeTab === 'about' && <AboutView theme={theme} />}
+                  {activeTab === 'privacy' && <PrivacyPolicyView theme={theme} />}
+                  {activeTab === 'terms' && <TermsConditionsView theme={theme} />}
+                </>
               )}
             </>
           )}
@@ -309,119 +361,158 @@ export default function App() {
       </div>
 
       {/* =============================================
-          SMART TOAST NOTIFICATION - WhatsApp Style
-          ============================================ */}
+    ✅ TOAST NOTIFICATION - Bottom Left (Desktop) / Bottom Center (Mobile)
+    ============================================ */}
+      {/* =============================================
+    ✅ TOAST NOTIFICATION - With Update & Later Buttons
+    ============================================ */}
       {toastMessage && toastType && (
-        <div className="fixed top-4 left-0 right-0 z-[100] pointer-events-none px-4 flex justify-center">
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-[100] pointer-events-none">
           <div
             className={`
-              pointer-events-auto
-              flex items-center gap-3
-              px-4 sm:px-5 py-3 sm:py-4
-              rounded-2xl
-              shadow-2xl
-              border
-              max-w-sm w-full
-              animate-slide-down
-              backdrop-blur-sm
-              bg-opacity-95
-              transition-all duration-200
-              ${toastType === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : ''}
-              ${toastType === 'error' ? 'bg-red-500 text-white border-red-400' : ''}
-              ${toastType === 'info' && hasNewData ? 'bg-blue-500 text-white border-blue-400 cursor-pointer hover:scale-[1.02] active:scale-95' : ''}
-              ${toastType === 'info' && !hasNewData ? 'bg-blue-500 text-white border-blue-400' : ''}
+                pointer-events-auto
+                flex flex-col
+                px-5 py-4
+                rounded-2xl
+                shadow-2xl
+                border-2
+                w-full
+                animate-slide-up
+                backdrop-blur-md
+                transition-all duration-200
+                ${isDark
+                ? 'bg-[#1c2333]/95 border-[#30363d] text-[#f0f6fc]'
+                : 'bg-white/95 border-[#d0d7de] text-[#1f2328]'
+              }
             `}
             role="alert"
-            onClick={handleToastClick}
           >
-            <div className="flex-shrink-0">
-              {toastType === 'info' && hasNewData ? (
-                <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              ) : (
-                getToastIcon(toastType)
-              )}
-            </div>
-            <p className="text-sm font-medium flex-1 text-center">
-              {toastMessage}
-              {toastType === 'info' && hasNewData && (
-                <span className="block text-[10px] opacity-80 mt-0.5 font-normal">
-                  Tap to refresh now
-                </span>
-              )}
-            </p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                clearToast();
-              }}
-              className="flex-shrink-0 p-1 hover:bg-white/20 rounded-full transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
+            {/* Top Row: Icon + Message + Close */}
+            <div className="flex items-start gap-4">
+              {/* Icon Section */}
+              <div className="flex-shrink-0">
+                {toastType === 'success' && (
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+                {toastType === 'error' && (
+                  <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                )}
+                {toastType === 'info' && (
+                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                )}
+              </div>
 
-      {/* Update Notification */}
-      {showUpdateNotification && isUpdateAvailable && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:bottom-4 md:max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 z-[9999] animate-slide-up">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              {/* Message Section */}
+              <div className="flex-1">
+                <p className="text-base font-bold">
+                  {toastMessage}
+                </p>
+                {toastType === 'info' && (
+                  <p className="text-xs opacity-70 mt-1 font-medium">
+                    A new version is available with bug fixes and features.
+                  </p>
+                )}
+                {toastType === 'success' && (
+                  <p className="text-xs opacity-70 mt-1 font-medium">
+                    Operation completed successfully
+                  </p>
+                )}
+                {toastType === 'error' && (
+                  <p className="text-xs opacity-70 mt-1 font-medium">
+                    Please try again or contact support
+                  </p>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearToast();
+                }}
+                className={`flex-shrink-0 p-1.5 rounded-full transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                  }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <div className="flex-1">
-              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">Update Available</h4>
-              <p className="text-gray-600 dark:text-gray-300 text-xs mt-0.5">
-                Version 1.0.0 is ready. Refresh to get the latest features.
-              </p>
-              <div className="flex gap-2 mt-2">
+
+            {/* Bottom Row: Buttons - Only for Info type */}
+            {toastType === 'info' && (
+              <div className="flex gap-3 mt-4 ml-16">
                 <button
-                  onClick={handleUpdate}
-                  className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                  onClick={() => {
+                    window.location.reload();
+                    clearToast();
+                  }}
+                  className="
+                            flex-1 px-4 py-2.5
+                            bg-emerald-600 hover:bg-emerald-700
+                            text-white text-sm font-bold
+                            rounded-xl
+                            transition-all duration-200
+                            hover:scale-[1.02] active:scale-95
+                            shadow-lg shadow-emerald-500/30
+                        "
                 >
                   Update Now
                 </button>
                 <button
-                  onClick={handleDismissUpdate}
-                  className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearToast();
+                  }}
+                  className={`
+                            flex-1 px-4 py-2.5
+                            text-sm font-medium
+                            rounded-xl
+                            transition-all duration-200
+                            ${isDark
+                      ? 'bg-[#30363d] text-[#c9d1d9] hover:bg-[#484f58]'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }
+                        `}
                 >
                   Later
                 </button>
               </div>
-            </div>
-            <button
-              onClick={handleDismissUpdate}
-              className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            )}
           </div>
         </div>
       )}
-      {/* FLOATING REFRESH BUTTON - Smaller with label */}
+
+      {/* ❌ REMOVED: Update Notification section (useAppUpdate) */}
+
+      {/* FLOATING REFRESH BUTTON */}
       <div className="fixed bottom-20 right-4 z-50 flex flex-col items-center gap-1">
         <button
           onClick={() => {
             triggerSyncQueue();
-            clearToast();
+            clearStatus();
           }}
           className={`
-      p-3 rounded-full shadow-lg
-      bg-emerald-500 hover:bg-emerald-600
-      text-white
-      transition-all duration-200
-      hover:scale-110 active:scale-95
-      flex items-center justify-center
-      ${isDark ? 'shadow-emerald-500/20' : 'shadow-emerald-500/30'}
-    `}
+            p-3 rounded-full shadow-lg
+            bg-emerald-500 hover:bg-emerald-600
+            text-white
+            transition-all duration-200
+            hover:scale-110 active:scale-95
+            flex items-center justify-center
+            ${isDark ? 'shadow-emerald-500/20' : 'shadow-emerald-500/30'}
+          `}
           style={{
             width: '44px',
             height: '44px',
@@ -438,18 +529,17 @@ export default function App() {
             </svg>
           )}
         </button>
-
-        {/* Label below the button */}
         <span className={`
-    text-[10px] font-medium
-    ${isDark ? 'text-gray-400' : 'text-gray-600'}
-    bg-opacity-80
-    px-2 py-0.5 rounded
-    ${isDark ? 'bg-gray-800/60' : 'bg-white/60'}
-  `}>
+          text-[10px] font-medium
+          ${isDark ? 'text-gray-400' : 'text-gray-600'}
+          bg-opacity-80
+          px-2 py-0.5 rounded
+          ${isDark ? 'bg-gray-800/60' : 'bg-white/60'}
+        `}>
           Refresh
         </span>
       </div>
+
       {/* Modals */}
       <BarcodeScannerModal
         isOpen={isBarcodeScannerOpen}
@@ -496,11 +586,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* Other Views */}
-      {activeTab === 'about' && <AboutView theme={theme} />}
-      {activeTab === 'privacy' && <PrivacyPolicyView theme={theme} />}
-      {activeTab === 'terms' && <TermsConditionsView theme={theme} />}
 
       {/* CSS for animations */}
       <style>{`

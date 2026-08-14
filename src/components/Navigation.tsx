@@ -321,7 +321,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 </div>
                 <div className={`text-right ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
                   <p className="text-[10px] font-medium">v2.0.1</p>
-                  <p className="text-[9px]">© 2024 PHARMIENTA</p>
+                  <p className="text-[9px]">© 2024 Pharmienta</p>
                 </div>
               </div>
             </div>
@@ -340,7 +340,7 @@ export const Navigation: React.FC<NavigationProps> = ({
           }`}>
           <img
             src="/pwa-192x192.png"
-            alt="PHARMIENTA KENYA"
+            alt="Pharmienta Kenya"
             className="w-9 h-9 rounded-xl flex-shrink-0 object-cover border border-[#2ea043]/30"
           />
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 truncate">
