@@ -375,16 +375,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         {/* 🆕 Refresh Button + Subtabs */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={isSyncing}
-            className={`p-2.5 rounded-xl transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
-              }`}
-            title="Refresh Data"
-          >
-            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          </button>
-
           <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
             <button
               onClick={() => setActiveReportTab('daily')}
