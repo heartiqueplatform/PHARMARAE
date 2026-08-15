@@ -217,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({
           <img
             src={src}
             alt={alt || 'Avatar'}
-            className={`${sizeClass} rounded-full object-cover border-2 border-[#2ea043]/30 shadow-lg shadow-[#2ea043]/10`}
+            className={`${sizeClass} rounded-full object-cover border-2 ${isDark ? 'border-[#2ea043]/30' : 'border-emerald-400/30'} shadow-lg shadow-[#2ea043]/10`}
           />
         ) : (
           <div className={`${sizeClass} rounded-full flex items-center justify-center font-bold shadow-lg bg-gradient-to-br from-[#2ea043] to-[#58a6ff] text-white`}>
@@ -240,7 +240,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="max-w-7xl mx-auto flex items-center justify-between">
 
           {/* Pharmacy Title & Brand */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <AvatarCircle
               src={currentProfile?.avatar_url}
               initials={pharmacyName.charAt(0).toUpperCase()}
@@ -249,9 +249,9 @@ export const Header: React.FC<HeaderProps> = ({
               statusPosition="bottom-right"
             />
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="font-extrabold text-base tracking-tight leading-none truncate max-w-[120px] sm:max-w-[200px]">
+                <h1 className={`font-extrabold text-base tracking-tight leading-none truncate max-w-[180px] sm:max-w-[300px] md:max-w-[400px] ${isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]'}`}>
                   {pharmacyName}
                 </h1>
                 <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shrink-0 ${isDark
@@ -275,7 +275,7 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </button>
               </div>
-              <p className={`text-[10px] truncate max-w-[120px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+              <p className={`text-[10px] truncate max-w-[180px] sm:max-w-xs mt-0.5 flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
                 }`}>
                 {pharmacyTown ? `${pharmacyTown} • POS active` : 'Pharmacy Management System'}
                 {hasUpdate && (
@@ -287,47 +287,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Controls: Notification, Theme Toggle, Sync Badge, Profile Switcher */}
+          {/* Controls: Sync Badge, Profile Switcher - NO THEME TOGGLE */}
           <div className="flex items-center gap-2 flex-shrink-0">
-
-            {/* =============================================
-                🔔 NOTIFICATION PERMISSION BUTTON - Lucide Icons
-                ============================================ */}
-            <div className="hidden sm:block">
-              <NotificationPermissionPrompt
-                compact={true}
-                onPermissionChange={(permission) => {
-                  console.log('Notification permission changed:', permission);
-                  if (permission === 'granted') {
-                    console.log('✅ Notifications enabled!');
-                  }
-                }}
-              />
-            </div>
-
-            {/* Mobile version - icon only */}
-            <div className="sm:hidden">
-              <NotificationPermissionPrompt
-                compact={true}
-                onPermissionChange={(permission) => {
-                  console.log('Notification permission changed:', permission);
-                }}
-              />
-            </div>
-
-            {/* Theme Toggle Button */}
-            {onToggleTheme && (
-              <button
-                onClick={onToggleTheme}
-                className={`p-2 rounded-full border transition-all duration-200 hover:scale-105 flex-shrink-0 ${isDark
-                  ? 'bg-[#21262d]/80 border-[#30363d] text-amber-400 hover:bg-[#30363d]'
-                  : 'bg-[#f6f8fa]/80 border-[#d0d7de] text-indigo-600 hover:bg-slate-200'
-                  }`}
-                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-            )}
 
             {/* Sync & Network Badge */}
             <button
@@ -378,10 +339,33 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Profile Dropdown - Closes on outside click */}
               {showProfileMenu && (
-                <div className={`absolute right-0 mt-2 w-80 rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
+                <div className={`absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl shadow-2xl py-1 z-50 text-xs backdrop-blur-xl border ${isDark
                   ? 'bg-[#161b22]/95 border-[#30363d]/50 text-[#c9d1d9]'
                   : 'bg-white/95 border-[#d0d7de]/50 text-[#1f2328]'
                   }`}>
+
+                  {/* 🔔 NOTIFICATION PERMISSION - NOW INSIDE PROFILE OVERLAY */}
+                  <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-1.5`}>
+                        <Bell className="w-3.5 h-3.5" />
+                        Notifications
+                      </span>
+                      <NotificationPermissionPrompt
+                        compact={true}
+                        onPermissionChange={(permission) => {
+                          console.log('Notification permission changed:', permission);
+                          if (permission === 'granted') {
+                            console.log('✅ Notifications enabled!');
+                          }
+                        }}
+                      />
+                    </div>
+                    <p className={`text-[9px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                      Enable notifications for order updates and alerts
+                    </p>
+                  </div>
+
                   {/* Current User Section */}
                   <div className={`px-4 py-3 border-b ${isDark ? 'border-[#30363d]/50' : 'border-[#d0d7de]/50'} flex items-center gap-3`}>
                     <AvatarCircle
@@ -392,7 +376,7 @@ export const Header: React.FC<HeaderProps> = ({
                       statusPosition="bottom-right"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="font-extrabold text-base truncate">
+                      <p className={`font-extrabold text-base truncate ${isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]'}`}>
                         {currentProfile?.full_name || 'Staff Member'}
                       </p>
                       <p className={`text-[10px] capitalize flex items-center gap-1 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
@@ -450,7 +434,7 @@ export const Header: React.FC<HeaderProps> = ({
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="truncate font-medium">{p.full_name}</p>
+                              <p className={`truncate font-medium ${isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]'}`}>{p.full_name}</p>
                               {isActive && (
                                 <span className="text-[8px] font-bold text-emerald-500 flex-shrink-0">(You)</span>
                               )}
@@ -547,7 +531,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
           <div
             ref={signOutModalRef}
-            className={`rounded-2xl max-w-md w-full p-6 shadow-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'}`}
+            className={`rounded-2xl max-w-md w-full p-6 shadow-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'} relative`}
           >
             {/* Close button (X) */}
             <button
@@ -638,7 +622,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={handleConfirmSignOut}
                   disabled={signOutConfirmText !== 'LOGOUT'}
-                  className={`px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 transition-colors`}
+                  className="px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Confirm Sign Out</span>
