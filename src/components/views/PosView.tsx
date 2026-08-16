@@ -750,7 +750,7 @@ export const PosView: React.FC<PosViewProps> = ({
           CONFIRMATION OVERLAY (Persistent)
           ============================================ */}
       {showConfirmOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div className={`max-w-md w-full rounded-2xl shadow-2xl p-6 ${cardBg} border ${borderLine} max-h-[90vh] overflow-y-auto`}>
 
             {/* Header */}

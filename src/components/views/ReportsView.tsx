@@ -177,33 +177,61 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
   };
 
-  // Helper: Group sales by sale_id to get multi-item receipts
+  // =============================================
+  // FIXED: Helper: Group sales by sale_number to get multi-item receipts
+  // =============================================
   const getGroupedSales = (salesList: Sale[]) => {
-    const groups: Record<string, { sale_id: string; sale_number: string; customer_name: string; items: Sale[]; total: number; discount: number; payment_method: string; sale_date: string; created_at: string }> = {};
+    const groups: Record<string, {
+      sale_number: string;
+      customer_name: string;
+      items: Sale[];
+      total: number;
+      discount: number;
+      payment_method: string;
+      sale_date: string;
+      created_at: string;
+      subtotal: number;
+    }> = {};
 
     for (const sale of salesList) {
       const groupKey = sale.sale_number;
 
       if (!groups[groupKey]) {
         groups[groupKey] = {
-          sale_id: sale.id,
           sale_number: sale.sale_number,
           customer_name: sale.customer_name || 'Guest',
           items: [],
-          total: sale.total || 0,
-          discount: sale.discount || 0,
+          total: 0,  // ✅ Initialize to 0
+          discount: 0,  // ✅ Initialize to 0
+          subtotal: 0,  // ✅ Initialize to 0
           payment_method: sale.payment_method || 'cash',
           sale_date: sale.sale_date || sale.created_at,
           created_at: sale.created_at,
         };
       }
 
-      const existingItem = groups[groupKey].items.find(i => i.product_id === sale.product_id);
-      if (!existingItem) {
-        groups[groupKey].items.push(sale);
+      // ✅ Add item to group
+      groups[groupKey].items.push(sale);
+
+      // ✅ SUM the totals (not just set)
+      groups[groupKey].total += sale.total || 0;
+      groups[groupKey].subtotal += sale.subtotal || 0;
+
+      // ✅ SUM the discount (each item might have discount applied)
+      groups[groupKey].discount += sale.discount || 0;
+
+      // ✅ Use the first item's payment method as the group payment method
+      // (or keep the last one - consistent for the sale)
+      groups[groupKey].payment_method = sale.payment_method || groups[groupKey].payment_method;
+
+      // ✅ Use the earliest date for the group
+      const saleDate = sale.sale_date || sale.created_at;
+      if (saleDate && (!groups[groupKey].sale_date || saleDate < groups[groupKey].sale_date)) {
+        groups[groupKey].sale_date = saleDate;
       }
-      groups[groupKey].total = sale.total || 0;
-      groups[groupKey].discount = sale.discount || 0;
+      if (sale.created_at && (!groups[groupKey].created_at || sale.created_at < groups[groupKey].created_at)) {
+        groups[groupKey].created_at = sale.created_at;
+      }
     }
 
     return Object.values(groups);
@@ -241,13 +269,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredMonthlySales]);
 
-  // Filter Multi-Item Sales (grouped by sale_number)
+  // =============================================
+  // FIXED: Filter Multi-Item Sales (grouped by sale_number)
+  // =============================================
   const filteredMultiSalesRaw = useMemo(() => {
+    // Get all sales for the selected date
     const salesForDate = sales.filter(s => {
       const date = s.sale_date || s.created_at;
       return date?.startsWith(multiDate);
     });
-    return getGroupedSales(salesForDate).filter(group => group.items.length > 1);
+
+    // Group them by sale_number
+    const grouped = getGroupedSales(salesForDate);
+
+    // ✅ Return groups with more than 1 item (multi-item sales)
+    return grouped.filter(group => group.items.length > 1);
   }, [sales, multiDate]);
 
   const filteredMultiSales = useMemo(() => {
@@ -666,7 +702,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // Render a grouped multi-item sale row
+  // =============================================
+  // FIXED: Render a grouped multi-item sale row with correct totals
+  // =============================================
   const renderMultiSaleRow = (group: any) => {
     const isExpanded = expandedMultiSales.has(group.sale_number);
     const itemCount = group.items.length;
@@ -710,7 +748,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {group.items.length > 2 && ` +${group.items.length - 2} more`}
             </div>
           </td>
-          <td className={`p-3 font-extrabold text-[#2ea043]`}>{currency} {group.total.toFixed(2)}</td>
+          <td className={`p-3 font-extrabold ${textTitle}`}>
+            <div className="flex flex-col">
+              <span className="text-[#2ea043]">{currency} {group.total.toFixed(2)}</span>
+              {group.discount > 0 && (
+                <span className="text-[10px] text-amber-500">-{currency} {group.discount.toFixed(2)} discount</span>
+              )}
+              <span className={`text-[10px] font-normal ${textMuted}`}>
+                {group.payment_method || 'cash'}
+              </span>
+            </div>
+          </td>
           <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={(e) => {
@@ -786,8 +834,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     );
                   })}
 
-                  {/* Summary row */}
+                  {/* ✅ FIXED: Summary row with correct totals */}
                   <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 ${borderLine}`}>
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Subtotal</p>
+                      <p className={`font-bold ${textTitle}`}>{currency} {group.subtotal.toFixed(2)}</p>
+                    </div>
                     {group.discount > 0 && (
                       <div>
                         <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Discount</p>
@@ -802,9 +854,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Items</p>
                       <p className={`font-semibold ${textTitle}`}>{itemCount} ({totalQuantity} units)</p>
                     </div>
-                    <div>
+                    <div className="col-span-2 md:col-span-4">
                       <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Total</p>
-                      <p className={`font-extrabold text-[#2ea043]`}>{currency} {group.total.toFixed(2)}</p>
+                      <p className={`font-extrabold text-[#2ea043] text-lg`}>{currency} {group.total.toFixed(2)}</p>
                     </div>
                   </div>
                 </div>
