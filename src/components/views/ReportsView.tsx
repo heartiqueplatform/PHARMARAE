@@ -53,13 +53,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
   const [expandedMultiSales, setExpandedMultiSales] = useState<Set<string>>(new Set());
 
-  // Edit state
+  // Edit state with paymentMethod
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
     quantity: number;
     unitPrice: number;
     discount: number;
-  }>({ quantity: 1, unitPrice: 0, discount: 0 });
+    paymentMethod: string;
+  }>({ quantity: 1, unitPrice: 0, discount: 0, paymentMethod: 'cash' });
 
   // Date pickers
   const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -101,13 +102,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       quantity: sale.quantity || 1,
       unitPrice: sale.unit_price || 0,
       discount: sale.discount || 0,
+      paymentMethod: sale.payment_method || 'cash',
     });
   };
 
   // Cancel editing
   const cancelEditing = () => {
     setEditingSaleId(null);
-    setEditValues({ quantity: 1, unitPrice: 0, discount: 0 });
+    setEditValues({ quantity: 1, unitPrice: 0, discount: 0, paymentMethod: 'cash' });
   };
 
   // Save edited sale
@@ -124,10 +126,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         subtotal: newSubtotal,
         discount: editValues.discount,
         total: newTotal,
+        payment_method: editValues.paymentMethod as any,
       });
 
       setEditingSaleId(null);
-      setEditValues({ quantity: 1, unitPrice: 0, discount: 0 });
+      setEditValues({ quantity: 1, unitPrice: 0, discount: 0, paymentMethod: 'cash' });
 
       if (onRefresh) {
         await onRefresh();
@@ -415,12 +418,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   className={`w-20 text-right rounded px-2 py-1 text-sm text-amber-500 ${inputBg} ${touchTargetSmall}`}
                   placeholder="discount"
                 />
+                <select
+                  value={editValues.paymentMethod}
+                  onChange={(e) => setEditValues({ ...editValues, paymentMethod: e.target.value })}
+                  className={`w-24 rounded px-2 py-1 text-sm ${inputBg} ${touchTargetSmall}`}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="card">Card</option>
+                  <option value="credit">Credit</option>
+                  <option value="insurance">Insurance</option>
+                </select>
                 <span className="text-[10px] text-[#2ea043]">
                   Total: {currency} {(editValues.quantity * editValues.unitPrice - editValues.discount).toFixed(2)}
                 </span>
               </div>
             ) : (
-              <span>{currency} {sale.total.toFixed(2)}</span>
+              <div className="flex flex-col">
+                <span>{currency} {sale.total.toFixed(2)}</span>
+                <span className={`text-[10px] font-normal ${textMuted}`}>
+                  {sale.payment_method || 'cash'}
+                </span>
+              </div>
             )}
           </td>
           <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
