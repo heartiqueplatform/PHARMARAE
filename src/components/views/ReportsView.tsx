@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole, SaleItem } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
-import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt, Pencil, Save, X } from 'lucide-react';
+import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt, Pencil, Save, X, Filter, Search, XCircle } from 'lucide-react';
 
 interface ReportsViewProps {
   pharmacy: Pharmacy | null;
@@ -53,6 +53,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
   const [expandedMultiSales, setExpandedMultiSales] = useState<Set<string>>(new Set());
 
+  // Filter state
+  const [filterText, setFilterText] = useState<string>('');
+  const [filterField, setFilterField] = useState<'customer' | 'product' | 'payment' | 'all'>('all');
+  const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
+
   // Edit state with paymentMethod
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
@@ -93,6 +98,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       batchId: sale.batch_id || null,
       productDetails: sale.product_details || null,
     };
+  };
+
+  // Filter function for sales
+  const applyFilters = (salesList: Sale[]): Sale[] => {
+    if (!filterText.trim()) return salesList;
+
+    const searchLower = filterText.toLowerCase().trim();
+
+    return salesList.filter(sale => {
+      const customerName = (sale.customer_name || 'Guest').toLowerCase();
+      const productName = (sale.product_name || '').toLowerCase();
+      const paymentMethod = (sale.payment_method || '').toLowerCase();
+      const saleNumber = (sale.sale_number || '').toLowerCase();
+      const notes = (sale.notes || '').toLowerCase();
+
+      switch (filterField) {
+        case 'customer':
+          return customerName.includes(searchLower);
+        case 'product':
+          return productName.includes(searchLower);
+        case 'payment':
+          return paymentMethod.includes(searchLower);
+        case 'all':
+        default:
+          return customerName.includes(searchLower) ||
+            productName.includes(searchLower) ||
+            paymentMethod.includes(searchLower) ||
+            saleNumber.includes(searchLower) ||
+            notes.includes(searchLower);
+      }
+    });
   };
 
   // Start editing a sale
@@ -174,31 +210,39 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   // Filter Daily Sales
-  const filteredDailySales = useMemo(() => {
+  const filteredDailySalesRaw = useMemo(() => {
     return sales.filter(s => {
       const date = s.sale_date || s.created_at;
       return date?.startsWith(dailyDate);
     });
   }, [sales, dailyDate]);
 
+  const filteredDailySales = useMemo(() => {
+    return applyFilters(filteredDailySalesRaw);
+  }, [filteredDailySalesRaw, filterText, filterField]);
+
   const dailyTotalRevenue = useMemo(() => {
     return filteredDailySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredDailySales]);
 
   // Filter Monthly Sales
-  const filteredMonthlySales = useMemo(() => {
+  const filteredMonthlySalesRaw = useMemo(() => {
     return sales.filter(s => {
       const date = s.sale_date || s.created_at;
       return date?.startsWith(monthlyPeriod);
     });
   }, [sales, monthlyPeriod]);
 
+  const filteredMonthlySales = useMemo(() => {
+    return applyFilters(filteredMonthlySalesRaw);
+  }, [filteredMonthlySalesRaw, filterText, filterField]);
+
   const monthlyTotalRevenue = useMemo(() => {
     return filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredMonthlySales]);
 
   // Filter Multi-Item Sales (grouped by sale_number)
-  const filteredMultiSales = useMemo(() => {
+  const filteredMultiSalesRaw = useMemo(() => {
     const salesForDate = sales.filter(s => {
       const date = s.sale_date || s.created_at;
       return date?.startsWith(multiDate);
@@ -206,9 +250,46 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return getGroupedSales(salesForDate).filter(group => group.items.length > 1);
   }, [sales, multiDate]);
 
+  const filteredMultiSales = useMemo(() => {
+    if (!filterText.trim()) return filteredMultiSalesRaw;
+
+    const searchLower = filterText.toLowerCase().trim();
+
+    return filteredMultiSalesRaw.filter(group => {
+      const customerName = group.customer_name.toLowerCase();
+      const paymentMethod = (group.payment_method || '').toLowerCase();
+      const saleNumber = group.sale_number.toLowerCase();
+
+      const itemMatches = group.items.some(item => {
+        const productName = (item.product_name || '').toLowerCase();
+        return productName.includes(searchLower);
+      });
+
+      switch (filterField) {
+        case 'customer':
+          return customerName.includes(searchLower);
+        case 'product':
+          return itemMatches;
+        case 'payment':
+          return paymentMethod.includes(searchLower);
+        case 'all':
+        default:
+          return customerName.includes(searchLower) ||
+            itemMatches ||
+            paymentMethod.includes(searchLower) ||
+            saleNumber.includes(searchLower);
+      }
+    });
+  }, [filteredMultiSalesRaw, filterText, filterField]);
+
   const multiTotalRevenue = useMemo(() => {
     return filteredMultiSales.reduce((acc, group) => acc + group.total, 0);
   }, [filteredMultiSales]);
+
+  // Apply filters to history sales
+  const filteredHistorySales = useMemo(() => {
+    return applyFilters(sales);
+  }, [sales, filterText, filterField]);
 
   // Toggle expanded sale
   const toggleExpanded = (saleId: string) => {
@@ -303,6 +384,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
   };
 
+  // Clear filters
+  const clearFilters = () => {
+    setFilterText('');
+    setFilterField('all');
+    setShowFilterPanel(false);
+  };
+
   // Skeleton Components
   const SkeletonRow = ({ cols = 6 }) => (
     <tr className="animate-pulse">
@@ -390,7 +478,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <span className="text-[11px] text-[#2ea043]">units</span>
               </div>
             ) : (
-              <span className="text-[11px] text-[#2ea043] ml-1">(×{productDetails.quantity})</span>
+              <span className="text-[11px] text-[#2ea043] ml-1">(x{productDetails.quantity})</span>
             )}
             {productDetails.batchNumber && (
               <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded ${isDark ? 'bg-[#30363d]' : 'bg-slate-200'}`}>
@@ -442,30 +530,33 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </div>
             )}
           </td>
-          <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+          <td className="p-2 sm:p-3" onClick={(e) => e.stopPropagation()}>
             {isEditing ? (
-              <>
+              <div className="flex items-center justify-end gap-1 sm:gap-2">
                 <button
                   onClick={() => saveEditing(sale)}
-                  className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} bg-emerald-600 hover:bg-emerald-700 text-white`}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center min-w-[44px]`}
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline ml-1">Save</span>
                 </button>
                 <button
                   onClick={cancelEditing}
-                  className={`px-3 py-2 rounded-xl text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'} flex items-center justify-center min-w-[44px]`}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline ml-1">Cancel</span>
                 </button>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-1.5">
                 <button
                   onClick={() => startEditing(sale)}
-                  className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+                  className={`px-2.5 sm:px-3 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'} flex items-center justify-center min-w-[44px]`}
                   title="Edit sale"
                 >
-                  <Pencil className="w-4 h-4" />
+                  <Pencil className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline ml-1">Edit</span>
                 </button>
                 <button
                   onClick={() => {
@@ -486,20 +577,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     }];
                     generateReceiptPdf(pharmacy, sale, tempItems, 'print');
                   }}
-                  className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
-                    }`}
+                  className={`px-2.5 sm:px-3 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'} flex items-center justify-center min-w-[44px]`}
                 >
-                  Print
+                  <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline ml-1">Print</span>
                 </button>
                 {onProcessReturn && (
                   <button
                     onClick={() => setSelectedSaleForReturn(sale)}
-                    className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
+                    className={`px-2.5 sm:px-3 py-2.5 sm:py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall} flex items-center justify-center min-w-[44px]`}
                   >
-                    Return
+                    <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="hidden sm:inline ml-1">Return</span>
                   </button>
                 )}
-              </>
+              </div>
             )}
           </td>
         </tr>
@@ -612,7 +704,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {group.items.slice(0, 2).map((sale: Sale, idx: number) => (
                 <span key={idx}>
                   {idx > 0 && ', '}
-                  {sale.product_name} (×{sale.quantity})
+                  {sale.product_name} (x{sale.quantity})
                 </span>
               ))}
               {group.items.length > 2 && ` +${group.items.length - 2} more`}
@@ -724,6 +816,61 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
+  // Filter UI Component
+  const FilterUI = () => (
+    <div className={`p-3 rounded-xl ${isDark ? 'bg-[#21262d]/80' : 'bg-[#f6f8fa]'}`}>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
+          <Search className={`w-4 h-4 ${textMuted}`} />
+          <input
+            type="text"
+            placeholder="Search sales..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+          />
+          {filterText && (
+            <button
+              onClick={() => setFilterText('')}
+              className={`p-1.5 rounded-lg ${touchTargetSmall} ${isDark ? 'hover:bg-[#30363d]' : 'hover:bg-slate-200'}`}
+            >
+              <XCircle className="w-4 h-4 text-[#8b949e]" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={filterField}
+            onChange={(e) => setFilterField(e.target.value as any)}
+            className={`rounded-lg px-3 py-2 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+          >
+            <option value="all">All Fields</option>
+            <option value="customer">Customer Name</option>
+            <option value="product">Product Name</option>
+            <option value="payment">Payment Method</option>
+          </select>
+
+          {filterText && (
+            <button
+              onClick={clearFilters}
+              className={`px-3 py-2 rounded-lg text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#30363d] text-[#c9d1d9] hover:bg-[#484f58]' : 'bg-slate-200 text-[#1f2328] hover:bg-slate-300'}`}
+            >
+              Clear All
+            </button>
+          )}
+        </div>
+      </div>
+
+      {filterText && (
+        <div className={`mt-2 text-xs ${textMuted}`}>
+          Showing results for: <span className="font-bold text-[#2ea043]">"{filterText}"</span>
+          {filterField !== 'all' && <span> in <span className="font-bold">{filterField}</span></span>}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6" key={renderKey}>
       {/* Header */}
@@ -739,7 +886,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Subtabs */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 flex-wrap ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
             <button
               onClick={() => setActiveReportTab('daily')}
@@ -779,7 +926,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="space-y-4">
           {/* Controls Bar */}
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
               <span className={`text-sm font-bold ${textMuted}`}>Select Date:</span>
               <input
@@ -790,14 +937,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               />
             </div>
 
-            <button
-              onClick={handleDownloadDailyPdf}
-              className={`w-full sm:w-auto px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
-            >
-              <Download className="w-5 h-5" />
-              <span>Download Daily PDF</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                className={`px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 ${touchTargetSmall} ${showFilterPanel ? 'bg-[#2ea043] text-white' : isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+              >
+                <Filter className="w-4 h-4" />
+                <span>Filter</span>
+                {filterText && <span className="bg-[#2ea043] text-white text-[10px] px-1.5 py-0.5 rounded-full">1</span>}
+              </button>
+
+              <button
+                onClick={handleDownloadDailyPdf}
+                className={`w-full sm:w-auto px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+              >
+                <Download className="w-5 h-5" />
+                <span>Download Daily PDF</span>
+              </button>
+            </div>
           </div>
+
+          {/* Filter Panel */}
+          {showFilterPanel && (
+            <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
+              <FilterUI />
+            </div>
+          )}
 
           {/* Daily Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -820,6 +985,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <p className={`text-sm font-semibold ${textMuted}`}>Transactions</p>
                   <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
                     {filteredDailySales.length}
+                    {filterText && filteredDailySales.length !== filteredDailySalesRaw.length && (
+                      <span className={`text-xs font-normal ${textMuted} ml-1`}>
+                        (of {filteredDailySalesRaw.length})
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className={`p-4 rounded-2xl ${cardBg}`}>
@@ -843,8 +1013,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <SkeletonTable rows={5} cols={6} />
           ) : (
             <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-              <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
-                Transactions for {dailyDate}
+              <div className={`p-4 font-bold text-sm flex items-center justify-between ${borderLine} ${textTitle}`}>
+                <span>Transactions for {dailyDate}</span>
+                {filterText && (
+                  <span className={`text-xs font-normal ${textMuted}`}>
+                    Filtered: {filteredDailySales.length} of {filteredDailySalesRaw.length}
+                  </span>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -864,7 +1039,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     {filteredDailySales.length === 0 ? (
                       <tr>
                         <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
-                          No transactions recorded on this date.
+                          {filterText ? 'No transactions match your filter criteria.' : 'No transactions recorded on this date.'}
                         </td>
                       </tr>
                     ) : (
@@ -904,7 +1079,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReportTab === 'monthly' && (
         <div className="space-y-4">
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
               <span className={`text-sm font-bold ${textMuted}`}>Select Month:</span>
               <input
@@ -914,14 +1089,33 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 className={`text-sm rounded-xl px-4 py-3 focus:outline-none ${inputBg} ${touchTargetSmall}`}
               />
             </div>
-            <button
-              onClick={handleDownloadMonthlyPdf}
-              className={`w-full sm:w-auto px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
-            >
-              <Download className="w-5 h-5" />
-              <span>Download Monthly Audit</span>
-            </button>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                className={`px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 ${touchTargetSmall} ${showFilterPanel ? 'bg-[#2ea043] text-white' : isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+              >
+                <Filter className="w-4 h-4" />
+                <span>Filter</span>
+                {filterText && <span className="bg-[#2ea043] text-white text-[10px] px-1.5 py-0.5 rounded-full">1</span>}
+              </button>
+
+              <button
+                onClick={handleDownloadMonthlyPdf}
+                className={`w-full sm:w-auto px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+              >
+                <Download className="w-5 h-5" />
+                <span>Download Monthly Audit</span>
+              </button>
+            </div>
           </div>
+
+          {/* Filter Panel */}
+          {showFilterPanel && (
+            <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
+              <FilterUI />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {isLoading ? (
@@ -943,6 +1137,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <p className={`text-sm font-semibold ${textMuted}`}>Transactions</p>
                   <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
                     {filteredMonthlySales.length}
+                    {filterText && filteredMonthlySales.length !== filteredMonthlySalesRaw.length && (
+                      <span className={`text-xs font-normal ${textMuted} ml-1`}>
+                        (of {filteredMonthlySalesRaw.length})
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className={`p-4 rounded-2xl ${cardBg}`}>
@@ -966,8 +1165,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <SkeletonTable rows={5} cols={3} />
           ) : (
             <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-              <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
-                Top Selling Products ({monthlyPeriod})
+              <div className={`p-4 font-bold text-sm flex items-center justify-between ${borderLine} ${textTitle}`}>
+                <span>Top Selling Products ({monthlyPeriod})</span>
+                {filterText && (
+                  <span className={`text-xs font-normal ${textMuted}`}>
+                    Filtered: {filteredMonthlySales.length} of {filteredMonthlySalesRaw.length}
+                  </span>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -1003,7 +1207,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                       return sorted.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className={`p-8 text-center ${textMuted}`}>No sales data for this month.</td>
+                          <td colSpan={3} className={`p-8 text-center ${textMuted}`}>
+                            {filterText ? 'No sales match your filter criteria.' : 'No sales data for this month.'}
+                          </td>
                         </tr>
                       ) : (
                         sorted.map((p, idx) => (
@@ -1025,39 +1231,86 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* Sales Log View */}
       {activeReportTab === 'history' && (
-        isLoading ? (
-          <SkeletonTable rows={5} cols={7} />
-        ) : (
-          <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
-                  }`}>
-                  <tr>
-                    <th className="p-3 w-8"></th>
-                    <th className="p-3">Receipt #</th>
-                    <th className="p-3">Date</th>
-                    <th className="p-3">Customer</th>
-                    <th className="p-3">Item</th>
-                    <th className="p-3">Total</th>
-                    <th className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${borderLine}`}>
-                  {sales.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
-                        No sales history found.
-                      </td>
-                    </tr>
-                  ) : (
-                    sales.slice(0, 50).map(s => renderSaleRow(s))
-                  )}
-                </tbody>
-              </table>
+        <div className="space-y-4">
+          <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                className={`px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 ${touchTargetSmall} ${showFilterPanel ? 'bg-[#2ea043] text-white' : isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+              >
+                <Filter className="w-4 h-4" />
+                <span>Filter</span>
+                {filterText && <span className="bg-[#2ea043] text-white text-[10px] px-1.5 py-0.5 rounded-full">1</span>}
+              </button>
+              <span className={`text-sm ${textMuted}`}>
+                Showing {filteredHistorySales.length} of {sales.length} sales
+              </span>
             </div>
+
+            <button
+              onClick={handleRefresh}
+              disabled={isSyncing}
+              className={`px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
-        )
+
+          {/* Filter Panel */}
+          {showFilterPanel && (
+            <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
+              <FilterUI />
+            </div>
+          )}
+
+          {isLoading ? (
+            <SkeletonTable rows={5} cols={7} />
+          ) : (
+            <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+              <div className={`p-4 font-bold text-sm flex items-center justify-between ${borderLine} ${textTitle}`}>
+                <span>Sales History</span>
+                {filterText && (
+                  <span className={`text-xs font-normal ${textMuted}`}>
+                    Filtered: {filteredHistorySales.length} of {sales.length}
+                  </span>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+                    }`}>
+                    <tr>
+                      <th className="p-3 w-8"></th>
+                      <th className="p-3">Receipt #</th>
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Customer</th>
+                      <th className="p-3">Item</th>
+                      <th className="p-3">Total</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${borderLine}`}>
+                    {filteredHistorySales.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
+                          {filterText ? 'No sales match your filter criteria.' : 'No sales history found.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredHistorySales.slice(0, 50).map(s => renderSaleRow(s))
+                    )}
+                  </tbody>
+                </table>
+                {filteredHistorySales.length > 50 && (
+                  <div className={`p-4 text-center ${textMuted} text-sm border-t ${borderLine}`}>
+                    Showing first 50 of {filteredHistorySales.length} results
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Multi-Item Receipts View */}
@@ -1065,7 +1318,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="space-y-4">
           {/* Controls Bar */}
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
               <span className={`text-sm font-bold ${textMuted}`}>Select Date:</span>
               <input
@@ -1075,10 +1328,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 className={`text-sm rounded-xl px-4 py-3 focus:outline-none ${inputBg} ${touchTargetSmall}`}
               />
             </div>
-            <div className={`text-sm ${textMuted}`}>
-              Found {filteredMultiSales.length} multi-item sales
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                className={`px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 ${touchTargetSmall} ${showFilterPanel ? 'bg-[#2ea043] text-white' : isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+              >
+                <Filter className="w-4 h-4" />
+                <span>Filter</span>
+                {filterText && <span className="bg-[#2ea043] text-white text-[10px] px-1.5 py-0.5 rounded-full">1</span>}
+              </button>
+
+              <div className={`text-sm ${textMuted}`}>
+                Found {filteredMultiSales.length} multi-item sales
+                {filterText && filteredMultiSales.length !== filteredMultiSalesRaw.length && (
+                  <span className="text-xs ml-1">(of {filteredMultiSalesRaw.length})</span>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Filter Panel */}
+          {showFilterPanel && (
+            <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
+              <FilterUI />
+            </div>
+          )}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1119,8 +1394,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <SkeletonTable rows={5} cols={6} />
           ) : (
             <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-              <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
-                Multi-Item Sales for {multiDate}
+              <div className={`p-4 font-bold text-sm flex items-center justify-between ${borderLine} ${textTitle}`}>
+                <span>Multi-Item Sales for {multiDate}</span>
+                {filterText && (
+                  <span className={`text-xs font-normal ${textMuted}`}>
+                    Filtered: {filteredMultiSales.length} of {filteredMultiSalesRaw.length}
+                  </span>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -1140,7 +1420,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     {filteredMultiSales.length === 0 ? (
                       <tr>
                         <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
-                          No multi-item sales found for this date.
+                          {filterText ? 'No multi-item sales match your filter criteria.' : 'No multi-item sales found for this date.'}
                           <p className="text-xs mt-1">Multi-item sales are sales with more than one item purchased by the same customer.</p>
                         </td>
                       </tr>
@@ -1163,7 +1443,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               Process Sale Return #{selectedSaleForReturn.sale_number}
             </h3>
             <p className={`text-sm mb-3 ${textMuted}`}>
-              Return product: <strong>{selectedSaleForReturn.product_name}</strong> (×{selectedSaleForReturn.quantity})
+              Return product: <strong>{selectedSaleForReturn.product_name}</strong> (x{selectedSaleForReturn.quantity})
             </p>
             <div className="space-y-3 text-sm">
               <div>

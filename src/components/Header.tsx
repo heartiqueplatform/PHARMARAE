@@ -250,20 +250,17 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="mx-auto flex h-[68px] max-w-[1600px] items-center gap-2 px-3 sm:h-[72px] sm:px-5 lg:px-7">
           {/* Brand / pharmacy identity */}
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+            {/* App Icon - Now using your PWA icon */}
             <div className="relative shrink-0">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-[13px] border shadow-sm sm:h-11 sm:w-11 ${isDark
-                  ? 'border-emerald-400/15 bg-emerald-400/10'
-                  : 'border-emerald-200 bg-emerald-50'
-                  }`}
-              >
-                <span className="text-lg font-black tracking-tight text-emerald-500">
-                  P
-                </span>
-              </div>
+              <img
+                src="/pwa-192x192.png"
+                alt="Pharmienta"
+                className="h-10 w-10 rounded-full object-cover shadow-sm ring-2 sm:h-11 sm:w-11 ring-emerald-400/20"
+              />
+              {/* Online status dot */}
               <span
                 className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 ${isDark ? 'border-[#0d1117]' : 'border-white'
-                  } bg-emerald-500`}
+                  } bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.12)]`}
               />
             </div>
 

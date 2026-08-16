@@ -157,15 +157,16 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
         return (
             <div
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 relative py-1"
                 role="status"
                 aria-live="polite"
                 aria-label={message}
             >
                 <div className="relative flex items-center gap-1.5">
-                    <span className={`absolute -inset-x-1 bottom-0 h-px overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-teal-900/10'}`}>
-                        <span className={`block h-full w-1/2 animate-[pulse_1.1s_ease-in-out_infinite] rounded-full ${isDark ? 'bg-teal-300' : 'bg-teal-700'}`} />
-                    </span>
+                    {/* Progress bar at bottom - now clearly visible */}
+                    <div className={`absolute -bottom-1.5 left-0 right-0 h-0.5 rounded-full overflow-hidden ${isDark ? 'bg-white/5' : 'bg-teal-900/5'}`}>
+                        <div className={`block h-full w-1/2 animate-[pulse_1.1s_ease-in-out_infinite] rounded-full ${isDark ? 'bg-teal-300' : 'bg-teal-700'}`} />
+                    </div>
 
                     {icons.map(({ Icon, label, delay }) => (
                         <span
