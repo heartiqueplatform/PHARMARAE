@@ -104,7 +104,7 @@ export default function App() {
 
   // Computed values
   const todayStr = getTodayStr();
-  const todaySales = sales.filter(s => s.sale_date?.startsWith(todayStr) || s.created_at?.startsWith(todayStr));
+  const todaySales = sales.filter(s => s.sale_date?.startsWith(todayStr));
   const lowStockProducts = products.filter(p => (p.quantity || 0) <= p.reorder_level);
   const expiringBatches = batches.filter(b => b.expiry_date <= getExpiryCutoffStr(90) && b.quantity_base > 0);
 
