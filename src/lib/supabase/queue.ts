@@ -71,9 +71,6 @@ export async function queueOfflineMutation(
     }
 }
 
-// =============================================
-// PROCESS SYNC QUEUE
-// =============================================
 export async function processOfflineSyncQueue(): Promise<{ synced: number; failed: number }> {
     const client = getSupabaseClient();
 
@@ -81,7 +78,7 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
         return { synced: 0, failed: 0 };
     }
 
-    // ✅ Reset ALL stuck items
+    // Reset ALL stuck items
     const allItems = await db.sync_queue.toArray();
     const stuckItems = allItems.filter(item => item.status === 'syncing' || item.status === 'failed');
 
@@ -109,27 +106,56 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
 
     for (const item of pendingItems) {
         const tableName = mapEntityTypeToTable(item.entity_type);
+        const operation = item.operation || 'INSERT';
 
         try {
-            const payload = {
-                ...item.payload,
-                pharmacy_name: item.pharmacy_name,
-                updated_at: new Date().toISOString()
-            };
+            let error: any = null;
 
-            // ✅ Ensure 'name' is included for products
-            if (tableName === 'products' && !payload.name) {
-                const localProduct = await db.products.get(payload.id);
-                if (localProduct) {
-                    payload.name = localProduct.name;
-                } else {
-                    payload.name = 'Unknown Product';
+            if (operation === 'DELETE') {
+                // ✅ DELETE: Remove the entire row
+                const { error: delErr } = await client
+                    .from(tableName)
+                    .delete()
+                    .eq('id', item.payload.id)
+                    .eq('pharmacy_name', item.pharmacy_name);
+                error = delErr;
+            } else if (operation === 'UPDATE') {
+                // ✅ UPDATE: Update the row
+                const payload = {
+                    ...item.payload,
+                    pharmacy_name: item.pharmacy_name,
+                    updated_at: new Date().toISOString()
+                };
+
+                const { error: updateErr } = await client
+                    .from(tableName)
+                    .update(payload)
+                    .eq('id', item.payload.id)
+                    .eq('pharmacy_name', item.pharmacy_name);
+                error = updateErr;
+            } else {
+                // ✅ INSERT: Insert new row
+                const payload = {
+                    ...item.payload,
+                    pharmacy_name: item.pharmacy_name,
+                    updated_at: new Date().toISOString()
+                };
+
+                // Ensure 'name' is included for products
+                if (tableName === 'products' && !payload.name) {
+                    const localProduct = await db.products.get(payload.id);
+                    if (localProduct) {
+                        payload.name = localProduct.name;
+                    } else {
+                        payload.name = 'Unknown Product';
+                    }
                 }
-            }
 
-            const { error } = await client
-                .from(tableName)
-                .upsert(payload, { onConflict: 'id' });
+                const { error: insertErr } = await client
+                    .from(tableName)
+                    .upsert(payload, { onConflict: 'id' });
+                error = insertErr;
+            }
 
             if (error) throw error;
 
@@ -140,8 +166,23 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
 
         } catch (err: any) {
             failedCount++;
+            console.error(`Failed to sync item ${item.id}:`, err);
+
             if (item.id) {
-                await db.sync_queue.delete(item.id);
+                const retryCount = (item.retry_count || 0) + 1;
+                if (retryCount > 5) {
+                    await db.sync_queue.update(item.id, {
+                        status: 'failed',
+                        retry_count: retryCount,
+                        error: `Failed ${retryCount} times: ${err.message}`
+                    });
+                } else {
+                    await db.sync_queue.update(item.id, {
+                        status: 'pending',
+                        retry_count: retryCount,
+                        error: err.message || 'Network sync error'
+                    });
+                }
             }
         }
     }
@@ -149,9 +190,8 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
     return { synced: syncedCount, failed: failedCount };
 }
 
-// =============================================
-// PROCESS SINGLE ITEM - ✅ REQUIRED EXPORT
-// =============================================
+// lib/supabase/queue.ts - Updated processSingleSyncItem
+
 export async function processSingleSyncItem(item: OfflineSyncItem): Promise<{ success: boolean; error?: string }> {
     const client = getSupabaseClient();
 
@@ -161,44 +201,49 @@ export async function processSingleSyncItem(item: OfflineSyncItem): Promise<{ su
 
     try {
         const tableName = mapEntityTypeToTable(item.entity_type);
-
-        const payload = {
-            ...item.payload,
-            pharmacy_name: item.pharmacy_name,
-            updated_at: new Date().toISOString()
-        };
-
-        // ✅ Ensure 'name' is included for products
-        if (tableName === 'products' && !payload.name) {
-            const localProduct = await db.products.get(payload.id);
-            if (localProduct) {
-                payload.name = localProduct.name;
-            } else {
-                payload.name = 'Unknown Product';
-            }
-        }
+        const operation = item.operation || 'INSERT';
 
         let error: any = null;
 
-        if (item.operation === 'INSERT') {
-            const { error: insertErr } = await client
+        if (operation === 'DELETE') {
+            // ✅ DELETE: Remove the entire row
+            const { error: delErr } = await client
                 .from(tableName)
-                .upsert(payload, { onConflict: 'id' });
-            error = insertErr;
-        } else if (item.operation === 'UPDATE') {
+                .delete()
+                .eq('id', item.payload.id);
+
+            // If the row doesn't exist, that's fine - consider it synced
+            if (delErr && delErr.code === 'PGRST116') {
+                // Row not found - consider it already deleted
+                error = null;
+            } else {
+                error = delErr;
+            }
+        } else if (operation === 'UPDATE') {
+            const payload = {
+                ...item.payload,
+                pharmacy_name: item.pharmacy_name,
+                updated_at: new Date().toISOString()
+            };
+
             const { error: updateErr } = await client
                 .from(tableName)
                 .update(payload)
                 .eq('id', item.payload.id)
                 .eq('pharmacy_name', item.pharmacy_name);
             error = updateErr;
-        } else if (item.operation === 'DELETE') {
-            const { error: delErr } = await client
+        } else {
+            // INSERT
+            const payload = {
+                ...item.payload,
+                pharmacy_name: item.pharmacy_name,
+                updated_at: new Date().toISOString()
+            };
+
+            const { error: insertErr } = await client
                 .from(tableName)
-                .delete()
-                .eq('id', item.payload.id)
-                .eq('pharmacy_name', item.pharmacy_name);
-            error = delErr;
+                .upsert(payload, { onConflict: 'id' });
+            error = insertErr;
         }
 
         if (error) {
@@ -234,7 +279,6 @@ export async function processSingleSyncItem(item: OfflineSyncItem): Promise<{ su
         return { success: false, error: err.message };
     }
 }
-
 // =============================================
 // RESET STUCK ITEMS
 // =============================================

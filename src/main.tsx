@@ -3,10 +3,13 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const APP_NAME = 'Pharmienta Kenya';
 const VERSION_KEY = 'Pharmienta_app_version';
 const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';
+
+// Track root instance at module level
+let rootInstance: any = null;
 
 const applyThemeAndSplash = () => {
   const savedTheme = localStorage.getItem('medp_theme') as 'dark' | 'light' || 'light';
@@ -109,16 +112,31 @@ const RootApp = () => {
   return <App />;
 };
 
-const root = document.getElementById('root')!;
+const root = document.getElementById('root');
 
+if (!root) {
+  throw new Error('Root element not found');
+}
+
+// Define render function
 const renderApp = () => {
-  createRoot(root).render(
+  const appElement = (
     <StrictMode>
       <RootApp />
     </StrictMode>
   );
+
+  if (rootInstance) {
+    // Root already exists - just render
+    rootInstance.render(appElement);
+  } else {
+    // First time - create root
+    rootInstance = createRoot(root);
+    rootInstance.render(appElement);
+  }
 };
 
+// Register service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -133,7 +151,24 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Initial render
 renderApp();
+
+// Handle HMR updates - ONLY in development
+if (import.meta.hot) {
+  import.meta.hot.accept('./App.tsx', () => {
+    // Re-render with updated App
+    renderApp();
+  });
+
+  // Clean up on HMR dispose
+  import.meta.hot.dispose(() => {
+    if (rootInstance) {
+      rootInstance.unmount();
+      rootInstance = null;
+    }
+  });
+}
 
 (window as any).__APP_VERSION__ = APP_VERSION;
 (window as any).__APP_NAME__ = APP_NAME;

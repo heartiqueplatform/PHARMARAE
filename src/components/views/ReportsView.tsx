@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole, SaleItem } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
-import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt } from 'lucide-react';
+import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt, Pencil, Save, X } from 'lucide-react';
 
 interface ReportsViewProps {
   pharmacy: Pharmacy | null;
@@ -12,6 +12,7 @@ interface ReportsViewProps {
   batches: ProductBatch[];
   movements: StockMovement[];
   onProcessReturn?: (saleId: string, reason: string) => Promise<void>;
+  onUpdateSale?: (saleId: string, updates: Partial<Sale>) => Promise<void>;
   theme?: 'dark' | 'light';
   isLoading?: boolean;
   isSyncing?: boolean;
@@ -26,6 +27,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   batches,
   movements,
   onProcessReturn,
+  onUpdateSale,
   theme = 'dark',
   isLoading = false,
   isSyncing = false,
@@ -50,6 +52,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [activeReportTab, setActiveReportTab] = useState<'daily' | 'monthly' | 'history' | 'multi'>('daily');
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
   const [expandedMultiSales, setExpandedMultiSales] = useState<Set<string>>(new Set());
+
+  // Edit state
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+  }>({ quantity: 1, unitPrice: 0, discount: 0 });
 
   // Date pickers
   const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -84,16 +94,55 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     };
   };
 
-  // 🆕 Helper: Group sales by sale_id to get multi-item receipts
+  // Start editing a sale
+  const startEditing = (sale: Sale) => {
+    setEditingSaleId(sale.id);
+    setEditValues({
+      quantity: sale.quantity || 1,
+      unitPrice: sale.unit_price || 0,
+      discount: sale.discount || 0,
+    });
+  };
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditingSaleId(null);
+    setEditValues({ quantity: 1, unitPrice: 0, discount: 0 });
+  };
+
+  // Save edited sale
+  const saveEditing = async (sale: Sale) => {
+    if (!onUpdateSale) return;
+
+    try {
+      const newSubtotal = editValues.quantity * editValues.unitPrice;
+      const newTotal = Math.max(0, newSubtotal - editValues.discount);
+
+      await onUpdateSale(sale.id, {
+        quantity: editValues.quantity,
+        unit_price: editValues.unitPrice,
+        subtotal: newSubtotal,
+        discount: editValues.discount,
+        total: newTotal,
+      });
+
+      setEditingSaleId(null);
+      setEditValues({ quantity: 1, unitPrice: 0, discount: 0 });
+
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (error) {
+      console.error('Failed to update sale:', error);
+      alert('Failed to update sale. Please try again.');
+    }
+  };
+
+  // Helper: Group sales by sale_id to get multi-item receipts
   const getGroupedSales = (salesList: Sale[]) => {
     const groups: Record<string, { sale_id: string; sale_number: string; customer_name: string; items: Sale[]; total: number; discount: number; payment_method: string; sale_date: string; created_at: string }> = {};
 
     for (const sale of salesList) {
-      // Use sale_id as the group key (all items in a multi-item sale share the same sale_id)
-      const key = sale.id; // Each row has a unique id, but we need to group by sale_id
-      // Actually, we need to group by a common identifier. Since we're using sale_id as the common identifier,
-      // we need to store it on the sale record. For now, we'll use the sale_number as the group key
-      // since all items in a multi-item sale share the same sale_number.
       const groupKey = sale.sale_number;
 
       if (!groups[groupKey]) {
@@ -110,12 +159,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         };
       }
 
-      // Only add the item if it's not already in the group (avoid duplicates)
       const existingItem = groups[groupKey].items.find(i => i.product_id === sale.product_id);
       if (!existingItem) {
         groups[groupKey].items.push(sale);
       }
-      // Use the first item's total as the group total (they're all the same)
       groups[groupKey].total = sale.total || 0;
       groups[groupKey].discount = sale.discount || 0;
     }
@@ -147,7 +194,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredMonthlySales]);
 
-  // 🆕 Filter Multi-Item Sales (grouped by sale_number)
+  // Filter Multi-Item Sales (grouped by sale_number)
   const filteredMultiSales = useMemo(() => {
     const salesForDate = sales.filter(s => {
       const date = s.sale_date || s.created_at;
@@ -171,7 +218,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setExpandedSales(newExpanded);
   };
 
-  // 🆕 Toggle expanded multi-item sale
+  // Toggle expanded multi-item sale
   const toggleMultiExpanded = (saleNumber: string) => {
     const newExpanded = new Set(expandedMultiSales);
     if (newExpanded.has(saleNumber)) {
@@ -216,9 +263,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // 🆕 Handle Multi-Item Receipt Print
+  // Handle Multi-Item Receipt Print
   const handlePrintMultiReceipt = (group: any) => {
-    // Get all items for this sale
     const items = group.items.map((sale: Sale) => ({
       id: sale.id,
       sale_id: sale.id,
@@ -235,7 +281,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       created_at: sale.created_at
     }));
 
-    // Use the first sale as the main sale object
     const mainSale = group.items[0];
     generateReceiptPdf(pharmacy, mainSale, items, 'print');
   };
@@ -304,16 +349,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const renderSaleRow = (sale: Sale) => {
     const isExpanded = expandedSales.has(sale.id);
     const productDetails = getSaleProductDetails(sale);
+    const isEditing = editingSaleId === sale.id;
 
     return (
       <React.Fragment key={sale.id}>
         {/* Main Sale Row */}
         <tr
-          className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
+          className={`transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
             }`}
-          onClick={() => toggleExpanded(sale.id)}
         >
-          <td className="p-3">
+          <td className="p-3 cursor-pointer" onClick={() => toggleExpanded(sale.id)}>
             {productDetails.productName && (
               isExpanded ?
                 <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
@@ -330,50 +375,112 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <td className={`p-3 font-semibold ${textTitle}`}>{sale.customer_name || 'Guest'}</td>
           <td className={`p-3 ${textMuted}`}>
             <span className="font-medium">{productDetails.productName}</span>
-            <span className="text-[11px] text-[#2ea043] ml-1">(×{productDetails.quantity})</span>
+            {isEditing ? (
+              <div className="flex items-center gap-1 mt-1">
+                <input
+                  type="number"
+                  min="0"
+                  value={editValues.quantity}
+                  onChange={(e) => setEditValues({ ...editValues, quantity: Number(e.target.value) || 0 })}
+                  className={`w-14 text-center rounded px-2 py-1 text-sm ${inputBg} ${touchTargetSmall}`}
+                />
+                <span className="text-[11px] text-[#2ea043]">units</span>
+              </div>
+            ) : (
+              <span className="text-[11px] text-[#2ea043] ml-1">(×{productDetails.quantity})</span>
+            )}
             {productDetails.batchNumber && (
               <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded ${isDark ? 'bg-[#30363d]' : 'bg-slate-200'}`}>
                 Batch: {productDetails.batchNumber}
               </span>
             )}
           </td>
-          <td className={`p-3 font-extrabold ${textTitle}`}>{currency} {sale.total.toFixed(2)}</td>
+          <td className={`p-3 font-extrabold ${textTitle}`}>
+            {isEditing ? (
+              <div className="flex flex-col gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editValues.unitPrice}
+                  onChange={(e) => setEditValues({ ...editValues, unitPrice: Number(e.target.value) || 0 })}
+                  className={`w-20 text-right rounded px-2 py-1 text-sm ${inputBg} ${touchTargetSmall}`}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editValues.discount}
+                  onChange={(e) => setEditValues({ ...editValues, discount: Number(e.target.value) || 0 })}
+                  className={`w-20 text-right rounded px-2 py-1 text-sm text-amber-500 ${inputBg} ${touchTargetSmall}`}
+                  placeholder="discount"
+                />
+                <span className="text-[10px] text-[#2ea043]">
+                  Total: {currency} {(editValues.quantity * editValues.unitPrice - editValues.discount).toFixed(2)}
+                </span>
+              </div>
+            ) : (
+              <span>{currency} {sale.total.toFixed(2)}</span>
+            )}
+          </td>
           <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const tempItems = [{
-                  id: sale.id,
-                  sale_id: sale.id,
-                  product_id: sale.product_id,
-                  product_name: sale.product_name,
-                  batch_id: sale.batch_id || null,
-                  batch_number: sale.batch_number || null,
-                  quantity: sale.quantity || 0,
-                  unit_id: null,
-                  unit_name: null,
-                  unit_price: sale.unit_price || 0,
-                  discount: 0,
-                  subtotal: sale.subtotal || 0,
-                  created_at: sale.created_at
-                }];
-                generateReceiptPdf(pharmacy, sale, tempItems, 'print');
-              }}
-              className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
-                }`}
-            >
-              Print
-            </button>
-            {onProcessReturn && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedSaleForReturn(sale);
-                }}
-                className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
-              >
-                Return
-              </button>
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => saveEditing(sale)}
+                  className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} bg-emerald-600 hover:bg-emerald-700 text-white`}
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={cancelEditing}
+                  className={`px-3 py-2 rounded-xl text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => startEditing(sale)}
+                  className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
+                  title="Edit sale"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const tempItems = [{
+                      id: sale.id,
+                      sale_id: sale.id,
+                      product_id: sale.product_id,
+                      product_name: sale.product_name,
+                      batch_id: sale.batch_id || null,
+                      batch_number: sale.batch_number || null,
+                      quantity: sale.quantity || 0,
+                      unit_id: null,
+                      unit_name: null,
+                      unit_price: sale.unit_price || 0,
+                      discount: 0,
+                      subtotal: sale.subtotal || 0,
+                      created_at: sale.created_at
+                    }];
+                    generateReceiptPdf(pharmacy, sale, tempItems, 'print');
+                  }}
+                  className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
+                    }`}
+                >
+                  Print
+                </button>
+                {onProcessReturn && (
+                  <button
+                    onClick={() => setSelectedSaleForReturn(sale)}
+                    className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
+                  >
+                    Return
+                  </button>
+                )}
+              </>
             )}
           </td>
         </tr>
@@ -448,7 +555,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // 🆕 Render a grouped multi-item sale row
+  // Render a grouped multi-item sale row
   const renderMultiSaleRow = (group: any) => {
     const isExpanded = expandedMultiSales.has(group.sale_number);
     const itemCount = group.items.length;
@@ -934,7 +1041,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         )
       )}
 
-      {/* 🆕 Multi-Item Receipts View */}
+      {/* Multi-Item Receipts View */}
       {activeReportTab === 'multi' && (
         <div className="space-y-4">
           {/* Controls Bar */}

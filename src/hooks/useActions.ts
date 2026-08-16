@@ -800,7 +800,10 @@ export const useActions = (props: UseActionsProps) => {
     }, [currentProfile, getPharmacyName, loadDatabaseData, buildProductUpdatePayload]);
 
     // =============================================
-    // OTHER FUNCTIONS (unchanged)
+    // OTHER FUNCTIONS - FIXED
+    // =============================================
+    // =============================================
+    // DELETE PRODUCT - FIXED (Includes product name in DELETE payload)
     // =============================================
 
     const handleDeleteProduct = useCallback(async (productId: string) => {
@@ -808,6 +811,15 @@ export const useActions = (props: UseActionsProps) => {
 
         const pharmacyName = getPharmacyName();
         if (!pharmacyName) return;
+
+        // ✅ FIRST: Get the product BEFORE deleting (to capture name and full data)
+        const product = await db.products.get(productId);
+        if (!product) {
+            throw new Error('Product not found');
+        }
+
+        // Store product data for audit log and delete payload
+        const productName = product.name || 'Unknown Product';
 
         const productBatches = await db.product_batches.where('product_id').equals(productId).toArray();
         if (productBatches.length > 0) {
@@ -817,13 +829,38 @@ export const useActions = (props: UseActionsProps) => {
         }
 
         try {
+            // Delete batches and their movements
             for (const batch of productBatches) {
                 await db.stock_movements.where('batch_id').equals(batch.id).delete();
                 await db.product_batches.delete(batch.id);
+
+                // Queue batch deletion for Supabase sync
+                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'DELETE', {
+                    id: batch.id,
+                    pharmacy_name: pharmacyName,
+                    product_name: productName,  // ✅ Include product name
+                    batch_number: batch.batch_number
+                });
             }
 
+            // ✅ Queue product deletion with FULL product data
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'DELETE', {
+                id: productId,
+                pharmacy_name: pharmacyName,
+                name: productName,  // ✅ CRITICAL: Include the product name
+                barcode: product.barcode,
+                sku: product.sku,
+                generic_name: product.generic_name,
+                brand: product.brand,
+                category_name: product.category_name,
+                form: product.form,
+                strength: product.strength
+            });
+
+            // Delete the product locally
             await db.products.delete(productId);
 
+            // Create audit log with product name
             const auditLog = {
                 id: genUUID(),
                 pharmacy_name: pharmacyName,
@@ -832,12 +869,21 @@ export const useActions = (props: UseActionsProps) => {
                 action: 'DELETE_PRODUCT',
                 entity_type: 'PRODUCT',
                 entity_id: productId,
-                details: `Deleted product with ${productBatches.length} batch(es)`,
+                details: `Deleted product: ${productName} with ${productBatches.length} batch(es)`,
                 created_at: new Date().toISOString()
             };
 
             await db.audit_logs.put(auditLog);
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+
+            // Force sync immediately if online
+            if (navigator.onLine && isSupabaseConfigured()) {
+                try {
+                    await processOfflineSyncQueue();
+                } catch (syncErr) {
+                    console.warn('Sync failed, will retry later:', syncErr);
+                }
+            }
 
             await loadDatabaseData();
         } catch (err) {

@@ -544,7 +544,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
   const textMuted = isDark ? 'text-slate-500' : 'text-slate-400';
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-3 overflow-y-auto no-scrollbar ${isDark ? 'bg-slate-950/95' : 'bg-white/95'
+    <div className={`fixed inset-0 z-80 flex items-center justify-center p-3 overflow-y-auto no-scrollbar ${isDark ? 'bg-slate-950/95' : 'bg-white/95'
       } backdrop-blur-sm`}>
       <div className={`${bgCard} ${borderColor} border rounded-2xl w-full max-w-md p-4 shadow-xl space-y-3 my-auto max-h-[96vh] overflow-y-auto no-scrollbar`}>
 
@@ -993,7 +993,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
       {/* Confirmation Modal */}
       {showConfirmation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className={`${bgCard} border ${borderColor} rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4`}>
             {/* Header */}
             <div className="text-center space-y-2">

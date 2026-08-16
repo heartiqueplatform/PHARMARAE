@@ -1,10 +1,9 @@
 // App.tsx - CLEAN VERSION (No useAppUpdate)
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useApp } from './hooks/useApp';
 import { useActions } from './hooks/useActions';
 import { useTheme } from './hooks/useTheme';
-// ❌ REMOVED: import { useAppUpdate } from './hooks/useAppUpdate';
-import { getPharmacyFromProfile, getTodayStr, getExpiryCutoffStr } from './utils/helpers';
+import { getPharmacyFromProfile, getTodayStr, getExpiryCutoffStr, normalizePharmacyName, genUUID } from './utils/helpers';
 import { SecurityView } from './components/views/SecurityView';
 import { HardResetView } from './components/views/HardResetView';
 import { Header } from './components/Header';
@@ -23,11 +22,13 @@ import { AboutView } from '@/components/views/AboutView';
 import { PrivacyPolicyView } from '@/components/views/PrivacyPolicyView';
 import { TermsConditionsView } from '@/components/views/TermsConditionsView';
 import { StatusBar } from './components/StatusBar';
+import { db } from './lib/db';
+import { queueOfflineMutation } from './lib/supabase';
+
 
 export default function App() {
   // Theme
   const { theme, toggleTheme, isDark } = useTheme();
-
 
   // Security View State
   const [showSecurityView, setShowSecurityView] = useState(false);
@@ -58,11 +59,9 @@ export default function App() {
     syncPendingCount,
     lastSyncTime,
     isAuthenticated,
-    // ✅ Status Bar props
     statusMessage,
     statusType,
     showStatusBar,
-    // ✅ Toast props (from useApp)
     toastMessage,
     toastType,
     toastPosition,
@@ -102,6 +101,112 @@ export default function App() {
     setSyncPendingCount: app.setSyncPendingCount,
   });
 
+  // Handle updating individual sale items
+  // In App.tsx - Updated handleUpdateSale
+  const handleUpdateSale = useCallback(async (saleId: string, updates: Partial<Sale>) => {
+    try {
+      const existingSale = await db.sales.get(saleId);
+      if (!existingSale) {
+        throw new Error('Sale not found');
+      }
+
+      const oldQuantity = existingSale.quantity || 0;
+      const newQuantity = updates.quantity !== undefined ? updates.quantity : oldQuantity;
+      const quantityDifference = newQuantity - oldQuantity;
+
+      // Get product and update stock
+      if (quantityDifference !== 0 && existingSale.product_id) {
+        const product = await db.products.get(existingSale.product_id);
+        if (product) {
+          const currentStock = product.quantity || 0;
+          // If quantity increased, reduce stock. If decreased, increase stock
+          const newStock = Math.max(0, currentStock - quantityDifference);
+
+          const updatedProduct = {
+            ...product,
+            quantity: newStock,
+            updated_at: new Date().toISOString()
+          };
+          await db.products.put(updatedProduct);
+
+          // Queue product update for sync
+          const pharmacyName = normalizePharmacyName(currentProfile?.pharmacy_name || '');
+          await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', updatedProduct);
+        }
+
+        // Update batch quantities if there's a batch
+        if (existingSale.batch_id) {
+          const batch = await db.product_batches.get(existingSale.batch_id);
+          if (batch) {
+            const newBatchQty = Math.max(0, (batch.quantity_base || 0) - quantityDifference);
+            await db.product_batches.update(existingSale.batch_id, {
+              quantity_base: newBatchQty,
+              updated_at: new Date().toISOString()
+            });
+
+            // Queue batch update for sync
+            const pharmacyName = normalizePharmacyName(currentProfile?.pharmacy_name || '');
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+              id: existingSale.batch_id,
+              quantity_base: newBatchQty,
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      // Update the sale
+      const updatedSale = {
+        ...existingSale,
+        ...updates,
+        subtotal: (updates.quantity || existingSale.quantity) * (updates.unit_price || existingSale.unit_price),
+        total: ((updates.quantity || existingSale.quantity) * (updates.unit_price || existingSale.unit_price)) - (updates.discount || existingSale.discount || 0),
+        updated_at: new Date().toISOString()
+      };
+
+      await db.sales.put(updatedSale);
+
+      // Queue sale update for sync
+      const pharmacyName = normalizePharmacyName(currentProfile?.pharmacy_name || '');
+      await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'UPDATE', updatedSale);
+
+      // Create audit log for stock adjustment
+      if (quantityDifference !== 0) {
+        const auditLog = {
+          id: genUUID(),
+          pharmacy_name: pharmacyName,
+          user_id: currentProfile?.id,
+          user_name: currentProfile?.full_name,
+          action: 'SALE_QUANTITY_ADJUSTED',
+          entity_type: 'SALE',
+          entity_id: saleId,
+          details: `Sale quantity changed from ${oldQuantity} to ${newQuantity}. Stock ${quantityDifference > 0 ? 'decreased' : 'increased'} by ${Math.abs(quantityDifference)} units.`,
+          created_at: new Date().toISOString()
+        };
+        await db.audit_logs.put(auditLog);
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+      }
+
+      await loadDatabaseData();
+
+      app.setToastMessage('Sale updated successfully');
+      app.setToastType('success');
+      app.setToastPosition('bottom');
+
+      setTimeout(() => {
+        app.clearToast();
+      }, 3000);
+    } catch (error) {
+      console.error('Failed to update sale:', error);
+      app.setToastMessage('Failed to update sale. Please try again.');
+      app.setToastType('error');
+      app.setToastPosition('bottom');
+
+      setTimeout(() => {
+        app.clearToast();
+      }, 3000);
+    }
+  }, [currentProfile, loadDatabaseData, app]);
   // Computed values
   const todayStr = getTodayStr();
   const todaySales = sales.filter(s => s.sale_date?.startsWith(todayStr));
@@ -280,6 +385,7 @@ export default function App() {
                       products={products}
                       batches={batches}
                       movements={movements}
+                      onUpdateSale={handleUpdateSale}
                       theme={theme}
                       isLoading={isLoading}
                       isSyncing={isSyncing}
@@ -354,7 +460,7 @@ export default function App() {
       </div>
 
       {/* =============================================
-          ✅ TOAST NOTIFICATION - Mobile Optimized
+          TOAST NOTIFICATION - Mobile Optimized
           ============================================ */}
       {toastMessage && toastType && (
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-[100] pointer-events-none">
@@ -489,8 +595,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* ❌ REMOVED: Update Notification section (useAppUpdate) */}
 
       {/* FLOATING REFRESH BUTTON */}
       <div className="fixed bottom-20 right-4 z-50 flex flex-col items-center gap-1">

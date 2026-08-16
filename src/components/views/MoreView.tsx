@@ -1049,7 +1049,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
       {/* Add Staff Modal */}
       {showAddStaffModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+        <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
             <h3 className={`font-bold text-base mb-4 pb-3 ${borderLine} ${textTitle}`}>Add Staff Member</h3>
             <form onSubmit={handleSaveStaff} className="space-y-4 text-sm">
@@ -1175,7 +1175,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
       {/* Add Supplier Modal */}
       {showAddSupplierModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+        <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
             <h3 className={`font-bold text-base mb-4 pb-3 ${borderLine} ${textTitle}`}>Add Supplier</h3>
             <form onSubmit={handleSaveSupplier} className="space-y-4 text-sm">
@@ -1230,7 +1230,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
       {/* Edit Profile Modal */}
       {editingProfile && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+        <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
             <h3 className={`font-bold text-base mb-4 pb-3 ${borderLine} ${textTitle}`}>Edit Staff Profile</h3>
             <form onSubmit={handleSaveEditProfile} className="space-y-4 text-sm">

@@ -362,7 +362,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                     className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
                 />
                 {showDrugSuggestions && newProdName.trim().length >= 1 && (
-                    <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y ${cardBg}`}>
+                    <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl z-[999] max-h-56 overflow-y-auto divide-y ${cardBg}`}>
                         {filteredDrugSuggestions.map(d => (
                             <button
                                 key={d.name}
@@ -753,7 +753,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
         <>
             {/* Add Product Modal */}
             {showAddProductModal && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>Add New Product</h3>
                         <ErrorBanner />
@@ -764,7 +764,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
 
             {/* Edit Product Modal */}
             {showEditProductModal && editingProduct && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
                             Edit Product: {editingProduct.name}
@@ -777,7 +777,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
 
             {/* Add Batch Modal */}
             {showAddBatchModal && selectedProductForBatch && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
                             Receive New Batch: {selectedProductForBatch.name}
@@ -885,7 +885,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
 
             {/* Adjust Batch Modal */}
             {showAdjustBatchModal && adjustingBatch && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>Adjust Batch Quantity</h3>
                         <ErrorBanner />
