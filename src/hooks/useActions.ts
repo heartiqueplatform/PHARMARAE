@@ -170,7 +170,7 @@ export const useActions = (props: UseActionsProps) => {
                 discount: discountAmount,
                 discount_reason: saleData.discount_reason || null,
                 tax: saleData.tax || 0,
-                total: finalTotal,
+                total: itemSubtotal,
                 payment_method: saleData.payment_method || 'cash',
                 payment_status: 'paid',
                 payment_reference: saleData.payment_reference || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
