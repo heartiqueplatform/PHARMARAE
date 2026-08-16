@@ -3,7 +3,7 @@ import { db } from '../db';
 import { getSupabaseClient, isSupabaseConfigured } from './client';
 import { normalizePharmacyName, TABLE_CONFIGS } from './utils';
 
-// Pull a single table with filtering
+// Pull a single table with filtering - OPTIMIZED with bulk operations
 async function pullTable<T>(
     tableName: string,
     pharmacyName: string,
@@ -16,8 +16,6 @@ async function pullTable<T>(
     const limit = options?.limit || 1000;
     const normalizedName = normalizePharmacyName(pharmacyName);
 
-    console.log(`📦 Pulling ${tableName}...`);
-
     try {
         // Try filtered query first
         let { data, error } = await client
@@ -28,7 +26,6 @@ async function pullTable<T>(
 
         // If filtered fails, pull all and filter locally
         if (error) {
-            console.warn(`⚠️ ${tableName} filtered query failed, pulling all...`);
             const { data: allData } = await client
                 .from(tableName)
                 .select('*')
@@ -44,26 +41,33 @@ async function pullTable<T>(
         }
 
         if (!data || data.length === 0) {
-            console.log(`📦 No ${tableName} found`);
             return 0;
         }
 
-        console.log(`📦 Pulled ${data.length} ${tableName}`);
+        // ✅ FIXED: For sales table, ensure sale_id is preserved
+        let itemsWithPharmacy = data.map(item => ({
+            ...item,
+            pharmacy_name: normalizedName
+        }));
 
-        // Clear existing data
-        const existing = await dbTable.where('pharmacy_name').equals(normalizedName).toArray();
-        for (const item of existing) {
-            await dbTable.delete(item.id);
+        // ✅ If this is the sales table, ensure sale_id exists
+        if (tableName === 'sales') {
+            itemsWithPharmacy = itemsWithPharmacy.map(item => ({
+                ...item,
+                sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
+            }));
         }
 
-        // Insert new data in batch
-        for (const item of data) {
-            await dbTable.put({ ...item, pharmacy_name: normalizedName });
+        // OPTIMIZATION: Use bulk delete instead of individual deletes
+        await dbTable.where('pharmacy_name').equals(normalizedName).delete();
+
+        // OPTIMIZATION: Use bulkPut for batch insert (much faster)
+        if (itemsWithPharmacy.length > 0) {
+            await dbTable.bulkPut(itemsWithPharmacy);
         }
 
         return data.length;
     } catch (err) {
-        console.error(`❌ Error pulling ${tableName}:`, err);
         return 0;
     }
 }
@@ -73,17 +77,14 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     const client = getSupabaseClient();
 
     if (!navigator.onLine) {
-        console.log('📴 Offline - cannot pull from Supabase');
         return false;
     }
 
     if (!client || !isSupabaseConfigured()) {
-        console.log('⚠️ No Supabase client or not configured');
         return false;
     }
 
     const normalizedName = normalizePharmacyName(pharmacyName);
-    console.log(`🔄 Pulling data from Supabase for: ${normalizedName}`);
 
     try {
         // Pull all tables in parallel for speed
@@ -99,18 +100,11 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
             pullTable('audit_logs', normalizedName, db.audit_logs, { limit: 500 }),
             pullTable('profiles', normalizedName, db.profiles),
             pullTable('requested_items', normalizedName, db.requested_items, { limit: 500 }),
-            pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }), // NEW - Sales Returns
+            pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }),
         ]);
 
-        const totalPulled = results.reduce((sum, r) => {
-            if (r.status === 'fulfilled') return sum + r.value;
-            return sum;
-        }, 0);
-
-        console.log(`✅ Pulled ${totalPulled} total records from Supabase`);
         return true;
     } catch (err) {
-        console.error('❌ Pull from Supabase failed:', err);
         return false;
     }
 }
@@ -124,7 +118,6 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
     }
 
     const normalizedName = normalizePharmacyName(pharmacyName);
-    console.log(`🔄 Smart pulling data since: ${lastSyncTime?.toISOString() || 'beginning'}`);
 
     try {
         const pullPromises = TABLE_CONFIGS.map(async (config) => {
@@ -140,34 +133,209 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
 
             const { data, error } = await query.limit(config.limit || 1000);
 
-            if (error) {
-                console.warn(`⚠️ Smart pull failed for ${config.table}:`, error.message);
+            if (error || !data || data.length === 0) {
                 return 0;
             }
 
-            if (!data || data.length === 0) return 0;
+            // ✅ FIXED: For sales table, ensure sale_id is preserved
+            let itemsWithPharmacy = data.map(item => ({
+                ...item,
+                pharmacy_name: normalizedName
+            }));
 
-            // Merge data (upsert)
-            const dbTable = db[config.dbKey as keyof typeof db] as any;
-            if (dbTable && typeof dbTable.put === 'function') {
-                for (const item of data) {
-                    await dbTable.put({ ...item, pharmacy_name: normalizedName });
-                }
+            if (config.table === 'sales') {
+                itemsWithPharmacy = itemsWithPharmacy.map(item => ({
+                    ...item,
+                    sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
+                }));
             }
 
-            return data.length;
+            // OPTIMIZATION: Use bulkPut for batch upsert
+            const dbTable = db[config.dbKey as keyof typeof db] as any;
+            if (dbTable && typeof dbTable.bulkPut === 'function') {
+                await dbTable.bulkPut(itemsWithPharmacy);
+                return data.length;
+            }
+
+            return 0;
         });
 
         const results = await Promise.allSettled(pullPromises);
-        const totalPulled = results.reduce((sum, r) => {
+
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+// =============================================
+// INCREMENTAL PULL - Only pull changed records
+// =============================================
+export async function incrementalPullFromSupabase(
+    pharmacyName: string,
+    lastSyncTime: Date,
+    options?: { tables?: string[] }
+): Promise<{ success: boolean; updated: number }> {
+    const client = getSupabaseClient();
+
+    if (!navigator.onLine || !client || !isSupabaseConfigured()) {
+        return { success: false, updated: 0 };
+    }
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+    let totalUpdated = 0;
+
+    try {
+        const tablesToPull = options?.tables || TABLE_CONFIGS.map(c => c.table);
+        const configs = TABLE_CONFIGS.filter(c => tablesToPull.includes(c.table));
+
+        const pullPromises = configs.map(async (config) => {
+            const { data, error } = await client
+                .from(config.table)
+                .select('*')
+                .eq('pharmacy_name', normalizedName)
+                .gte('updated_at', lastSyncTime.toISOString())
+                .limit(config.limit || 1000);
+
+            if (error || !data || data.length === 0) {
+                return 0;
+            }
+
+            // ✅ FIXED: For sales table, ensure sale_id is preserved
+            let itemsWithPharmacy = data.map(item => ({
+                ...item,
+                pharmacy_name: normalizedName
+            }));
+
+            if (config.table === 'sales') {
+                itemsWithPharmacy = itemsWithPharmacy.map(item => ({
+                    ...item,
+                    sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
+                }));
+            }
+
+            const dbTable = db[config.dbKey as keyof typeof db] as any;
+            if (dbTable && typeof dbTable.bulkPut === 'function') {
+                await dbTable.bulkPut(itemsWithPharmacy);
+                return data.length;
+            }
+
+            return 0;
+        });
+
+        const results = await Promise.allSettled(pullPromises);
+        totalUpdated = results.reduce((sum, r) => {
             if (r.status === 'fulfilled') return sum + r.value;
             return sum;
         }, 0);
 
-        console.log(`✅ Smart pull: ${totalPulled} updated records`);
-        return true;
+        return { success: true, updated: totalUpdated };
     } catch (err) {
-        console.error('❌ Smart pull failed:', err);
-        return false;
+        return { success: false, updated: totalUpdated };
+    }
+}
+
+// =============================================
+// PULL SINGLE TABLE - For targeted updates
+// =============================================
+export async function pullSingleTable(
+    pharmacyName: string,
+    tableName: string,
+    options?: { limit?: number; since?: Date }
+): Promise<number> {
+    const client = getSupabaseClient();
+
+    if (!navigator.onLine || !client || !isSupabaseConfigured()) {
+        return 0;
+    }
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+    const limit = options?.limit || 1000;
+
+    try {
+        let query = client
+            .from(tableName)
+            .select('*')
+            .eq('pharmacy_name', normalizedName);
+
+        if (options?.since) {
+            query = query.gte('updated_at', options.since.toISOString());
+        }
+
+        const { data, error } = await query.limit(limit);
+
+        if (error || !data || data.length === 0) {
+            return 0;
+        }
+
+        // ✅ FIXED: For sales table, ensure sale_id is preserved
+        let itemsWithPharmacy = data.map(item => ({
+            ...item,
+            pharmacy_name: normalizedName
+        }));
+
+        if (tableName === 'sales') {
+            itemsWithPharmacy = itemsWithPharmacy.map(item => ({
+                ...item,
+                sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
+            }));
+        }
+
+        const config = TABLE_CONFIGS.find(c => c.table === tableName);
+        if (!config) {
+            const dbTable = db[tableName as keyof typeof db] as any;
+            if (dbTable && typeof dbTable.bulkPut === 'function') {
+                await dbTable.bulkPut(itemsWithPharmacy);
+                return data.length;
+            }
+            return 0;
+        }
+
+        const dbTable = db[config.dbKey as keyof typeof db] as any;
+        if (dbTable && typeof dbTable.bulkPut === 'function') {
+            await dbTable.bulkPut(itemsWithPharmacy);
+            return data.length;
+        }
+
+        return 0;
+    } catch (err) {
+        return 0;
+    }
+}
+
+// =============================================
+// CHECK FOR CHANGES - Quick check if data changed
+// =============================================
+export async function hasDataChanged(
+    pharmacyName: string,
+    lastSyncTime: Date
+): Promise<{ changed: boolean; tables: string[] }> {
+    const client = getSupabaseClient();
+
+    if (!navigator.onLine || !client || !isSupabaseConfigured()) {
+        return { changed: false, tables: [] };
+    }
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+    const changedTables: string[] = [];
+
+    try {
+        const checks = TABLE_CONFIGS.map(async (config) => {
+            const { count, error } = await client
+                .from(config.table)
+                .select('*', { count: 'exact', head: true })
+                .eq('pharmacy_name', normalizedName)
+                .gte('updated_at', lastSyncTime.toISOString());
+
+            if (!error && count && count > 0) {
+                changedTables.push(config.table);
+            }
+            return { table: config.table, count: count || 0 };
+        });
+
+        await Promise.allSettled(checks);
+        return { changed: changedTables.length > 0, tables: changedTables };
+    } catch (err) {
+        return { changed: false, tables: [] };
     }
 }

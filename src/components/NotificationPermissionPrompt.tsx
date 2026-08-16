@@ -44,7 +44,7 @@ export const NotificationPermissionPrompt: React.FC<Props> = ({
                 }
 
                 await service.sendNotification({
-                    title: '✅ Notifications Enabled',
+                    title: 'Notifications Enabled',
                     body: 'You will now receive real-time updates about sales and inventory.',
                     icon: '/pwa-192x192.png',
                     tag: 'welcome',
@@ -56,7 +56,7 @@ export const NotificationPermissionPrompt: React.FC<Props> = ({
                 onPermissionChange(newPermission);
             }
         } catch (error) {
-            console.error('Error enabling notifications:', error);
+            // Silent fail - notification not critical
         } finally {
             setIsLoading(false);
         }
@@ -95,7 +95,7 @@ export const NotificationPermissionPrompt: React.FC<Props> = ({
                 <span>Notifications blocked</span>
                 <button
                     onClick={() => {
-                        alert('Please enable notifications in your browser settings:\n\nChrome: Settings → Privacy → Notifications\nSafari: Settings → Websites → Notifications');
+                        alert('Please enable notifications in your browser settings:\n\nChrome: Settings -> Privacy -> Notifications\nSafari: Settings -> Websites -> Notifications');
                     }}
                     className={`text-xs underline ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
                 >

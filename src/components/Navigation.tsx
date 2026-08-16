@@ -330,7 +330,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       )}
 
       {/* DESKTOP SIDEBAR */}
-      <aside className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-300 ease-in-out border-r w-16 hover:w-60 group shadow-2xl overflow-hidden select-none ${isDark
+      <aside className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-60 transition-all duration-300 ease-in-out border-r w-16 hover:w-60 group shadow-2xl overflow-hidden select-none ${isDark
         ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]'
         : 'bg-white border-[#d0d7de] text-[#1f2328]'
         }`}>

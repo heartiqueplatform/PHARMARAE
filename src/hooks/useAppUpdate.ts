@@ -5,6 +5,7 @@ import { APP_VERSION, VERSION_KEY, LAST_UPDATE_CHECK } from '../utils/helpers';
 export const useAppUpdate = () => {
     const [showUpdateNotification, setShowUpdateNotification] = useState(false);
     const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
 
     const checkForUpdates = useCallback(() => {
         const storedVersion = localStorage.getItem(VERSION_KEY);
@@ -33,23 +34,40 @@ export const useAppUpdate = () => {
         return false;
     }, []);
 
-    const handleUpdate = useCallback(() => {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.ready.then((registration) => {
+    const handleUpdate = useCallback(async () => {
+        if (isUpdating) return;
+
+        setIsUpdating(true);
+
+        try {
+            if ('serviceWorker' in navigator) {
+                const registration = await navigator.serviceWorker.ready;
                 if (registration.waiting) {
                     registration.waiting.postMessage({ type: 'SKIP_WAITING' });
                 }
-            });
+            }
+
+            // Give the SW time to activate
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            setShowUpdateNotification(false);
+            setIsUpdateAvailable(false);
+
+            // Reload the page to apply the update
+            window.location.reload();
+        } catch (error) {
+            setIsUpdating(false);
+            // Fallback: reload anyway
+            window.location.reload();
         }
-        setShowUpdateNotification(false);
-        window.location.reload();
-    }, []);
+    }, [isUpdating]);
 
     const handleDismissUpdate = useCallback(() => {
         setShowUpdateNotification(false);
     }, []);
 
     useEffect(() => {
+        // Check for updates immediately
         checkForUpdates();
 
         const handleMessage = (event: MessageEvent) => {
@@ -95,5 +113,12 @@ export const useAppUpdate = () => {
         };
     }, [checkForUpdates]);
 
-    return { showUpdateNotification, isUpdateAvailable, handleUpdate, handleDismissUpdate };
+    return {
+        showUpdateNotification,
+        isUpdateAvailable,
+        isUpdating,
+        handleUpdate,
+        handleDismissUpdate,
+        checkForUpdates
+    };
 };

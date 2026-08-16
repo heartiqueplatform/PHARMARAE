@@ -1,4 +1,5 @@
-// hooks/useActions.ts
+// hooks/useActions.ts - COMPLETE FIX
+
 import { useCallback } from 'react';
 import { db } from '../lib/db';
 import { queueOfflineMutation, getSupabaseClient, pullFromSupabaseToLocal, isSupabaseConfigured, processOfflineSyncQueue, changeUserPin, changeUserPassword, deleteAccount } from '../lib/supabase';
@@ -12,10 +13,11 @@ import {
     AuditLog,
     Category,
     RequestedItem,
-    SalesReturn, // NEW - Add this import
+    SalesReturn,
 } from '../types';
 import { normalizePharmacyName, genUUID } from '../utils/helpers';
 import { getNotificationService } from '../lib/notificationService';
+
 interface UseActionsProps {
     currentProfile: Profile | null;
     currentRole: string;
@@ -49,116 +51,247 @@ export const useActions = (props: UseActionsProps) => {
     }, [currentProfile]);
 
     // =============================================
-    // HANDLE COMPLETE SALE
+    // HELPER: Build complete product update payload
     // =============================================
+    const buildProductUpdatePayload = useCallback((product: Product) => {
+        return {
+            id: product.id,
+            pharmacy_name: product.pharmacy_name,
+            name: product.name, // ✅ CRITICAL: Always include name
+            generic_name: product.generic_name,
+            brand: product.brand,
+            description: product.description,
+            notes: product.notes,
+            product_type: product.product_type,
+            category_id: product.category_id,
+            category_name: product.category_name,
+            form: product.form,
+            strength: product.strength,
+            manufacturer: product.manufacturer,
+            schedule_type: product.schedule_type,
+            prescription_required: product.prescription_required,
+            size: product.size,
+            color: product.color,
+            material: product.material,
+            is_sterile: product.is_sterile,
+            selling_price: product.selling_price,
+            default_cost_price: product.default_cost_price,
+            quantity: product.quantity || 0,
+            reorder_level: product.reorder_level,
+            low_stock_threshold: product.low_stock_threshold,
+            is_active: product.is_active,
+            is_controlled: product.is_controlled,
+            barcode: product.barcode,
+            sku: product.sku,
+            shelf_number: product.shelf_number,
+            bay_number: product.bay_number,
+            rack_number: product.rack_number,
+            storage_location: product.storage_location,
+            zone: product.zone,
+            bin_number: product.bin_number,
+            cardboard_box_id: product.cardboard_box_id,
+            storage_condition: product.storage_condition,
+            last_inventory_count_date: product.last_inventory_count_date,
+            last_inventory_count_by: product.last_inventory_count_by,
+            updated_at: new Date().toISOString()
+        };
+    }, []);
+
     // =============================================
-    // HANDLE COMPLETE SALE
+    // HANDLE COMPLETE SALE - FIXED
     // =============================================
     const handleCompleteSale = useCallback(async (saleData: Partial<Sale>, cartItems: any[]) => {
         if (!currentProfile) {
-            console.error('❌ No profile found');
-            return;
+            throw new Error('No profile found');
         }
 
         const pharmacyName = getPharmacyName();
         if (!pharmacyName) {
-            console.error('❌ No pharmacy name found');
-            return;
+            throw new Error('No pharmacy name found');
         }
 
-        if (cartItems.length !== 1) {
-            throw new Error('This POS only supports one item per sale. Please clear cart and try again.');
-        }
-
-        const item = cartItems[0];
-
-        const product = await db.products.get(item.product.id);
-        if (!product) {
-            throw new Error(`Product ${item.product.name} not found`);
-        }
-        if ((product.quantity || 0) < item.quantity) {
-            throw new Error(`Not enough stock for ${product.name}. Available: ${product.quantity || 0}`);
+        if (cartItems.length === 0) {
+            throw new Error('Cart is empty. Please add items to sell.');
         }
 
         const now = new Date();
+        const nowISO = now.toISOString();
+
+        // Generate a single sale ID for all items
+        const saleId = genUUID();
         const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
         const countToday = sales.filter(s => s.sale_date?.startsWith(now.toISOString().substring(0, 10)) || s.created_at?.startsWith(now.toISOString().substring(0, 10))).length + 1;
         const saleNumber = `INV-${yearMonth}-${countToday.toString().padStart(4, '0')}`;
-        const saleId = genUUID();
 
-        const usedBatch = item.batch || null;
+        const subtotalTotal = cartItems.reduce((sum: number, item: any) => sum + (item.subtotal || item.quantity * item.unitPrice), 0);
+        const totalItems = cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+        const discountAmount = saleData.discount || 0;
+        const finalTotal = Math.max(0, subtotalTotal - discountAmount);
 
-        const newSale: Sale = {
-            id: saleId,
-            pharmacy_name: pharmacyName,
-            sale_number: saleNumber,
-            customer_id: saleData.customer_id || null,
-            customer_name: saleData.customer_name || 'Cash Customer',
-            sold_by: currentProfile?.id || null,
-            sold_by_name: currentProfile?.full_name || 'System User',
-            product_id: item.product.id,
-            product_name: item.product.name,
-            product_barcode: item.product.barcode || null,
-            product_sku: item.product.sku || null,
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-            subtotal: item.subtotal,
-            batch_id: usedBatch?.id || null,
-            batch_number: usedBatch?.batch_number || null,
-            discount: saleData.discount || 0,  // ✓ Goes to sales.discount
-            discount_reason: saleData.discount_reason || null, // ✓ Goes to sales.discount_reason
-            tax: saleData.tax || 0,
-            total: saleData.total || item.subtotal,
-            payment_method: saleData.payment_method || 'cash',
-            payment_status: 'paid',
-            payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-            status: 'completed',
-            product_details: {
-                generic_name: item.product.generic_name || null,
-                brand: item.product.brand || null,
-                form: item.product.form || null,
-                strength: item.product.strength || null,
-                category: item.product.category_name || null,
-                category_id: item.product.category_id || null,
-                manufacturer: item.product.manufacturer || null,
-                prescription_required: item.product.prescription_required || false,
-                is_controlled: item.product.is_controlled || false,
-                selling_price: item.product.selling_price,
-                cost_price: item.product.default_cost_price || 0,
-                unit: item.product.base_unit_name || null,
-            },
-            notes: `Sale of ${item.product.name} x${item.quantity}`,
-            sale_date: now.toISOString(),
-            created_at: now.toISOString(),
-            updated_at: now.toISOString(),
-            offline_id: null
-        };
+        // Check stock for all items first
+        for (const cartItem of cartItems) {
+            const product = await db.products.get(cartItem.product.id);
+            if (!product) {
+                throw new Error(`Product ${cartItem.product.name} not found`);
+            }
+            if ((product.quantity || 0) < cartItem.quantity) {
+                throw new Error(`Not enough stock for ${product.name}. Available: ${product.quantity || 0}`);
+            }
+        }
 
-        // 1. Save sale to local DB
-        await db.sales.put(newSale);
+        const createdSales: Sale[] = [];
 
-        // 2. Queue sale for sync
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'INSERT', newSale);
 
-        // 3. 🆕 If discount was applied, save to discounts table
-        if (saleData.discount && saleData.discount > 0) {
+
+        // Create ONE sale per item (but with the same sale_id for grouping)
+        for (const item of cartItems) {
+            const usedBatch = item.batch || null;
+            const itemSubtotal = item.subtotal || item.quantity * item.unitPrice;
+            const itemId = genUUID();
+
+            const newSale: Sale = {
+                id: itemId,
+                pharmacy_name: pharmacyName,
+                sale_id: saleId,
+                sale_number: saleNumber,
+                customer_id: saleData.customer_id || null,
+                customer_name: saleData.customer_name || 'Cash Customer',
+                sold_by: currentProfile?.id || null,
+                sold_by_name: currentProfile?.full_name || 'System User',
+                product_id: item.product.id,
+                product_name: item.product.name,
+                product_barcode: item.product.barcode || null,
+                product_sku: item.product.sku || null,
+                quantity: item.quantity,
+                unit_price: item.unitPrice,
+                subtotal: itemSubtotal,
+                batch_id: usedBatch?.id || null,
+                batch_number: usedBatch?.batch_number || null,
+                discount: discountAmount,
+                discount_reason: saleData.discount_reason || null,
+                tax: saleData.tax || 0,
+                total: finalTotal,
+                payment_method: saleData.payment_method || 'cash',
+                payment_status: 'paid',
+                payment_reference: saleData.payment_reference || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                status: 'completed',
+                product_details: {
+                    generic_name: item.product.generic_name || null,
+                    brand: item.product.brand || null,
+                    form: item.product.form || null,
+                    strength: item.product.strength || null,
+                    category: item.product.category_name || null,
+                    category_id: item.product.category_id || null,
+                    manufacturer: item.product.manufacturer || null,
+                    prescription_required: item.product.prescription_required || false,
+                    is_controlled: item.product.is_controlled || false,
+                    selling_price: item.product.selling_price,
+                    cost_price: item.product.default_cost_price || 0,
+                    unit: item.product.base_unit_name || null,
+                },
+                notes: `Sale of ${item.product.name} x${item.quantity}`,
+                sale_date: saleData.sale_date || nowISO,  // ✅ FIXED: Use selected date
+                created_at: nowISO,
+                updated_at: nowISO,
+                offline_id: null
+            };
+
+            // ✅ Save locally
+            await db.sales.put(newSale);
+
+            // ✅ Queue for Supabase sync
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'INSERT', newSale);
+            createdSales.push(newSale);
+
+            // Update batch quantities
+            const todayStr = now.toISOString().split('T')[0];
+            const quantitySold = item.quantity;
+
+            const availableBatches = batches
+                .filter(b => b.product_id === item.product.id && b.quantity_base > 0 && b.expiry_date >= todayStr)
+                .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
+
+            let remainingToDeduct = quantitySold;
+
+            for (const batch of availableBatches) {
+                if (remainingToDeduct <= 0) break;
+                const deductFromBatch = Math.min(remainingToDeduct, batch.quantity_base);
+                const newBatchQty = batch.quantity_base - deductFromBatch;
+
+                await db.product_batches.update(batch.id, {
+                    quantity_base: newBatchQty,
+                    updated_at: nowISO
+                });
+
+                // ✅ Queue batch update for Supabase
+                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+                    id: batch.id,
+                    quantity_base: newBatchQty,
+                    updated_at: nowISO,
+                    pharmacy_name: pharmacyName
+                });
+
+                remainingToDeduct -= deductFromBatch;
+            }
+
+            // Update product quantity - ✅ FIXED with FULL payload
+            const product = await db.products.get(item.product.id);
+            if (product) {
+                const newQuantity = Math.max(0, (product.quantity || 0) - quantitySold);
+
+                // Update local
+                const updatedProduct = {
+                    ...product,
+                    quantity: newQuantity,
+                    updated_at: nowISO
+                };
+                await db.products.put(updatedProduct);
+
+                // ✅ Queue product update for Supabase - FULL PAYLOAD with name
+                const fullPayload = buildProductUpdatePayload(updatedProduct);
+                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
+            }
+
+            // Create stock movement
+            const movId = genUUID();
+            const movement: StockMovement = {
+                id: movId,
+                pharmacy_name: pharmacyName,
+                product_id: item.product.id,
+                product_name: item.product.name,
+                batch_id: usedBatch?.id || null,
+                batch_number: usedBatch?.batch_number || null,
+                movement_type: 'sale',
+                quantity_base: -quantitySold,
+                reference_type: 'sale',
+                reference_id: saleId,
+                performed_by: currentProfile?.id,
+                performed_by_name: currentProfile?.full_name || 'System User',
+                reason: `Sale transaction #${saleNumber}`,
+                created_at: nowISO
+            };
+
+            await db.stock_movements.put(movement);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', movement);
+        }
+
+        // Save discount if applied
+        if (discountAmount > 0) {
             const discountId = genUUID();
             const discountData = {
                 id: discountId,
                 sale_id: saleId,
                 approved_by: currentProfile?.id || null,
-                amount: saleData.discount,
-                percentage: null, // Could calculate: (saleData.discount / saleData.subtotal) * 100
+                amount: discountAmount,
+                percentage: null,
                 reason: saleData.discount_reason || 'Discount applied at POS',
                 pharmacy_name: pharmacyName,
-                created_at: now.toISOString()
+                created_at: nowISO
             };
 
             await db.discounts.put(discountData);
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'discount', 'INSERT', discountData);
-            console.log('✅ Discount record saved to discounts table');
 
-            // 🆕 ADD THIS: Audit log specifically for the discount
             const discountAuditLog = {
                 id: genUUID(),
                 pharmacy_name: pharmacyName,
@@ -167,81 +300,15 @@ export const useActions = (props: UseActionsProps) => {
                 action: 'DISCOUNT_APPLIED',
                 entity_type: 'DISCOUNT',
                 entity_id: discountId,
-                details: `Discount of ${saleData.discount} applied to sale #${saleNumber}${saleData.discount_reason ? ` (Reason: ${saleData.discount_reason})` : ''}`,
-                created_at: now.toISOString()
+                details: `Discount of ${discountAmount} applied to sale #${saleNumber}${saleData.discount_reason ? ` (Reason: ${saleData.discount_reason})` : ''}`,
+                created_at: nowISO
             };
 
             await db.audit_logs.put(discountAuditLog);
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', discountAuditLog);
-            console.log('✅ Discount audit log saved');
         }
 
-        // 4. Update stock
-        const todayStr = now.toISOString().split('T')[0];
-        const quantitySold = item.quantity;
-
-        const availableBatches = batches
-            .filter(b => b.product_id === item.product.id && b.quantity_base > 0 && b.expiry_date >= todayStr)
-            .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
-
-        let remainingToDeduct = quantitySold;
-
-        for (const batch of availableBatches) {
-            if (remainingToDeduct <= 0) break;
-            const deductFromBatch = Math.min(remainingToDeduct, batch.quantity_base);
-            const newBatchQty = batch.quantity_base - deductFromBatch;
-
-            await db.product_batches.update(batch.id, {
-                quantity_base: newBatchQty,
-                updated_at: now.toISOString()
-            });
-
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
-                id: batch.id,
-                quantity_base: newBatchQty,
-                updated_at: now.toISOString()
-            });
-
-            remainingToDeduct -= deductFromBatch;
-        }
-
-        if (product) {
-            const newQuantity = Math.max(0, (product.quantity || 0) - quantitySold);
-            await db.products.update(item.product.id, {
-                quantity: newQuantity,
-                updated_at: now.toISOString()
-            });
-
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
-                id: item.product.id,
-                quantity: newQuantity,
-                updated_at: now.toISOString()
-            });
-        }
-
-        // 5. Record movement with performed_by_name
-        const movId = genUUID();
-        const movement: StockMovement = {
-            id: movId,
-            pharmacy_name: pharmacyName,
-            product_id: item.product.id,
-            product_name: item.product.name,
-            batch_id: usedBatch?.id || null,
-            batch_number: usedBatch?.batch_number || null,
-            movement_type: 'sale',
-            quantity_base: -quantitySold,
-            reference_type: 'sale',
-            reference_id: saleId,
-            performed_by: currentProfile?.id,
-            performed_by_name: currentProfile?.full_name || 'System User', // ✓ This ensures column exists
-            reason: `Sale transaction #${saleNumber}`,
-            created_at: now.toISOString()
-        };
-
-        await db.stock_movements.put(movement);
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', movement);
-
-        // 6. Audit log
+        // Create audit log
         const auditLog = {
             id: genUUID(),
             pharmacy_name: pharmacyName,
@@ -250,51 +317,52 @@ export const useActions = (props: UseActionsProps) => {
             action: 'SALE_COMPLETED',
             entity_type: 'SALE',
             entity_id: saleId,
-            details: `Sale #${saleNumber}: ${item.product.name} x${item.quantity} for ${saleData.total || item.subtotal}${saleData.discount ? ` (Discount: ${saleData.discount})` : ''}`,
-            created_at: now.toISOString()
+            details: `Sale #${saleNumber}: ${totalItems} items (${cartItems.length} unique products) for ${finalTotal}${discountAmount > 0 ? ` (Discount: ${discountAmount})` : ''}`,
+            created_at: nowISO
         };
 
         await db.audit_logs.put(auditLog);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
+        // ✅ Process sync queue immediately if online
+        if (navigator.onLine && isSupabaseConfigured()) {
+            try {
+                await processOfflineSyncQueue();
+            } catch (syncErr) {
+                console.warn('Sync failed, will retry later:', syncErr);
+            }
+        }
+
+        // Reload data
         await loadDatabaseData();
-        setReceiptSale(newSale);
-        setIsReceiptModalOpen(true);
-        // 👇 ADD THIS BLOCK RIGHT HERE (after setReceiptSale)
-        // 🆕 Send push notification for new sale
+
+        // Show receipt
+        if (createdSales.length > 0) {
+            setReceiptSale(createdSales[0]);
+            setIsReceiptModalOpen(true);
+        }
+
+        // Send notification
         try {
             const notificationService = getNotificationService();
-
-            // Check if notifications are supported and permission granted
-            if (notificationService.isSupportedBrowser() &&
-                Notification.permission === 'granted') {
-
-                // Get pharmacy currency from profile
+            if (notificationService.isSupportedBrowser() && Notification.permission === 'granted') {
                 const currency = currentProfile?.pharmacy_currency || 'KSh';
-
-                // Send sale notification
                 await notificationService.notifySale({
-                    ...newSale,
-                    pharmacy_currency: currency
+                    ...createdSales[0],
+                    pharmacy_currency: currency,
+                    items_count: totalItems,
+                    unique_items: cartItems.length
                 }, pharmacyName);
-
-                console.log('🔔 Sale notification sent successfully');
             }
         } catch (notifError) {
-            console.warn('Could not send notification:', notifError);
-            // Don't fail the sale if notification fails
+            // Silent fail
         }
 
+        return { success: true, saleId, saleNumber, totalItems, finalTotal };
+    }, [currentProfile, getPharmacyName, batches, sales, loadDatabaseData, setReceiptSale, setIsReceiptModalOpen, buildProductUpdatePayload]);
 
-        console.log('✅ Sale completed successfully!');
-        console.log(`   Sale #${saleNumber} - Total: ${saleData.total || item.subtotal}`);
-        if (saleData.discount && saleData.discount > 0) {
-            console.log(`   Discount: ${saleData.discount} (${saleData.discount_reason || 'No reason'})`);
-            console.log('   ✅ Discount also saved to discounts table');
-        }
-    }, [currentProfile, getPharmacyName, batches, sales, loadDatabaseData, setReceiptSale, setIsReceiptModalOpen]);
     // =============================================
-    // ADD PRODUCT
+    // ADD PRODUCT - FIXED
     // =============================================
     const handleAddProduct = useCallback(async (prodData: Partial<Product>) => {
         if (!currentProfile) return;
@@ -303,6 +371,7 @@ export const useActions = (props: UseActionsProps) => {
         if (!pharmacyName) return;
 
         const id = genUUID();
+        const now = new Date().toISOString();
 
         const newProd: Product = {
             id,
@@ -343,14 +412,16 @@ export const useActions = (props: UseActionsProps) => {
             storage_condition: prodData.storage_condition || 'room_temperature',
             last_inventory_count_date: prodData.last_inventory_count_date || null,
             last_inventory_count_by: prodData.last_inventory_count_by || null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            created_at: now,
+            updated_at: now
         };
 
         await db.products.put(newProd);
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'INSERT', newProd);
 
-        // Audit log
+        // ✅ Use full payload with name
+        const fullPayload = buildProductUpdatePayload(newProd);
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'INSERT', fullPayload);
+
         const auditLog = {
             id: genUUID(),
             pharmacy_name: pharmacyName,
@@ -360,18 +431,17 @@ export const useActions = (props: UseActionsProps) => {
             entity_type: 'PRODUCT',
             entity_id: id,
             details: `Created product: ${prodData.name || 'Unknown'}`,
-            created_at: new Date().toISOString()
+            created_at: now
         };
 
         await db.audit_logs.put(auditLog);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
         await loadDatabaseData();
-        console.log('✅ Product saved successfully!');
-    }, [currentProfile, categories, loadDatabaseData]);
+    }, [currentProfile, categories, loadDatabaseData, buildProductUpdatePayload]);
 
     // =============================================
-    // UPDATE PRODUCT
+    // UPDATE PRODUCT - FIXED
     // =============================================
     const handleUpdateProduct = useCallback(async (productId: string, productData: Partial<Product>) => {
         if (!currentProfile) return;
@@ -382,10 +452,7 @@ export const useActions = (props: UseActionsProps) => {
         const existingProduct = await db.products.get(productId);
         if (!existingProduct) return;
 
-        const updatedFields = Object.keys(productData).filter(key =>
-            key !== 'id' && key !== 'created_at' && key !== 'updated_at' && key !== 'pharmacy_name'
-        );
-
+        const now = new Date().toISOString();
         const updatedProduct: Product = {
             ...existingProduct,
             ...productData,
@@ -397,11 +464,14 @@ export const useActions = (props: UseActionsProps) => {
             bin_number: productData.bin_number !== undefined ? productData.bin_number : existingProduct.bin_number,
             cardboard_box_id: productData.cardboard_box_id !== undefined ? productData.cardboard_box_id : existingProduct.cardboard_box_id,
             storage_condition: productData.storage_condition || existingProduct.storage_condition || 'room_temperature',
-            updated_at: new Date().toISOString()
+            updated_at: now
         };
 
         await db.products.put(updatedProduct);
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', updatedProduct);
+
+        // ✅ Use full payload with name
+        const fullPayload = buildProductUpdatePayload(updatedProduct);
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
 
         const auditLog = {
             id: genUUID(),
@@ -411,66 +481,18 @@ export const useActions = (props: UseActionsProps) => {
             action: 'PRODUCT_UPDATED',
             entity_type: 'PRODUCT',
             entity_id: productId,
-            details: `Updated product: ${existingProduct.name} → ${productData.name || existingProduct.name}`,
-            created_at: new Date().toISOString()
+            details: `Updated product: ${existingProduct.name} -> ${productData.name || existingProduct.name}`,
+            created_at: now
         };
 
         await db.audit_logs.put(auditLog);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
         await loadDatabaseData();
-        console.log('✅ Product updated successfully!');
-    }, [currentProfile, getPharmacyName, loadDatabaseData]);
+    }, [currentProfile, getPharmacyName, loadDatabaseData, buildProductUpdatePayload]);
 
     // =============================================
-    // DELETE PRODUCT
-    // =============================================
-    const handleDeleteProduct = useCallback(async (productId: string) => {
-        if (!currentProfile) return;
-
-        const pharmacyName = getPharmacyName();
-        if (!pharmacyName) return;
-
-        const productBatches = await db.product_batches.where('product_id').equals(productId).toArray();
-        if (productBatches.length > 0) {
-            if (!confirm(`This product has ${productBatches.length} batch(es). Deleting it will also delete all associated batches and stock movements. Continue?`)) {
-                return;
-            }
-        }
-
-        try {
-            for (const batch of productBatches) {
-                await db.stock_movements.where('batch_id').equals(batch.id).delete();
-                await db.product_batches.delete(batch.id);
-            }
-
-            await db.products.delete(productId);
-
-            const auditLog = {
-                id: genUUID(),
-                pharmacy_name: pharmacyName,
-                user_id: currentProfile?.id,
-                user_name: currentProfile?.full_name,
-                action: 'DELETE_PRODUCT',
-                entity_type: 'PRODUCT',
-                entity_id: productId,
-                details: `Deleted product with ${productBatches.length} batch(es)`,
-                created_at: new Date().toISOString()
-            };
-
-            await db.audit_logs.put(auditLog);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
-
-            await loadDatabaseData();
-            console.log('✅ Product deleted successfully!');
-        } catch (err) {
-            console.error('❌ Delete error:', err);
-            throw err;
-        }
-    }, [currentProfile, getPharmacyName, loadDatabaseData]);
-
-    // =============================================
-    // ADD BATCH
+    // ADD BATCH - FIXED
     // =============================================
     const handleAddBatch = useCallback(async (batchData: Partial<ProductBatch>) => {
         if (!currentProfile || !batchData.product_id) return;
@@ -508,17 +530,18 @@ export const useActions = (props: UseActionsProps) => {
         const product = await db.products.get(batchData.product_id);
         if (!product) throw new Error('Product not found');
 
-        await db.products.update(batchData.product_id, {
+        const updatedProduct = {
+            ...product,
             quantity: totalQuantity,
             updated_at: now
-        });
+        };
+        await db.products.put(updatedProduct);
 
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'INSERT', newBatch);
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
-            id: product.id,
-            quantity: totalQuantity,
-            updated_at: now
-        });
+
+        // ✅ Use full payload with name
+        const fullPayload = buildProductUpdatePayload(updatedProduct);
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
 
         const auditLog = {
             id: genUUID(),
@@ -536,11 +559,10 @@ export const useActions = (props: UseActionsProps) => {
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
         await loadDatabaseData();
-        console.log('✅ Batch added successfully!');
-    }, [currentProfile, loadDatabaseData]);
+    }, [currentProfile, loadDatabaseData, buildProductUpdatePayload]);
 
     // =============================================
-    // UPDATE BATCH
+    // UPDATE BATCH - FIXED
     // =============================================
     const handleUpdateBatch = useCallback(async (batchId: string, batchData: Partial<ProductBatch>) => {
         if (!currentProfile) return;
@@ -554,7 +576,6 @@ export const useActions = (props: UseActionsProps) => {
         const now = new Date().toISOString();
         const oldQuantity = existingBatch.quantity_base;
         const newQuantity = Number(batchData.quantity_base);
-        const quantityChange = newQuantity - oldQuantity;
 
         await db.product_batches.update(batchId, {
             quantity_base: newQuantity,
@@ -564,21 +585,25 @@ export const useActions = (props: UseActionsProps) => {
         const allBatchesForProduct = await db.product_batches.where('product_id').equals(existingBatch.product_id).toArray();
         const totalQuantity = allBatchesForProduct.reduce((sum, b) => sum + b.quantity_base, 0);
 
-        await db.products.update(existingBatch.product_id, {
+        const product = await db.products.get(existingBatch.product_id);
+        if (!product) throw new Error('Product not found');
+
+        const updatedProduct = {
+            ...product,
             quantity: totalQuantity,
             updated_at: now
-        });
+        };
+        await db.products.put(updatedProduct);
 
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
             id: batchId,
             quantity_base: newQuantity,
             updated_at: now
         });
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
-            id: existingBatch.product_id,
-            quantity: totalQuantity,
-            updated_at: now
-        });
+
+        // ✅ Use full payload with name
+        const fullPayload = buildProductUpdatePayload(updatedProduct);
+        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
 
         const auditLog = {
             id: genUUID(),
@@ -596,18 +621,237 @@ export const useActions = (props: UseActionsProps) => {
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
         await loadDatabaseData();
-        console.log('✅ Batch updated successfully!');
-    }, [currentProfile, getPharmacyName, loadDatabaseData]);
+    }, [currentProfile, getPharmacyName, loadDatabaseData, buildProductUpdatePayload]);
 
     // =============================================
-    // ADD SUPPLIER
+    // SALES RETURN - FIXED
     // =============================================
+    const handleSalesReturn = useCallback(async (returnData: {
+        saleId: string;
+        productId: string;
+        batchId: string | null;
+        quantityReturned: number;
+        returnReason: string;
+        returnType: 'customer_return' | 'damaged' | 'expired' | 'wrong_item';
+        refundAmount: number;
+        refundMethod: 'cash' | 'mpesa' | 'bank' | 'store_credit' | null;
+        customerId: string | null;
+        customerName: string | null;
+        notes: string | null;
+    }) => {
+        if (!currentProfile) {
+            throw new Error('No profile found');
+        }
+
+        const pharmacyName = getPharmacyName();
+        if (!pharmacyName) {
+            throw new Error('No pharmacy name found');
+        }
+
+        try {
+            const sale = await db.sales.get(returnData.saleId);
+            if (!sale) {
+                throw new Error('Sale not found');
+            }
+
+            const product = await db.products.get(returnData.productId);
+            if (!product) {
+                throw new Error('Product not found');
+            }
+
+            if (returnData.quantityReturned <= 0) {
+                throw new Error('Quantity returned must be greater than 0');
+            }
+
+            if (returnData.quantityReturned > sale.quantity) {
+                throw new Error(`Cannot return more than ${sale.quantity} units. Only ${sale.quantity} units were sold.`);
+            }
+
+            let batch = null;
+            if (returnData.batchId) {
+                batch = await db.product_batches.get(returnData.batchId);
+            }
+
+            const now = new Date().toISOString();
+            const returnId = genUUID();
+
+            const newReturn: SalesReturn = {
+                id: returnId,
+                pharmacy_name: pharmacyName,
+                sale_id: sale.id,
+                sale_number: sale.sale_number || 'UNKNOWN',
+                product_id: returnData.productId,
+                product_name: sale.product_name || product.name,
+                batch_id: returnData.batchId || null,
+                batch_number: batch?.batch_number || null,
+                quantity_returned: returnData.quantityReturned,
+                original_quantity: sale.quantity,
+                remaining_quantity: sale.quantity - returnData.quantityReturned,
+                return_reason: returnData.returnReason,
+                return_type: returnData.returnType || 'customer_return',
+                refund_amount: returnData.refundAmount || 0,
+                refund_method: returnData.refundMethod || null,
+                returned_by: currentProfile?.id || null,
+                returned_by_name: currentProfile?.full_name || null,
+                customer_id: returnData.customerId || sale.customer_id || null,
+                customer_name: returnData.customerName || sale.customer_name || null,
+                notes: returnData.notes || null,
+                status: 'completed',
+                created_at: now,
+                updated_at: now,
+            };
+
+            await db.sales_returns.put(newReturn);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sales_return', 'INSERT', newReturn);
+
+            const updatedQuantity = sale.quantity - returnData.quantityReturned;
+            const updatedSale = {
+                ...sale,
+                quantity: updatedQuantity,
+                subtotal: sale.unit_price * updatedQuantity,
+                total: sale.unit_price * updatedQuantity,
+                updated_at: now,
+                notes: sale.notes
+                    ? `${sale.notes} | Returned ${returnData.quantityReturned} units on ${new Date().toLocaleDateString()}`
+                    : `Returned ${returnData.quantityReturned} units on ${new Date().toLocaleDateString()}`
+            };
+
+            await db.sales.put(updatedSale);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'UPDATE', {
+                id: sale.id,
+                quantity: updatedQuantity,
+                subtotal: updatedSale.subtotal,
+                total: updatedSale.total,
+                updated_at: now,
+                notes: updatedSale.notes
+            });
+
+            if (product) {
+                const newProductQty = (product.quantity || 0) + returnData.quantityReturned;
+                const updatedProduct = {
+                    ...product,
+                    quantity: newProductQty,
+                    updated_at: now
+                };
+                await db.products.put(updatedProduct);
+
+                // ✅ Use full payload with name
+                const fullPayload = buildProductUpdatePayload(updatedProduct);
+                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
+            }
+
+            if (batch && returnData.batchId) {
+                const newBatchQty = (batch.quantity_base || 0) + returnData.quantityReturned;
+                await db.product_batches.update(returnData.batchId, {
+                    quantity_base: newBatchQty,
+                    updated_at: now
+                });
+
+                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
+                    id: returnData.batchId,
+                    quantity_base: newBatchQty,
+                    updated_at: now
+                });
+            }
+
+            const movId = genUUID();
+            const movement: StockMovement = {
+                id: movId,
+                pharmacy_name: pharmacyName,
+                product_id: returnData.productId,
+                product_name: sale.product_name || product.name,
+                batch_id: returnData.batchId || null,
+                batch_number: batch?.batch_number || null,
+                movement_type: 'return',
+                quantity_base: returnData.quantityReturned,
+                reference_type: 'return',
+                reference_id: returnId,
+                performed_by: currentProfile?.id,
+                performed_by_name: currentProfile?.full_name,
+                reason: `Return: ${returnData.returnReason}`,
+                created_at: now
+            };
+
+            await db.stock_movements.put(movement);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', movement);
+
+            const auditLog = {
+                id: genUUID(),
+                pharmacy_name: pharmacyName,
+                user_id: currentProfile?.id,
+                user_name: currentProfile?.full_name,
+                action: 'SALE_RETURN_CREATED',
+                entity_type: 'SALE_RETURN',
+                entity_id: returnId,
+                details: `Returned ${returnData.quantityReturned} units of ${sale.product_name} from sale ${sale.sale_number}. Reason: ${returnData.returnReason}`,
+                created_at: now
+            };
+
+            await db.audit_logs.put(auditLog);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+
+            await loadDatabaseData();
+
+            return newReturn;
+
+        } catch (err) {
+            throw err;
+        }
+    }, [currentProfile, getPharmacyName, loadDatabaseData, buildProductUpdatePayload]);
+
+    // =============================================
+    // OTHER FUNCTIONS (unchanged)
+    // =============================================
+
+    const handleDeleteProduct = useCallback(async (productId: string) => {
+        if (!currentProfile) return;
+
+        const pharmacyName = getPharmacyName();
+        if (!pharmacyName) return;
+
+        const productBatches = await db.product_batches.where('product_id').equals(productId).toArray();
+        if (productBatches.length > 0) {
+            if (!confirm(`This product has ${productBatches.length} batch(es). Deleting it will also delete all associated batches and stock movements. Continue?`)) {
+                return;
+            }
+        }
+
+        try {
+            for (const batch of productBatches) {
+                await db.stock_movements.where('batch_id').equals(batch.id).delete();
+                await db.product_batches.delete(batch.id);
+            }
+
+            await db.products.delete(productId);
+
+            const auditLog = {
+                id: genUUID(),
+                pharmacy_name: pharmacyName,
+                user_id: currentProfile?.id,
+                user_name: currentProfile?.full_name,
+                action: 'DELETE_PRODUCT',
+                entity_type: 'PRODUCT',
+                entity_id: productId,
+                details: `Deleted product with ${productBatches.length} batch(es)`,
+                created_at: new Date().toISOString()
+            };
+
+            await db.audit_logs.put(auditLog);
+            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+
+            await loadDatabaseData();
+        } catch (err) {
+            throw err;
+        }
+    }, [currentProfile, getPharmacyName, loadDatabaseData]);
+
     const handleAddSupplier = useCallback(async (suppData: Partial<Supplier>) => {
         if (!currentProfile) return;
         const pharmacyName = getPharmacyName();
         if (!pharmacyName) return;
 
         const id = genUUID();
+        const now = new Date().toISOString();
         const newSupp: Supplier = {
             id,
             pharmacy_name: pharmacyName,
@@ -618,8 +862,8 @@ export const useActions = (props: UseActionsProps) => {
             address: suppData.address || '',
             notes: suppData.notes || '',
             active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            created_at: now,
+            updated_at: now
         };
 
         await db.suppliers.put(newSupp);
@@ -627,9 +871,6 @@ export const useActions = (props: UseActionsProps) => {
         await loadDatabaseData();
     }, [currentProfile, getPharmacyName, loadDatabaseData]);
 
-    // =============================================
-    // ADD STAFF
-    // =============================================
     const handleAddStaff = useCallback(async (staffData: Partial<Profile>) => {
         if (!currentProfile) return;
         const pharmacyName = getPharmacyName();
@@ -641,6 +882,7 @@ export const useActions = (props: UseActionsProps) => {
         }
 
         const profileId = genUUID();
+        const now = new Date().toISOString();
         const newProfile: Profile = {
             id: profileId,
             auth_user_id: null,
@@ -668,8 +910,8 @@ export const useActions = (props: UseActionsProps) => {
             is_owner: false,
             is_active: true,
             avatar_url: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            created_at: now,
+            updated_at: now
         };
 
         await db.profiles.put(newProfile);
@@ -685,16 +927,13 @@ export const useActions = (props: UseActionsProps) => {
             entity_type: 'PROFILE',
             entity_id: profileId,
             details: `Added staff member: ${newProfile.full_name} (${newProfile.role})`,
-            created_at: new Date().toISOString()
+            created_at: now
         };
 
         await db.audit_logs.put(auditLog);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
     }, [currentProfile, getPharmacyName, loadDatabaseData]);
 
-    // =============================================
-    // UPDATE PROFILE
-    // =============================================
     const handleUpdateProfile = useCallback(async (profileId: string, updates: Partial<Profile>) => {
         if (!currentProfile) return;
         const existing = await db.profiles.get(profileId);
@@ -729,21 +968,13 @@ export const useActions = (props: UseActionsProps) => {
 
         await queueOfflineMutation(normalizePharmacyName(currentProfile.pharmacy_name), currentProfile.id, 'profile', 'UPDATE', updated);
         await loadDatabaseData();
-
-        console.log('✅ Profile updated successfully!');
     }, [currentProfile, loadDatabaseData]);
 
-    // =============================================
-    // UPDATE PHARMACY NAME
-    // =============================================
     const handleUpdatePharmacyName = useCallback(async (newName: string) => {
         if (!currentProfile) return;
         await handleUpdateProfile(currentProfile.id, { pharmacy_name: newName });
     }, [currentProfile, handleUpdateProfile]);
 
-    // =============================================
-    // RESET LOCAL CACHE
-    // =============================================
     const handleResetLocalCache = useCallback(async () => {
         if (!currentProfile) return;
         try {
@@ -760,15 +991,12 @@ export const useActions = (props: UseActionsProps) => {
                 await pullFromSupabaseToLocal(pharmacyName);
             }
             await loadDatabaseData();
-            alert('✅ Local cache reset! Data re-synced from Supabase.');
+            alert('Local cache reset. Data re-synced from Supabase.');
         } catch (err: any) {
             alert('Error resetting cache: ' + (err.message || err));
         }
     }, [currentProfile, loadDatabaseData]);
 
-    // =============================================
-    // FORCE SYNC
-    // =============================================
     const handleForceSync = useCallback(async (isOnline: boolean) => {
         if (!currentProfile) {
             alert('No profile found. Please login.');
@@ -786,41 +1014,33 @@ export const useActions = (props: UseActionsProps) => {
         }
 
         const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
-        console.log(`🔄 FORCE SYNC from Supabase for: ${pharmacyName}`);
 
         try {
             const { synced, failed } = await processOfflineSyncQueue();
-            console.log(`✅ Pushed ${synced} items, ${failed} failed`);
-
             const success = await pullFromSupabaseToLocal(pharmacyName);
             if (success) {
-                console.log('✅ Force sync complete!');
                 await loadDatabaseData();
-                alert('✅ Data synced successfully!');
+                alert('Data synced successfully.');
             } else {
-                alert('❌ Sync failed. Please check your connection and try again.');
+                alert('Sync failed. Please check your connection and try again.');
             }
         } catch (error) {
-            console.error('❌ Force sync failed:', error);
             alert('Sync failed: ' + (error as Error).message);
         }
     }, [currentProfile, loadDatabaseData]);
 
     // =============================================
-    // 🆕 REQUESTED ITEMS CRUD OPERATIONS
+    // REQUESTED ITEMS CRUD
     // =============================================
 
-    // ADD REQUESTED ITEM
     const handleAddRequestedItem = useCallback(async (itemData: Partial<RequestedItem>) => {
         if (!currentProfile) {
-            console.error('❌ No profile found');
-            return;
+            throw new Error('No profile found');
         }
 
         const pharmacyName = normalizePharmacyName(itemData.pharmacy_name || currentProfile.pharmacy_name);
         if (!pharmacyName) {
-            console.error('❌ No pharmacy name found');
-            return;
+            throw new Error('No pharmacy name found');
         }
 
         if (!itemData.item_name || !itemData.item_name.trim()) {
@@ -854,13 +1074,9 @@ export const useActions = (props: UseActionsProps) => {
             supplier_name: itemData.supplier_name || null,
         };
 
-        console.log('📦 Saving requested item to Dexie:', newItem);
         await db.requested_items.put(newItem);
-
-        // Queue for Supabase sync
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'requested_item', 'INSERT', newItem);
 
-        // Audit log
         const auditLog = {
             id: genUUID(),
             pharmacy_name: pharmacyName,
@@ -877,20 +1093,16 @@ export const useActions = (props: UseActionsProps) => {
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
         await loadDatabaseData();
-        console.log('✅ Requested item saved successfully!');
     }, [currentProfile, loadDatabaseData]);
 
-    // UPDATE REQUESTED ITEM
     const handleUpdateRequestedItem = useCallback(async (itemId: string, itemData: Partial<RequestedItem>) => {
         if (!currentProfile) {
-            console.error('❌ No profile found');
-            return;
+            throw new Error('No profile found');
         }
 
         const pharmacyName = getPharmacyName();
         if (!pharmacyName) {
-            console.error('❌ No pharmacy name found');
-            return;
+            throw new Error('No pharmacy name found');
         }
 
         const existingItem = await db.requested_items.get(itemId);
@@ -900,24 +1112,15 @@ export const useActions = (props: UseActionsProps) => {
 
         const now = new Date().toISOString();
 
-        // Track what fields are being updated for audit log
-        const updatedFields = Object.keys(itemData).filter(key =>
-            key !== 'id' && key !== 'created_at' && key !== 'updated_at' && key !== 'pharmacy_name'
-        );
-
         const updatedItem: RequestedItem = {
             ...existingItem,
             ...itemData,
             updated_at: now,
         };
 
-        console.log('📦 Updating requested item:', updatedItem);
         await db.requested_items.put(updatedItem);
-
-        // Queue for Supabase sync
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'requested_item', 'UPDATE', updatedItem);
 
-        // Audit log
         const auditLog = {
             id: genUUID(),
             pharmacy_name: pharmacyName,
@@ -926,7 +1129,7 @@ export const useActions = (props: UseActionsProps) => {
             action: 'REQUESTED_ITEM_UPDATED',
             entity_type: 'REQUESTED_ITEM',
             entity_id: itemId,
-            details: `Updated requested item: ${existingItem.item_name} → ${itemData.item_name || existingItem.item_name} (Fields: ${updatedFields.join(', ')})`,
+            details: `Updated requested item: ${existingItem.item_name} -> ${itemData.item_name || existingItem.item_name}`,
             created_at: now
         };
 
@@ -934,20 +1137,16 @@ export const useActions = (props: UseActionsProps) => {
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
         await loadDatabaseData();
-        console.log('✅ Requested item updated successfully!');
     }, [currentProfile, getPharmacyName, loadDatabaseData]);
 
-    // DELETE REQUESTED ITEM
     const handleDeleteRequestedItem = useCallback(async (itemId: string) => {
         if (!currentProfile) {
-            console.error('❌ No profile found');
-            return;
+            throw new Error('No profile found');
         }
 
         const pharmacyName = getPharmacyName();
         if (!pharmacyName) {
-            console.error('❌ No pharmacy name found');
-            return;
+            throw new Error('No pharmacy name found');
         }
 
         const existingItem = await db.requested_items.get(itemId);
@@ -956,15 +1155,9 @@ export const useActions = (props: UseActionsProps) => {
         }
 
         try {
-            console.log('🗑️ Deleting requested item:', itemId);
-
-            // Delete from local DB
             await db.requested_items.delete(itemId);
-
-            // Queue for Supabase sync
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'requested_item', 'DELETE', { id: itemId });
 
-            // Audit log
             const auditLog = {
                 id: genUUID(),
                 pharmacy_name: pharmacyName,
@@ -981,17 +1174,15 @@ export const useActions = (props: UseActionsProps) => {
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
             await loadDatabaseData();
-            console.log('✅ Requested item deleted successfully!');
         } catch (err) {
-            console.error('❌ Delete error:', err);
             throw err;
         }
     }, [currentProfile, getPharmacyName, loadDatabaseData]);
+
     // =============================================
-    // 🆕 SECURITY OPERATIONS
+    // SECURITY OPERATIONS
     // =============================================
 
-    // CHANGE PIN
     const handleChangePin = useCallback(async (data: {
         currentPin: string;
         newPin: string;
@@ -1001,7 +1192,6 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error('No profile found. Please login.');
         }
 
-        // Validate PIN format
         if (!data.currentPin || data.currentPin.length !== 4) {
             throw new Error('Current PIN must be 4 digits.');
         }
@@ -1018,12 +1208,10 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error('New PIN must be different from current PIN.');
         }
 
-        // Verify current PIN matches
         if (currentProfile.pin_code !== data.currentPin) {
             throw new Error('Current PIN is incorrect.');
         }
 
-        // Update PIN in Supabase
         const { success, error } = await changeUserPin(
             currentProfile.id,
             data.newPin
@@ -1033,7 +1221,6 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error(error?.message || 'Failed to update PIN.');
         }
 
-        // Update local profile
         const updatedProfile = {
             ...currentProfile,
             pin_code: data.newPin,
@@ -1041,12 +1228,9 @@ export const useActions = (props: UseActionsProps) => {
         };
         await db.profiles.put(updatedProfile);
 
-        // Update current profile state (will be handled by parent)
-        console.log('✅ PIN changed successfully!');
         return { success: true };
     }, [currentProfile]);
 
-    // CHANGE PASSWORD
     const handleChangePassword = useCallback(async (data: {
         currentPassword: string;
         newPassword: string;
@@ -1056,7 +1240,6 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error('No profile found. Please login.');
         }
 
-        // Validate password
         if (!data.currentPassword || data.currentPassword.length < 6) {
             throw new Error('Current password must be at least 6 characters.');
         }
@@ -1073,7 +1256,6 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error('New password must be different from current password.');
         }
 
-        // Update password in Supabase
         const { success, error } = await changeUserPassword(
             data.currentPassword,
             data.newPassword
@@ -1083,25 +1265,20 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error(error?.message || 'Failed to update password.');
         }
 
-        console.log('✅ Password changed successfully!');
         return { success: true };
     }, [currentProfile]);
 
-    // DELETE ACCOUNT
     const handleDeleteAccount = useCallback(async (profileId: string) => {
         if (!currentProfile) {
             throw new Error('No profile found. Please login.');
         }
 
-        // Check if deleting self or someone else
         const isSelf = profileId === currentProfile.id;
 
-        // If deleting someone else, only owner can do it
         if (!isSelf && currentRole !== 'owner') {
             throw new Error('Only owners can delete other staff accounts.');
         }
 
-        // If deleting someone else, they must be in the same pharmacy
         if (!isSelf) {
             const targetProfile = await db.profiles.get(profileId);
             if (!targetProfile) {
@@ -1112,228 +1289,24 @@ export const useActions = (props: UseActionsProps) => {
             }
         }
 
-        // Call the delete function
         const { success, error } = await deleteAccount(profileId);
 
         if (!success) {
             throw new Error(error?.message || 'Failed to delete account.');
         }
 
-        // If self-delete, clear local storage and sign out
         if (isSelf) {
-            // Clear local data
             localStorage.removeItem('medp_authenticated');
             localStorage.removeItem('medp_current_user_id');
-
-            // Clear the profile from local DB
             await db.profiles.delete(profileId);
-
-            // Refresh the app state
             await loadDatabaseData();
-
-            // Note: The parent component should handle navigation to login
         } else {
-            // Remove from local DB
             await db.profiles.delete(profileId);
             await loadDatabaseData();
         }
 
-        console.log('✅ Account deleted successfully!');
         return { success: true, isSelf };
     }, [currentProfile, currentRole, loadDatabaseData]);
-    // =============================================
-    // 🆕 SALES RETURN OPERATION
-    // =============================================
-    const handleSalesReturn = useCallback(async (returnData: {
-        saleId: string;
-        productId: string;
-        batchId: string | null;
-        quantityReturned: number;
-        returnReason: string;
-        returnType: 'customer_return' | 'damaged' | 'expired' | 'wrong_item';
-        refundAmount: number;
-        refundMethod: 'cash' | 'mpesa' | 'bank' | 'store_credit' | null;
-        customerId: string | null;
-        customerName: string | null;
-        notes: string | null;
-    }) => {
-        if (!currentProfile) {
-            console.error('❌ No profile found');
-            return;
-        }
-
-        const pharmacyName = getPharmacyName();
-        if (!pharmacyName) {
-            console.error('❌ No pharmacy name found');
-            return;
-        }
-
-        try {
-            // 1. Get the original sale
-            const sale = await db.sales.get(returnData.saleId);
-            if (!sale) {
-                throw new Error('Sale not found');
-            }
-
-            // 2. Get the product
-            const product = await db.products.get(returnData.productId);
-            if (!product) {
-                throw new Error('Product not found');
-            }
-
-            // 3. Validate quantity
-            if (returnData.quantityReturned <= 0) {
-                throw new Error('Quantity returned must be greater than 0');
-            }
-
-            if (returnData.quantityReturned > sale.quantity) {
-                throw new Error(`Cannot return more than ${sale.quantity} units. Only ${sale.quantity} units were sold.`);
-            }
-
-            // 4. Get batch if exists
-            let batch = null;
-            if (returnData.batchId) {
-                batch = await db.product_batches.get(returnData.batchId);
-            }
-
-            // 5. Create sales return record
-            const now = new Date().toISOString();
-            const returnId = genUUID();
-
-            const newReturn: SalesReturn = {
-                id: returnId,
-                pharmacy_name: pharmacyName,
-                sale_id: sale.id,
-                sale_number: sale.sale_number || 'UNKNOWN',
-                product_id: returnData.productId,
-                product_name: sale.product_name || product.name,
-                batch_id: returnData.batchId || null,
-                batch_number: batch?.batch_number || null,
-                quantity_returned: returnData.quantityReturned,
-                original_quantity: sale.quantity,
-                remaining_quantity: sale.quantity - returnData.quantityReturned,
-                return_reason: returnData.returnReason,
-                return_type: returnData.returnType || 'customer_return',
-                refund_amount: returnData.refundAmount || 0,
-                refund_method: returnData.refundMethod || null,
-                returned_by: currentProfile?.id || null,
-                returned_by_name: currentProfile?.full_name || null,
-                customer_id: returnData.customerId || sale.customer_id || null,
-                customer_name: returnData.customerName || sale.customer_name || null,
-                notes: returnData.notes || null,
-                status: 'completed',
-                created_at: now,
-                updated_at: now,
-            };
-
-            console.log('📦 Saving sales return:', newReturn);
-
-            // 6. Save to local DB
-            await db.sales_returns.put(newReturn);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sales_return', 'INSERT', newReturn);
-
-            // 7. Update sale - reduce quantity
-            const updatedQuantity = sale.quantity - returnData.quantityReturned;
-            const updatedSale = {
-                ...sale,
-                quantity: updatedQuantity,
-                subtotal: sale.unit_price * updatedQuantity,
-                total: sale.unit_price * updatedQuantity,
-                updated_at: now,
-                notes: sale.notes
-                    ? `${sale.notes} | Returned ${returnData.quantityReturned} units on ${new Date().toLocaleDateString()}`
-                    : `Returned ${returnData.quantityReturned} units on ${new Date().toLocaleDateString()}`
-            };
-
-            await db.sales.put(updatedSale);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'UPDATE', {
-                id: sale.id,
-                quantity: updatedQuantity,
-                subtotal: updatedSale.subtotal,
-                total: updatedSale.total,
-                updated_at: now,
-                notes: updatedSale.notes
-            });
-
-            // 8. Restore stock to product
-            if (product) {
-                const newProductQty = (product.quantity || 0) + returnData.quantityReturned;
-                await db.products.update(returnData.productId, {
-                    quantity: newProductQty,
-                    updated_at: now
-                });
-
-                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', {
-                    id: returnData.productId,
-                    quantity: newProductQty,
-                    updated_at: now
-                });
-            }
-
-            // 9. Restore stock to batch if batch exists
-            if (batch && returnData.batchId) {
-                const newBatchQty = (batch.quantity_base || 0) + returnData.quantityReturned;
-                await db.product_batches.update(returnData.batchId, {
-                    quantity_base: newBatchQty,
-                    updated_at: now
-                });
-
-                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
-                    id: returnData.batchId,
-                    quantity_base: newBatchQty,
-                    updated_at: now
-                });
-            }
-
-            // 10. Record stock movement
-            const movId = genUUID();
-            const movement: StockMovement = {
-                id: movId,
-                pharmacy_name: pharmacyName,
-                product_id: returnData.productId,
-                product_name: sale.product_name || product.name,
-                batch_id: returnData.batchId || null,
-                batch_number: batch?.batch_number || null,
-                movement_type: 'return',
-                quantity_base: returnData.quantityReturned,
-                reference_type: 'return',
-                reference_id: returnId,
-                performed_by: currentProfile?.id,
-                performed_by_name: currentProfile?.full_name,
-                reason: `Return: ${returnData.returnReason}`,
-                created_at: now
-            };
-
-            await db.stock_movements.put(movement);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', movement);
-
-            // 11. Audit log
-            const auditLog = {
-                id: genUUID(),
-                pharmacy_name: pharmacyName,
-                user_id: currentProfile?.id,
-                user_name: currentProfile?.full_name,
-                action: 'SALE_RETURN_CREATED',
-                entity_type: 'SALE_RETURN',
-                entity_id: returnId,
-                details: `Returned ${returnData.quantityReturned} units of ${sale.product_name} from sale ${sale.sale_number}. Reason: ${returnData.returnReason}`,
-                created_at: now
-            };
-
-            await db.audit_logs.put(auditLog);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
-
-            // 12. Reload data
-            await loadDatabaseData();
-
-            console.log('✅ Sales return completed successfully!');
-            return newReturn;
-
-        } catch (err) {
-            console.error('❌ Sales return error:', err);
-            throw err;
-        }
-    }, [currentProfile, getPharmacyName, loadDatabaseData]);
 
     return {
         handleCompleteSale,
@@ -1348,13 +1321,10 @@ export const useActions = (props: UseActionsProps) => {
         handleUpdatePharmacyName,
         handleResetLocalCache,
         handleForceSync,
-        // 🆕 Requested Items actions
         handleAddRequestedItem,
         handleUpdateRequestedItem,
         handleDeleteRequestedItem,
-        // 🆕 Sales Return action
         handleSalesReturn,
-        // 🆕 Security actions
         handleChangePin,
         handleChangePassword,
         handleDeleteAccount,

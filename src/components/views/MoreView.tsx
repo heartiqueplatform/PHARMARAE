@@ -8,10 +8,20 @@ import {
   Truck as TruckIcon, UserCog, Cloud, CloudOff,
   Clock, AlertTriangle, Edit, Trash2, ChevronRight
 } from 'lucide-react';
-import { isSupabaseConfigured, getSupabaseClient, processOfflineSyncQueue, pullFromSupabaseToLocal } from '../../lib/supabase';
+import { isSupabaseConfigured, getSupabaseClient, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { generateAuditReportPdf } from '../../utils/auditPdfGenerator';
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+  if (err instanceof Error && err.message.trim()) {
+    return err.message;
+  }
+  if (typeof err === 'string' && err.trim()) {
+    return err;
+  }
+  return fallback;
+};
 
 interface MoreViewProps {
   profile: Profile | null;
@@ -30,7 +40,7 @@ interface MoreViewProps {
   theme?: 'dark' | 'light';
   onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void;
   onNavigateToSecurity?: () => void;
-  onNavigateToHardReset?: () => void; // ADD THIS
+  onNavigateToHardReset?: () => void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -46,7 +56,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onAddSupplier,
   onAddStaff,
   onTriggerSync,
-  onResetLocalCache,
   theme = 'dark',
   onNavigateToTab,
   onNavigateToSecurity,
@@ -70,15 +79,16 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
   const [isSavingEditProfile, setIsSavingEditProfile] = useState(false);
   const [isTriggeringSync, setIsTriggeringSync] = useState(false);
-  const [isResettingCache, setIsResettingCache] = useState(false);
   const [successToast, setSuccessToast] = useState<string>('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const [nameError, setNameError] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [isPullingData, setIsPullingData] = useState(false);
   const [showStaffPin, setShowStaffPin] = useState(false);
   const [isGeneratingPin, setIsGeneratingPin] = useState(false);
 
-  const triggerToast = (msg: string) => {
+  const triggerToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToastType(type);
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(''), 3500);
   };
@@ -195,11 +205,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
     if (exists) {
       const suggestedName = await generateUniqueName(newName.trim());
       setNameError(`"${newName.trim()}" is already taken. Suggested: "${suggestedName}"`);
-      if (confirm(`"${newName.trim()}" is already taken. Use "${suggestedName}" instead?`)) {
-        setPharmName(suggestedName);
-        setNameError('');
-        return;
-      }
+      triggerToast(`Name already exists. Suggested name: ${suggestedName}`, 'info');
     }
   };
 
@@ -240,8 +246,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
       });
       setEditingProfile(null);
       triggerToast('Staff profile updated successfully');
-    } catch (err: any) {
-      alert('Error updating profile: ' + (err.message || err));
+    } catch (err) {
+      triggerToast(getErrorMessage(err, 'Staff profile could not be updated'), 'error');
     } finally {
       setIsSavingEditProfile(false);
     }
@@ -256,7 +262,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
     if (isSavingSettings || !profile) return;
 
     if (!canManage) {
-      alert('Only the pharmacy owner can change settings.');
+      triggerToast('Only the pharmacy owner can change settings', 'error');
       return;
     }
 
@@ -298,8 +304,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
       }
 
       triggerToast('Pharmacy settings updated successfully');
-    } catch (err: any) {
-      alert('Error saving settings: ' + (err.message || err));
+    } catch (err) {
+      triggerToast(getErrorMessage(err, 'Pharmacy settings could not be saved'), 'error');
     } finally {
       setIsSavingSettings(false);
     }
@@ -309,7 +315,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   // Then, in the MoreView component, add the download handler:
   const handleDownloadAuditReport = () => {
     if (!profile) {
-      alert('Pharmacy profile not found.');
+      triggerToast('Pharmacy profile was not found', 'error');
       return;
     }
 
@@ -322,12 +328,17 @@ export const MoreView: React.FC<MoreViewProps> = ({
     };
 
     // Call the PDF generator
-    generateAuditReportPdf(
-      pharmacy,
-      auditLogs,
-      profile,
-      { from: '2024-01-01', to: new Date().toISOString().split('T')[0] } // Optional date range
-    );
+    try {
+      generateAuditReportPdf(
+        pharmacy,
+        auditLogs,
+        profile,
+        { from: '2024-01-01', to: new Date().toISOString().split('T')[0] }
+      );
+      triggerToast('Audit report is being prepared');
+    } catch (err) {
+      triggerToast(getErrorMessage(err, 'Audit report could not be generated'), 'error');
+    }
   };
 
   const handleSaveStaff = async (e: React.FormEvent) => {
@@ -335,7 +346,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
     if (!staffName || !staffEmail || !staffPin || isSavingStaff) return;
 
     if (staffPin.length !== 4) {
-      alert('PIN must be exactly 4 digits.');
+      triggerToast('PIN must be exactly 4 digits', 'error');
       return;
     }
 
@@ -355,8 +366,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setStaffPhone('');
       setStaffPin('');
       triggerToast(`Staff member "${staffName}" added successfully`);
-    } catch (err: any) {
-      alert('Error adding staff: ' + (err.message || err));
+    } catch (err) {
+      triggerToast(getErrorMessage(err, 'Staff member could not be added'), 'error');
     } finally {
       setIsSavingStaff(false);
     }
@@ -377,8 +388,8 @@ export const MoreView: React.FC<MoreViewProps> = ({
       setSuppName('');
       setSuppPhone('');
       triggerToast(`Supplier "${suppName}" registered successfully`);
-    } catch (err: any) {
-      alert('Error adding supplier: ' + (err.message || err));
+    } catch (err) {
+      triggerToast(getErrorMessage(err, 'Supplier could not be registered'), 'error');
     } finally {
       setIsSavingSupplier(false);
     }
@@ -386,116 +397,44 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
   const handleTriggerSyncQueue = async () => {
     if (isTriggeringSync) return;
+
+    if (!isOnline) {
+      setSyncStatus('Offline. New changes will sync automatically when the connection returns.');
+      triggerToast('Sync is paused while offline', 'info');
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      setSyncStatus('Cloud sync is not configured for this installation.');
+      triggerToast('Cloud sync is not configured', 'error');
+      return;
+    }
+
     setIsTriggeringSync(true);
-    setSyncStatus('Processing offline queue...');
+    setSyncStatus('Starting secure cloud sync...');
 
     try {
-      const allPending = await db.sync_queue.where('status').equals('pending').toArray();
-      console.log(`Found ${allPending.length} pending items in queue:`, allPending);
+      const pendingBefore = await db.sync_queue.where('status').equals('pending').count();
+      setSyncStatus(pendingBefore > 0
+        ? `Syncing ${pendingBefore} pending record(s)...`
+        : 'Checking for cloud updates...');
 
-      if (allPending.length === 0) {
-        setSyncStatus('No pending items to sync');
-        triggerToast('No items to sync');
-        setIsTriggeringSync(false);
-        setSyncStatus('');
-        return;
+      await Promise.resolve(onTriggerSync());
+
+      const pendingAfter = await db.sync_queue.where('status').equals('pending').count();
+
+      if (pendingAfter > 0) {
+        setSyncStatus(`${pendingAfter} record(s) are still waiting to sync. The app will retry automatically.`);
+        triggerToast(`${pendingAfter} record(s) still pending`, 'info');
+      } else {
+        setSyncStatus('Cloud sync completed successfully.');
+        triggerToast('Cloud sync completed');
       }
-
-      setSyncStatus(`Pushing ${allPending.length} items to Supabase...`);
-
-      let syncedCount = 0;
-      let failedCount = 0;
-      const errors: string[] = [];
-
-      for (const item of allPending) {
-        try {
-          console.log(`Processing ${item.entity_type} ${item.operation} for item ${item.id}`);
-
-          const client = getSupabaseClient();
-          if (!client) {
-            throw new Error('No Supabase client available');
-          }
-
-          const tableName = mapEntityTypeToTable(item.entity_type);
-          let error: any = null;
-
-          if (item.operation === 'INSERT') {
-            const { error: insertErr } = await client
-              .from(tableName)
-              .upsert(item.payload, { onConflict: 'id' });
-            error = insertErr;
-          } else if (item.operation === 'UPDATE') {
-            const { error: updateErr } = await client
-              .from(tableName)
-              .update(item.payload)
-              .eq('id', item.payload.id);
-            error = updateErr;
-          } else if (item.operation === 'DELETE') {
-            const { error: delErr } = await client
-              .from(tableName)
-              .delete()
-              .eq('id', item.payload.id);
-            error = delErr;
-          }
-
-          if (error) {
-            console.error(`Error syncing ${item.entity_type}:`, error);
-            throw error;
-          }
-
-          await db.sync_queue.delete(item.id);
-          syncedCount++;
-          console.log(`Synced ${item.entity_type} ${item.operation}`);
-
-        } catch (err: any) {
-          failedCount++;
-          errors.push(`${item.entity_type}: ${err.message}`);
-          console.error(`Failed to sync ${item.entity_type}:`, err);
-
-          if (item.id) {
-            await db.sync_queue.update(item.id, {
-              status: 'failed',
-              retry_count: (item.retry_count || 0) + 1,
-              error: err.message || 'Sync error'
-            });
-          }
-        }
-      }
-
-      if (syncedCount > 0) {
-        setSyncStatus(`Pushed ${syncedCount} items to Supabase`);
-        triggerToast(`${syncedCount} items synced successfully`);
-      }
-      if (failedCount > 0) {
-        setSyncStatus(`${failedCount} items failed to sync: ${errors.join(', ')}`);
-        triggerToast(`${failedCount} items failed to sync`);
-      }
-
-      if (syncedCount > 0 && profile) {
-        setSyncStatus('Pulling fresh data from Supabase...');
-        try {
-          const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
-          if (pulled) {
-            setSyncStatus('Fresh data pulled from Supabase');
-            triggerToast('Data refreshed from cloud');
-          } else {
-            setSyncStatus('Failed to pull fresh data');
-          }
-        } catch (pullErr: any) {
-          console.error('Pull error:', pullErr);
-          setSyncStatus('Pull failed: ' + pullErr.message);
-        }
-      }
-
-      const remainingCount = await db.sync_queue.where('status').equals('pending').count();
-      await onTriggerSync();
-
-      setSyncStatus(`Done. ${remainingCount} items still pending`);
-
-    } catch (err: any) {
+    } catch (err) {
       console.error('Sync error:', err);
-      setSyncStatus(`Sync failed: ${err.message}`);
-      triggerToast('Sync failed: ' + err.message);
+      const message = getErrorMessage(err, 'Cloud sync could not complete');
+      setSyncStatus(message);
+      triggerToast(message, 'error');
     } finally {
       setTimeout(() => {
         setIsTriggeringSync(false);
@@ -506,48 +445,41 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
   const handlePullData = async () => {
     if (!profile || isPullingData) return;
+
+    if (!isOnline) {
+      setSyncStatus('Offline. Connect to the internet before pulling cloud data.');
+      triggerToast('Cloud pull is unavailable offline', 'info');
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      setSyncStatus('Cloud sync is not configured for this installation.');
+      triggerToast('Cloud sync is not configured', 'error');
+      return;
+    }
+
     setIsPullingData(true);
-    setSyncStatus('Pulling data from Supabase...');
+    setSyncStatus('Refreshing local records from cloud...');
 
     try {
-      console.log(`Pulling data for pharmacy: ${profile.pharmacy_name}`);
-
       const pulled = await pullFromSupabaseToLocal(profile.pharmacy_name);
 
       if (pulled) {
-        triggerToast('Data pulled from Supabase successfully');
-        setSyncStatus('Data pulled successfully');
-        await onTriggerSync();
+        triggerToast('Local data refreshed from cloud');
+        setSyncStatus('Local data refreshed from cloud.');
+        await Promise.resolve(onTriggerSync());
       } else {
-        triggerToast('Failed to pull data from Supabase');
-        setSyncStatus('Pull failed - check console for errors');
+        triggerToast('No cloud changes were applied', 'info');
+        setSyncStatus('No cloud changes were applied.');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Pull error:', err);
-      triggerToast('Pull failed: ' + err.message);
-      setSyncStatus('Pull failed');
+      const message = getErrorMessage(err, 'Cloud refresh could not complete');
+      triggerToast(message, 'error');
+      setSyncStatus(message);
     } finally {
       setIsPullingData(false);
       setTimeout(() => setSyncStatus(''), 3000);
-    }
-  };
-
-  const handleResetCache = async () => {
-    if (!onResetLocalCache || isResettingCache) return;
-    if (confirm('Are you sure you want to clear local offline cache and re-sync fresh from Supabase cloud?')) {
-      setIsResettingCache(true);
-      setSyncStatus('Resetting cache...');
-      try {
-        await onResetLocalCache();
-        triggerToast('Local cache wiped and clean state synchronized');
-        setSyncStatus('Cache reset complete');
-      } catch (err: any) {
-        alert('Cache reset error: ' + (err.message || err));
-        setSyncStatus('Cache reset failed');
-      } finally {
-        setIsResettingCache(false);
-        setTimeout(() => setSyncStatus(''), 3000);
-      }
     }
   };
 
@@ -846,7 +778,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
               </div>
             </button>
           </div>
-          {/* ADD THIS NEW SECTION - Hard Reset Button */}
+          {/* Dedicated reset page */}
           <div className={`pt-4 border-t ${borderLine}`}>
             <button
               onClick={() => {
@@ -862,7 +794,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 </div>
                 <div>
                   <p className="font-bold text-sm text-red-400">Factory Reset</p>
-                  <p className={`text-[11px] ${textMuted}`}>Clear all local data and restart fresh</p>
+                  <p className={`text-[11px] ${textMuted}`}>Open the dedicated reset page</p>
                 </div>
                 <ChevronRight className="w-4 h-4 ml-auto opacity-40 text-red-400" />
               </div>
@@ -990,7 +922,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
             <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle} flex items-center justify-between`}>
               <span className="flex items-center gap-2">
                 <Database className="w-5 h-5 text-[#2ea043]" />
-                Supabase Cloud Sync
+                Cloud Sync
               </span>
               <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#2ea043]/20 text-[#2ea043] flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-[#2ea043] animate-ping' : 'bg-amber-500'}`} />
@@ -1022,7 +954,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
           <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
             <h3 className={`font-bold text-base pb-3 ${borderLine} ${textTitle}`}>
-              Manual Sync and Maintenance
+              Manual Sync
             </h3>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-1">
@@ -1057,28 +989,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 ) : (
                   <>
                     <Download className="w-5 h-5" />
-                    <span>Pull Data</span>
+                    <span>Refresh From Cloud</span>
                   </>
                 )}
               </button>
-
-              {onResetLocalCache && canManage && (
-                <button
-                  onClick={handleResetCache}
-                  disabled={isResettingCache}
-                  className={`py-3.5 px-5 text-rose-500 hover:bg-rose-500/10 active:scale-98 font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${touchTarget} ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'
-                    }`}
-                >
-                  {isResettingCache ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
-                      <span>Resetting...</span>
-                    </>
-                  ) : (
-                    <span>Clear Cache and Re-Sync</span>
-                  )}
-                </button>
-              )}
             </div>
 
             {!isOnline && (

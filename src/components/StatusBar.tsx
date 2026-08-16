@@ -1,6 +1,15 @@
-// components/StatusBar.tsx
 import React, { useEffect, useState } from 'react';
-import { Loader2, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import {
+    AlertCircle,
+    BarChart3,
+    CheckCircle,
+    ClipboardList,
+    Info,
+    Loader2,
+    Package,
+    Pill,
+    ShoppingCart,
+} from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 interface StatusBarProps {
@@ -36,7 +45,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
             }, 400);
             return () => clearTimeout(timer);
         }
-    }, [show, message]);
+    }, [show, message, shouldRender]);
 
     useEffect(() => {
         if (type && type !== 'loading' && show && message && onClose) {
@@ -52,121 +61,75 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     const getIcon = () => {
         switch (type) {
             case 'loading':
-                return (
-                    <div className="relative flex-shrink-0">
-                        <Loader2 className={`w-3 h-3 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
-                        <span className={`absolute inset-0 rounded-full border ${isDark ? 'border-blue-400/20' : 'border-blue-500/20'} animate-pulse`} />
-                    </div>
-                );
+                return <Loader2 className={`h-3.5 w-3.5 animate-spin ${isDark ? 'text-teal-300' : 'text-teal-700'}`} />;
             case 'success':
-                return <CheckCircle className={`w-3 h-3 flex-shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />;
+                return <CheckCircle className={`h-3.5 w-3.5 flex-shrink-0 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`} />;
             case 'error':
-                return <AlertCircle className={`w-3 h-3 flex-shrink-0 ${isDark ? 'text-red-400' : 'text-red-600'}`} />;
+                return <AlertCircle className={`h-3.5 w-3.5 flex-shrink-0 ${isDark ? 'text-rose-300' : 'text-rose-700'}`} />;
             case 'info':
             default:
-                return <Info className={`w-3 h-3 flex-shrink-0 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />;
+                return <Info className={`h-3.5 w-3.5 flex-shrink-0 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`} />;
         }
     };
 
     const getTextColor = () => {
         if (isDark) {
             switch (type) {
-                case 'loading': return 'text-blue-300';
-                case 'success': return 'text-emerald-300';
-                case 'error': return 'text-red-300';
-                case 'info': return 'text-cyan-300';
-                default: return 'text-[#8b949e]';
+                case 'loading': return 'text-teal-100';
+                case 'success': return 'text-emerald-100';
+                case 'error': return 'text-rose-100';
+                case 'info': return 'text-cyan-100';
+                default: return 'text-slate-200';
             }
-        } else {
-            switch (type) {
-                case 'loading': return 'text-blue-700';
-                case 'success': return 'text-emerald-700';
-                case 'error': return 'text-red-700';
-                case 'info': return 'text-cyan-700';
-                default: return 'text-[#656d76]';
-            }
+        }
+
+        switch (type) {
+            case 'loading': return 'text-teal-950';
+            case 'success': return 'text-emerald-950';
+            case 'error': return 'text-rose-950';
+            case 'info': return 'text-cyan-950';
+            default: return 'text-slate-700';
         }
     };
 
     const getBackgroundColor = () => {
         if (isDark) {
             switch (type) {
-                case 'loading': return 'bg-[#0d1a2d]/95';
-                case 'success': return 'bg-[#0d1f0d]/95';
-                case 'error': return 'bg-[#1f0d0d]/95';
-                case 'info': return 'bg-[#0d1a2d]/95';
-                default: return 'bg-[#1c2333]/95';
+                case 'loading': return 'bg-slate-950/95';
+                case 'success': return 'bg-emerald-950/95';
+                case 'error': return 'bg-rose-950/95';
+                case 'info': return 'bg-cyan-950/95';
+                default: return 'bg-slate-950/95';
             }
-        } else {
-            switch (type) {
-                case 'loading': return 'bg-[#e8f0fe]/95';
-                case 'success': return 'bg-[#e6f4ea]/95';
-                case 'error': return 'bg-[#fce8e8]/95';
-                case 'info': return 'bg-[#e8f0fe]/95';
-                default: return 'bg-[#f0f2f5]/95';
-            }
+        }
+
+        switch (type) {
+            case 'loading': return 'bg-white/95';
+            case 'success': return 'bg-emerald-50/95';
+            case 'error': return 'bg-rose-50/95';
+            case 'info': return 'bg-cyan-50/95';
+            default: return 'bg-white/95';
         }
     };
 
     const getBorderColor = () => {
         if (isDark) {
             switch (type) {
-                case 'loading': return 'border-blue-500/40';
-                case 'success': return 'border-emerald-500/40';
-                case 'error': return 'border-red-500/40';
-                case 'info': return 'border-cyan-500/40';
-                default: return 'border-[#30363d]';
-            }
-        } else {
-            switch (type) {
-                case 'loading': return 'border-blue-400/40';
-                case 'success': return 'border-emerald-400/40';
-                case 'error': return 'border-red-400/40';
-                case 'info': return 'border-cyan-400/40';
-                default: return 'border-[#d0d7de]';
+                case 'loading': return 'border-teal-300/20';
+                case 'success': return 'border-emerald-300/25';
+                case 'error': return 'border-rose-300/25';
+                case 'info': return 'border-cyan-300/25';
+                default: return 'border-slate-700/70';
             }
         }
-    };
 
-    const getDotColors = () => {
-        if (isDark) {
-            return {
-                dot1: 'bg-blue-400/60',
-                dot2: 'bg-blue-400/40',
-                dot3: 'bg-blue-400/20',
-            };
-        } else {
-            return {
-                dot1: 'bg-blue-500/60',
-                dot2: 'bg-blue-500/40',
-                dot3: 'bg-blue-500/20',
-            };
+        switch (type) {
+            case 'loading': return 'border-teal-700/15';
+            case 'success': return 'border-emerald-700/15';
+            case 'error': return 'border-rose-700/15';
+            case 'info': return 'border-cyan-700/15';
+            default: return 'border-slate-200';
         }
-    };
-
-    const dotColors = getDotColors();
-
-    const LoadingSpinner = () => {
-        const dots = [
-            { color: dotColors.dot1, delay: '0ms' },
-            { color: dotColors.dot2, delay: '300ms' },
-            { color: dotColors.dot3, delay: '600ms' },
-        ];
-
-        return (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-                <Loader2 className={`w-3 h-3 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
-                <div className="flex items-center gap-0.5 ml-0.5">
-                    {dots.map((dot, index) => (
-                        <span
-                            key={index}
-                            className={`w-1 h-1 rounded-full ${dot.color} animate-pulse`}
-                            style={{ animationDelay: dot.delay }}
-                        />
-                    ))}
-                </div>
-            </div>
-        );
     };
 
     const getAnimationClasses = () => {
@@ -179,31 +142,79 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         return 'opacity-0 -translate-y-3 scale-95';
     };
 
+    const PharmacyLoading = () => {
+        const iconClass = isDark ? 'text-teal-100' : 'text-teal-900';
+        const chipClass = isDark
+            ? 'border-white/10 bg-white/10 shadow-teal-950/40'
+            : 'border-teal-900/10 bg-teal-50 shadow-teal-100';
+        const icons = [
+            { Icon: Pill, label: 'Medicine', delay: '0ms' },
+            { Icon: Package, label: 'Stock', delay: '120ms' },
+            { Icon: ShoppingCart, label: 'Sales', delay: '240ms' },
+            { Icon: ClipboardList, label: 'Records', delay: '360ms' },
+            { Icon: BarChart3, label: 'Reports', delay: '480ms' },
+        ];
+
+        return (
+            <div
+                className="flex items-center gap-2"
+                role="status"
+                aria-live="polite"
+                aria-label={message}
+            >
+                <div className="relative flex items-center gap-1.5">
+                    <span className={`absolute -inset-x-1 bottom-0 h-px overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-teal-900/10'}`}>
+                        <span className={`block h-full w-1/2 animate-[pulse_1.1s_ease-in-out_infinite] rounded-full ${isDark ? 'bg-teal-300' : 'bg-teal-700'}`} />
+                    </span>
+
+                    {icons.map(({ Icon, label, delay }) => (
+                        <span
+                            key={label}
+                            className={`
+                                flex h-7 w-7 items-center justify-center rounded-md border
+                                shadow-sm transition-transform
+                                animate-[pulse_1.6s_ease-in-out_infinite]
+                                ${chipClass}
+                            `}
+                            style={{ animationDelay: delay }}
+                            aria-hidden="true"
+                        >
+                            <Icon className={`h-3.5 w-3.5 ${iconClass}`} strokeWidth={2.2} />
+                        </span>
+                    ))}
+                </div>
+
+                <span className={`h-2 w-2 rounded-full ${isDark ? 'bg-teal-300 shadow-[0_0_14px_rgba(94,234,212,0.7)]' : 'bg-teal-700 shadow-[0_0_12px_rgba(15,118,110,0.35)]'} animate-pulse`} />
+            </div>
+        );
+    };
+
     return (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 pointer-events-none">
             <div className={`
-                flex items-center justify-center
-                w-fit max-w-[90%]
-                px-3 py-1.5 rounded-lg
+                flex w-fit max-w-[90vw] items-center justify-center
+                rounded-xl border px-3 py-2
+                shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl
+                transition-all duration-300 ease-out
                 ${getBackgroundColor()}
                 ${getBorderColor()}
-                border
-                shadow-lg backdrop-blur-sm
-                transition-all duration-300 ease-out
                 ${getAnimationClasses()}
                 pointer-events-auto
             `}>
-                <div className="flex items-center gap-1.5">
-                    {type === 'loading' ? <LoadingSpinner /> : getIcon()}
-                    <span className={`
-                        font-serif text-[10px] tracking-wide leading-relaxed
-                        font-medium
-                        ${getTextColor()}
-                        whitespace-nowrap
-                    `}>
-                        {message}
-                    </span>
-                </div>
+                {type === 'loading' ? (
+                    <PharmacyLoading />
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        {getIcon()}
+                        <span className={`
+                            max-w-[72vw] truncate text-[11px] font-medium leading-relaxed
+                            ${getTextColor()}
+                            whitespace-nowrap
+                        `}>
+                            {message}
+                        </span>
+                    </div>
+                )}
             </div>
         </div>
     );

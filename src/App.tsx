@@ -28,8 +28,6 @@ export default function App() {
   // Theme
   const { theme, toggleTheme, isDark } = useTheme();
 
-  // ❌ REMOVED: useAppUpdate hook
-  // const { showUpdateNotification, isUpdateAvailable, handleUpdate, handleDismissUpdate } = useAppUpdate();
 
   // Security View State
   const [showSecurityView, setShowSecurityView] = useState(false);

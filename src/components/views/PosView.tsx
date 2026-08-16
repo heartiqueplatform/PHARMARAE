@@ -1,7 +1,7 @@
 // components/views/PosView.tsx
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Pharmacy, Profile, UserRole, Product, ProductBatch, Customer, Sale, SaleItem, PaymentMethod } from '../../types';
-import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X, Check } from 'lucide-react';
+import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X, Check, Calendar } from 'lucide-react';
 
 interface CartItem {
   product: Product;
@@ -18,7 +18,7 @@ interface PosViewProps {
   products: Product[];
   batches: ProductBatch[];
   customers: Customer[];
-  onCompleteSale: (saleData: Partial<Sale>, items: CartItem[]) => Promise<void>;
+  onCompleteSale: (saleData: Partial<Sale>, items: CartItem[]) => Promise<any>;
   onOpenBarcodeScanner: () => void;
   scannedBarcode?: string | null;
   theme?: 'dark' | 'light';
@@ -117,6 +117,13 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showConfirmOverlay, setShowConfirmOverlay] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
   const [processingMessage, setProcessingMessage] = useState('');
+
+  // --- START: Sale Date State ---
+  const [saleDate, setSaleDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  });
+  // --- END: Sale Date State ---
 
   useEffect(() => {
     if (scannedBarcode) {
@@ -237,7 +244,7 @@ export const PosView: React.FC<PosViewProps> = ({
     setShowConfirmOverlay(true);
   };
 
-  // Actual sale completion with persistent loading
+  // 🔧 FIXED: Handle multi-item sale - passes ALL items with pharmacy_name
   const handleConfirmSale = async () => {
     if (cart.length === 0) return;
 
@@ -248,91 +255,57 @@ export const PosView: React.FC<PosViewProps> = ({
     setProcessingMessage('Saving sale locally...');
 
     try {
-      const item = cart[0];
+      // ✅ Ensure pharmacy_name is not null or undefined
+      const safePharmacyName = pharmacyName || 'Unknown Pharmacy';
 
-      // 1. Prepare sale data (includes discount fields for sales table)
+      // Calculate totals
+      const subtotalTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
+      const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const finalTotal = Math.max(0, subtotalTotal - discountAmount);
+
+      // ✅ Prepare sale data with pharmacy_name and selected sale date
       const saleData: Partial<Sale> = {
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || 'Cash Customer',
         sold_by: currentProfile?.id || null,
         sold_by_name: currentProfile?.full_name || 'System User',
-        product_id: item.product.id,
-        product_name: item.product.name,
-        product_barcode: item.product.barcode || null,
-        product_sku: item.product.sku || null,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        subtotal: item.subtotal,
-        batch_id: item.batch?.id || null,
-        batch_number: item.batch?.batch_number || null,
-        discount: discountAmount,              // ✓ Goes to sales.discount
-        discount_reason: discountReason || null, // ✓ Goes to sales.discount_reason
+        discount: discountAmount,
+        discount_reason: discountReason || null,
         tax: 0,
         total: finalTotal,
         payment_method: paymentMethod,
         payment_status: 'paid',
         payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         status: 'completed',
-        product_details: {
-          generic_name: item.product.generic_name || null,
-          brand: item.product.brand || null,
-          form: item.product.form || null,
-          strength: item.product.strength || null,
-          category: item.product.category_name || null,
-          category_id: item.product.category_id || null,
-          manufacturer: item.product.manufacturer || null,
-          prescription_required: item.product.prescription_required || false,
-          is_controlled: item.product.is_controlled || false,
-          selling_price: item.product.selling_price,
-          cost_price: item.product.default_cost_price || 0,
-          unit: item.product.base_unit_name || null,
-        },
-        notes: `Sale of ${item.product.name} x${item.quantity}`,
-        sale_date: new Date().toISOString(),
-        pharmacy_name: pharmacyName || 'Unknown Pharmacy'
+        sale_date: new Date(saleDate).toISOString(), // ✅ Use selected date instead of current date
+        pharmacy_name: safePharmacyName,
+        pharmacy_id: currentProfile?.pharmacy_id || null,
       };
 
       setProcessingStatus('syncing');
       setProcessingMessage('Syncing to cloud...');
 
-      // 2. Complete the sale and get the result
+      // ✅ Pass ALL cart items with pharmacy_name in each item
       const result = await onCompleteSale(saleData, cart);
 
-      // 3. If discount was applied, ALSO save to discounts table for tracking
+      // If discount was applied, save to discounts table
       if (discountAmount > 0 && result?.id) {
         setProcessingMessage('Saving discount details...');
-
-        const discountData = {
-          sale_id: result.id,  // Link to the sale we just created
-          approved_by: currentProfile?.id || null,
-          amount: discountAmount,
-          percentage: null, // Could calculate: (discountAmount / subtotal) * 100
-          reason: discountReason || 'Discount applied at POS',
-          pharmacy_name: pharmacyName || 'Unknown Pharmacy'
-        };
-
-        // Insert into discounts table (for audit/tracking)
-        const { error: discountError } = await supabase
-          .from('discounts')
-          .insert(discountData);
-
-        if (discountError) {
-          console.warn('Failed to save discount record:', discountError);
-          // Don't fail the sale - the sale already has the discount info
-        }
+        // Discount saving is handled in useActions
       }
 
       setProcessingStatus('complete');
-      setProcessingMessage('Sale completed successfully!');
+      setProcessingMessage(`Sale completed! ${totalItems} items sold`);
 
       playCompletionFeedback();
 
-      // Clear cart
+      // Clear cart and reset to today
       setCart([]);
       setDiscountAmount(0);
       setDiscountReason('');
       setSelectedCustomer(null);
       setPaymentMethod('cash');
+      setSaleDate(new Date().toISOString().split('T')[0]); // ✅ Reset to today's date
 
       setTimeout(() => {
         setProcessingStatus('idle');
@@ -563,6 +536,11 @@ export const PosView: React.FC<PosViewProps> = ({
               <span className="bg-[#2ea043]/20 text-[#2ea043] text-xs px-2.5 py-1 rounded-full font-extrabold">
                 {cart.length}
               </span>
+              {cart.length > 0 && (
+                <span className={`text-xs ${textMuted}`}>
+                  ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+                </span>
+              )}
             </div>
             {cart.length > 0 && (
               <button
@@ -694,6 +672,23 @@ export const PosView: React.FC<PosViewProps> = ({
               />
             </div>
 
+            {/* --- START: Sale Date Picker --- */}
+            <div className={`flex items-center justify-between text-sm ${textMuted}`}>
+              <span className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Sale Date:
+              </span>
+              <input
+                type="date"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]} // Prevents future dates
+                className={`${inputBg} text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
+                title="Select sale date (default: today)"
+              />
+            </div>
+            {/* --- END: Sale Date Picker --- */}
+
             <div>
               <p className={`text-[11px] font-bold uppercase ${textMuted} mb-2`}>Payment Method</p>
               <div className="grid grid-cols-3 gap-2 text-sm">
@@ -793,7 +788,7 @@ export const PosView: React.FC<PosViewProps> = ({
             {/* Items List */}
             <div className="mb-4">
               <h4 className={`text-sm font-bold ${textMuted} uppercase tracking-wider mb-2`}>
-                Items ({cart.length})
+                Items ({cart.length} unique • {cart.reduce((sum, item) => sum + item.quantity, 0)} total)
               </h4>
               <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
                 {cart.map((item, idx) => (
@@ -833,12 +828,24 @@ export const PosView: React.FC<PosViewProps> = ({
               </div>
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Method & Sale Date */}
             <div className={`mt-3 pt-3 ${borderLine}`}>
               <div className="flex items-center justify-between text-sm">
                 <span className={textMuted}>Payment Method</span>
                 <span className={`font-bold uppercase ${textTitle}`}>{paymentMethod}</span>
               </div>
+              {/* --- START: Show selected date in confirmation --- */}
+              <div className="flex items-center justify-between text-sm mt-2">
+                <span className={textMuted}>Sale Date</span>
+                <span className={`font-bold ${textTitle}`}>
+                  {new Date(saleDate).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </span>
+              </div>
+              {/* --- END: Show selected date in confirmation --- */}
             </div>
 
             {/* Action Buttons */}

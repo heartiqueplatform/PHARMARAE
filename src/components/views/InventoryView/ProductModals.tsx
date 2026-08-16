@@ -1,8 +1,20 @@
 // components/views/InventoryView/ProductModals.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Product, ProductBatch, Category, Supplier, DosageFormType, StorageCondition } from '../../../types';
-import { Package, Sparkles, Loader2, Save, RefreshCw, Plus, Minus } from 'lucide-react';
+import { AlertTriangle, Loader2, Minus, Package, Plus, Save, Search } from 'lucide-react';
 import { COMMON_DRUGS_LIST, CommonDrug } from '../../../data/commonDrugs';
+
+const parseNumberInput = (value: string, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+    if (err instanceof Error && err.message.trim()) {
+        return err.message;
+    }
+    return fallback;
+};
 
 interface ProductModalsProps {
     // Add Product Modal
@@ -74,6 +86,7 @@ interface ProductModalsProps {
     showAddBatchModal: boolean;
     setShowAddBatchModal: (show: boolean) => void;
     selectedProductForBatch: Product | null;
+    setSelectedProductForBatch?: (product: Product | null) => void;
     newBatchNumber: string;
     setNewBatchNumber: (val: string) => void;
     newBatchExpiry: string;
@@ -181,6 +194,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
         showAddBatchModal,
         setShowAddBatchModal,
         selectedProductForBatch,
+        setSelectedProductForBatch,
         newBatchNumber,
         setNewBatchNumber,
         newBatchExpiry,
@@ -218,30 +232,115 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
         getProductName,
     } = props;
 
+    const [formError, setFormError] = useState<string | null>(null);
+    const featuredDrugs = useMemo(() => COMMON_DRUGS_LIST.slice(0, 10), []);
+    const filteredDrugSuggestions = useMemo(() => {
+        const query = newProdName.trim().toLowerCase();
+
+        if (!query) {
+            return [];
+        }
+
+        return COMMON_DRUGS_LIST.filter((drug) => {
+            return (
+                drug.name.toLowerCase().includes(query) ||
+                drug.generic_name.toLowerCase().includes(query) ||
+                drug.brand.toLowerCase().includes(query)
+            );
+        }).slice(0, 8);
+    }, [newProdName]);
+
+    const closeProductModal = (isEdit: boolean) => {
+        setFormError(null);
+        resetProductForm();
+
+        if (isEdit) {
+            setShowEditProductModal(false);
+            setEditingProduct(null);
+            return;
+        }
+
+        setShowAddProductModal(false);
+    };
+
+    const closeBatchModal = () => {
+        setFormError(null);
+        setShowAddBatchModal(false);
+        setSelectedProductForBatch?.(null);
+        setNewBatchNumber('');
+        setNewBatchExpiry('');
+        setNewBatchQty(100);
+        setNewBatchCost(0);
+        setNewBatchPrice(0);
+        setNewBatchSupplier('');
+    };
+
+    const closeAdjustBatchModal = () => {
+        setFormError(null);
+        setShowAdjustBatchModal(false);
+        setAdjustingBatch(null);
+        setAdjustBatchQty(0);
+        setAdjustBatchReason('');
+    };
+
+    const submitWithFallback = async (
+        e: React.FormEvent,
+        action: (event: React.FormEvent) => Promise<void>,
+        fallbackMessage: string
+    ) => {
+        e.preventDefault();
+        setFormError(null);
+
+        try {
+            await action(e);
+        } catch (err) {
+            setFormError(getErrorMessage(err, fallbackMessage));
+        }
+    };
+
+    const ErrorBanner = () => {
+        if (!formError) {
+            return null;
+        }
+
+        return (
+            <div className={`mb-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${isDark
+                ? 'border-rose-400/30 bg-rose-950/30 text-rose-100'
+                : 'border-rose-200 bg-rose-50 text-rose-800'
+                }`}>
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{formError}</span>
+            </div>
+        );
+    };
+
     // Product Form Render Helper
     const renderProductForm = (isEdit: boolean) => (
         <div className="space-y-3 text-sm">
-            {/* Quick Select - same as before */}
+            {/* Common medicine shortcut */}
             <div className={`p-3 rounded-xl space-y-2 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
                 <div className="flex items-center justify-between text-[12px] font-extrabold text-[#2ea043]">
                     <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Quick Select Common Medicine:</span>
+                        <Search className="w-4 h-4" />
+                        <span>Common Medicine</span>
                     </span>
-                    <span className={`text-[11px] font-normal ${textMuted}`}>Tap to auto-fill</span>
+                    <span className={`text-[11px] font-normal ${textMuted}`}>Auto-fill details</span>
                 </div>
                 <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pt-1">
-                    {COMMON_DRUGS_LIST.slice(0, 10).map((d) => (
+                    {featuredDrugs.map((d) => (
                         <button
                             key={d.name}
                             type="button"
-                            onClick={() => handleSelectCommonDrug(d)}
+                            onClick={() => {
+                                setFormError(null);
+                                handleSelectCommonDrug(d);
+                            }}
                             className={`px-3 py-2 text-[11px] rounded-xl transition-colors text-left ${touchTargetSmall} ${isDark
                                 ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]'
                                 : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
                                 }`}
                         >
-                            + {d.name}
+                            {d.name}
                         </button>
                     ))}
                 </div>
@@ -264,21 +363,20 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                 />
                 {showDrugSuggestions && newProdName.trim().length >= 1 && (
                     <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y ${cardBg}`}>
-                        {COMMON_DRUGS_LIST.filter(d =>
-                            d.name.toLowerCase().includes(newProdName.toLowerCase()) ||
-                            d.generic_name.toLowerCase().includes(newProdName.toLowerCase()) ||
-                            d.brand.toLowerCase().includes(newProdName.toLowerCase())
-                        ).slice(0, 8).map(d => (
+                        {filteredDrugSuggestions.map(d => (
                             <button
                                 key={d.name}
                                 type="button"
-                                onClick={() => handleSelectCommonDrug(d)}
+                                onClick={() => {
+                                    setFormError(null);
+                                    handleSelectCommonDrug(d);
+                                }}
                                 className={`w-full p-3 text-left flex items-center justify-between text-sm transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'
                                     }`}
                             >
                                 <div>
                                     <div className={`font-bold ${textTitle}`}>{d.name}</div>
-                                    <div className={`text-[11px] ${textMuted}`}>{d.generic_name} • {d.brand} ({d.form})</div>
+                                    <div className={`text-[11px] ${textMuted}`}>{d.generic_name} - {d.brand} ({d.form})</div>
                                 </div>
                                 <div className="text-right text-[11px]">
                                     <span className="text-[#2ea043] font-bold">{currency} {d.default_selling_price}</span>
@@ -460,12 +558,12 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                         onChange={(e) => setNewProdStorageCondition(e.target.value as StorageCondition)}
                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                     >
-                        <option value="room_temperature">🌡️ Room Temperature</option>
-                        <option value="refrigerated">🧊 Refrigerated (2-8°C)</option>
-                        <option value="frozen">❄️ Frozen (-20°C)</option>
-                        <option value="cold_chain">📦 Cold Chain</option>
-                        <option value="controlled">🔒 Controlled</option>
-                        <option value="ambient">🌤️ Ambient</option>
+                        <option value="room_temperature">Room Temperature</option>
+                        <option value="refrigerated">Refrigerated (2-8 C)</option>
+                        <option value="frozen">Frozen (-20 C)</option>
+                        <option value="cold_chain">Cold Chain</option>
+                        <option value="controlled">Controlled Storage</option>
+                        <option value="ambient">Ambient</option>
                     </select>
                 </div>
             </div>
@@ -571,7 +669,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                         min="0"
                         step="0.01"
                         value={newProdPrice || ''}
-                        onChange={(e) => setNewProdPrice(Number(e.target.value))}
+                        onChange={(e) => setNewProdPrice(parseNumberInput(e.target.value))}
                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                     />
                 </div>
@@ -582,7 +680,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                         min="0"
                         step="0.01"
                         value={newProdCost || ''}
-                        onChange={(e) => setNewProdCost(Number(e.target.value))}
+                        onChange={(e) => setNewProdCost(parseNumberInput(e.target.value))}
                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                     />
                 </div>
@@ -591,7 +689,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                     <input
                         type="number"
                         value={newProdReorder}
-                        onChange={(e) => setNewProdReorder(Number(e.target.value))}
+                        onChange={(e) => setNewProdReorder(parseNumberInput(e.target.value))}
                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                     />
                 </div>
@@ -605,7 +703,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                         type="number"
                         min="0"
                         value={newProdQuantity || ''}
-                        onChange={(e) => setNewProdQuantity(Number(e.target.value))}
+                        onChange={(e) => setNewProdQuantity(parseNumberInput(e.target.value))}
                         placeholder="0"
                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                     />
@@ -622,20 +720,11 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                 </div>
             </div>
 
-            {/* Buttons - FIXED: Smart cancel handler */}
+            {/* Actions */}
             <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                 <button
                     type="button"
-                    onClick={() => {
-                        resetProductForm();
-                        // Close the appropriate modal based on isEdit flag
-                        if (isEdit) {
-                            setShowEditProductModal(false);
-                            setEditingProduct(null);
-                        } else {
-                            setShowAddProductModal(false);
-                        }
-                    }}
+                    onClick={() => closeProductModal(isEdit)}
                     className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                         }`}
                 >
@@ -644,7 +733,8 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                 <button
                     type="submit"
                     disabled={isSavingProduct}
-                    className="px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall"
+                    aria-busy={isSavingProduct}
+                    className={`px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 ${touchTargetSmall}`}
                 >
                     {isSavingProduct ? (
                         <>
@@ -666,7 +756,8 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>Add New Product</h3>
-                        <form onSubmit={handleSaveProduct}>{renderProductForm(false)}</form>
+                        <ErrorBanner />
+                        <form onSubmit={(e) => submitWithFallback(e, handleSaveProduct, 'Product could not be saved. Check the product details and try again.')}>{renderProductForm(false)}</form>
                     </div>
                 </div>
             )}
@@ -678,7 +769,8 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
                             Edit Product: {editingProduct.name}
                         </h3>
-                        <form onSubmit={handleEditProduct}>{renderProductForm(true)}</form>
+                        <ErrorBanner />
+                        <form onSubmit={(e) => submitWithFallback(e, handleEditProduct, 'Product changes could not be saved. Check the product details and try again.')}>{renderProductForm(true)}</form>
                     </div>
                 </div>
             )}
@@ -690,7 +782,8 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>
                             Receive New Batch: {selectedProductForBatch.name}
                         </h3>
-                        <form onSubmit={handleSaveBatch} className="space-y-3 text-sm">
+                        <ErrorBanner />
+                        <form onSubmit={(e) => submitWithFallback(e, handleSaveBatch, 'Batch could not be saved. Check batch number, expiry, quantity, and prices.')} className="space-y-3 text-sm">
                             <div>
                                 <label className={`block mb-1.5 font-bold ${textMuted}`}>Batch Number *</label>
                                 <input
@@ -719,7 +812,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                     required
                                     min="1"
                                     value={newBatchQty}
-                                    onChange={(e) => setNewBatchQty(Number(e.target.value))}
+                                    onChange={(e) => setNewBatchQty(parseNumberInput(e.target.value, 1))}
                                     className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-bold text-[#2ea043] ${inputBg}`}
                                 />
                             </div>
@@ -731,7 +824,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                         min="0"
                                         step="0.01"
                                         value={newBatchCost || selectedProductForBatch.default_cost_price || ''}
-                                        onChange={(e) => setNewBatchCost(Number(e.target.value))}
+                                        onChange={(e) => setNewBatchCost(parseNumberInput(e.target.value))}
                                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                                     />
                                 </div>
@@ -742,7 +835,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                         min="0"
                                         step="0.01"
                                         value={newBatchPrice || selectedProductForBatch.selling_price || ''}
-                                        onChange={(e) => setNewBatchPrice(Number(e.target.value))}
+                                        onChange={(e) => setNewBatchPrice(parseNumberInput(e.target.value))}
                                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                                     />
                                 </div>
@@ -763,16 +856,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                             <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setShowAddBatchModal(false);
-                                        setSelectedProductForBatch(null);
-                                        setNewBatchNumber('');
-                                        setNewBatchExpiry('');
-                                        setNewBatchQty(100);
-                                        setNewBatchCost(0);
-                                        setNewBatchPrice(0);
-                                        setNewBatchSupplier('');
-                                    }}
+                                    onClick={closeBatchModal}
                                     className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                                         }`}
                                 >
@@ -781,7 +865,8 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                 <button
                                     type="submit"
                                     disabled={isSavingBatch}
-                                    className="px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall"
+                                    aria-busy={isSavingBatch}
+                                    className={`px-6 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 ${touchTargetSmall}`}
                                 >
                                     {isSavingBatch ? (
                                         <>
@@ -803,6 +888,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-md w-full p-4 overflow-y-auto shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>Adjust Batch Quantity</h3>
+                        <ErrorBanner />
                         <div className={`mb-4 p-3 rounded-xl ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
                             <div className="text-sm">
                                 <div className="flex justify-between"><span className={textMuted}>Product:</span><span className={textTitle}>{getProductName(adjustingBatch.product_id)}</span></div>
@@ -811,7 +897,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                 <div className="flex justify-between mt-1"><span className={textMuted}>Expiry Date:</span><span className="text-amber-500">{adjustingBatch.expiry_date}</span></div>
                             </div>
                         </div>
-                        <form onSubmit={handleAdjustBatch} className="space-y-3 text-sm">
+                        <form onSubmit={(e) => submitWithFallback(e, handleAdjustBatch, 'Batch quantity could not be adjusted. Check the quantity and reason.')} className="space-y-3 text-sm">
                             <div>
                                 <label className={`block mb-1.5 font-bold ${textMuted}`}>
                                     Quantity Adjustment <span className="text-xs font-normal">(positive = add, negative = subtract)</span>
@@ -820,16 +906,22 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                     type="number"
                                     required
                                     value={adjustBatchQty}
-                                    onChange={(e) => setAdjustBatchQty(Number(e.target.value))}
+                                    onChange={(e) => setAdjustBatchQty(parseNumberInput(e.target.value))}
                                     placeholder="e.g. 10 or -5"
                                     className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-bold ${inputBg}`}
                                 />
                                 <div className="flex gap-2 mt-2">
                                     {[1, 5, 10].map(v => (
-                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}>+{v}</button>
+                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}>
+                                            <Plus className="h-3 w-3" />
+                                            <span>{v}</span>
+                                        </button>
                                     ))}
                                     {[-1, -5].map(v => (
-                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}>{v}</button>
+                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}>
+                                            <Minus className="h-3 w-3" />
+                                            <span>{Math.abs(v)}</span>
+                                        </button>
                                     ))}
                                 </div>
                             </div>
@@ -847,12 +939,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                             <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setShowAdjustBatchModal(false);
-                                        setAdjustingBatch(null);
-                                        setAdjustBatchQty(0);
-                                        setAdjustBatchReason('');
-                                    }}
+                                    onClick={closeAdjustBatchModal}
                                     className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                                         }`}
                                 >
@@ -860,8 +947,9 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={isAdjustingBatch}
-                                    className={`px-6 py-3 rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall ${adjustBatchQty > 0 ? 'bg-[#2ea043] hover:bg-[#3fb950] text-white' :
+                                    disabled={isAdjustingBatch || adjustBatchQty === 0}
+                                    aria-busy={isAdjustingBatch}
+                                    className={`px-6 py-3 rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 ${touchTargetSmall} ${adjustBatchQty > 0 ? 'bg-[#2ea043] hover:bg-[#3fb950] text-white' :
                                         adjustBatchQty < 0 ? 'bg-rose-500 hover:bg-rose-600 text-white' :
                                             'bg-gray-500 text-white cursor-not-allowed'
                                         }`}

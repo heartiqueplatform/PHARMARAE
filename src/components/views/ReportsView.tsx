@@ -1,8 +1,8 @@
 // components/views/ReportsView.tsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole } from '../../types';
+import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole, SaleItem } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
-import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2 } from 'lucide-react';
+import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt } from 'lucide-react';
 
 interface ReportsViewProps {
   pharmacy: Pharmacy | null;
@@ -14,8 +14,8 @@ interface ReportsViewProps {
   onProcessReturn?: (saleId: string, reason: string) => Promise<void>;
   theme?: 'dark' | 'light';
   isLoading?: boolean;
-  isSyncing?: boolean; // NEW
-  onRefresh?: () => Promise<void>; // NEW
+  isSyncing?: boolean;
+  onRefresh?: () => Promise<void>;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -47,21 +47,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
 
-  const [activeReportTab, setActiveReportTab] = useState<'daily' | 'monthly' | 'history'>('daily');
+  const [activeReportTab, setActiveReportTab] = useState<'daily' | 'monthly' | 'history' | 'multi'>('daily');
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
+  const [expandedMultiSales, setExpandedMultiSales] = useState<Set<string>>(new Set());
 
   // Date pickers
   const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [monthlyPeriod, setMonthlyPeriod] = useState<string>(new Date().toISOString().substring(0, 7));
+  const [multiDate, setMultiDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Return modal
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [returnReason, setReturnReason] = useState<string>('Customer returned item');
 
-  // 🆕 Force re-render key when sales data changes
+  // Force re-render key when sales data changes
   const [renderKey, setRenderKey] = useState(0);
 
-  // 🆕 Watch for sales changes and force re-render
+  // Watch for sales changes and force re-render
   useEffect(() => {
     setRenderKey(prev => prev + 1);
   }, [sales.length]);
@@ -80,6 +82,45 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       batchId: sale.batch_id || null,
       productDetails: sale.product_details || null,
     };
+  };
+
+  // 🆕 Helper: Group sales by sale_id to get multi-item receipts
+  const getGroupedSales = (salesList: Sale[]) => {
+    const groups: Record<string, { sale_id: string; sale_number: string; customer_name: string; items: Sale[]; total: number; discount: number; payment_method: string; sale_date: string; created_at: string }> = {};
+
+    for (const sale of salesList) {
+      // Use sale_id as the group key (all items in a multi-item sale share the same sale_id)
+      const key = sale.id; // Each row has a unique id, but we need to group by sale_id
+      // Actually, we need to group by a common identifier. Since we're using sale_id as the common identifier,
+      // we need to store it on the sale record. For now, we'll use the sale_number as the group key
+      // since all items in a multi-item sale share the same sale_number.
+      const groupKey = sale.sale_number;
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          sale_id: sale.id,
+          sale_number: sale.sale_number,
+          customer_name: sale.customer_name || 'Guest',
+          items: [],
+          total: sale.total || 0,
+          discount: sale.discount || 0,
+          payment_method: sale.payment_method || 'cash',
+          sale_date: sale.sale_date || sale.created_at,
+          created_at: sale.created_at,
+        };
+      }
+
+      // Only add the item if it's not already in the group (avoid duplicates)
+      const existingItem = groups[groupKey].items.find(i => i.product_id === sale.product_id);
+      if (!existingItem) {
+        groups[groupKey].items.push(sale);
+      }
+      // Use the first item's total as the group total (they're all the same)
+      groups[groupKey].total = sale.total || 0;
+      groups[groupKey].discount = sale.discount || 0;
+    }
+
+    return Object.values(groups);
   };
 
   // Filter Daily Sales
@@ -106,6 +147,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredMonthlySales]);
 
+  // 🆕 Filter Multi-Item Sales (grouped by sale_number)
+  const filteredMultiSales = useMemo(() => {
+    const salesForDate = sales.filter(s => {
+      const date = s.sale_date || s.created_at;
+      return date?.startsWith(multiDate);
+    });
+    return getGroupedSales(salesForDate).filter(group => group.items.length > 1);
+  }, [sales, multiDate]);
+
+  const multiTotalRevenue = useMemo(() => {
+    return filteredMultiSales.reduce((acc, group) => acc + group.total, 0);
+  }, [filteredMultiSales]);
+
   // Toggle expanded sale
   const toggleExpanded = (saleId: string) => {
     const newExpanded = new Set(expandedSales);
@@ -115,6 +169,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       newExpanded.add(saleId);
     }
     setExpandedSales(newExpanded);
+  };
+
+  // 🆕 Toggle expanded multi-item sale
+  const toggleMultiExpanded = (saleNumber: string) => {
+    const newExpanded = new Set(expandedMultiSales);
+    if (newExpanded.has(saleNumber)) {
+      newExpanded.delete(saleNumber);
+    } else {
+      newExpanded.add(saleNumber);
+    }
+    setExpandedMultiSales(newExpanded);
   };
 
   // Low stock products
@@ -151,6 +216,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
+  // 🆕 Handle Multi-Item Receipt Print
+  const handlePrintMultiReceipt = (group: any) => {
+    // Get all items for this sale
+    const items = group.items.map((sale: Sale) => ({
+      id: sale.id,
+      sale_id: sale.id,
+      product_id: sale.product_id || '',
+      product_name: sale.product_name || 'Unknown Product',
+      batch_id: sale.batch_id || null,
+      batch_number: sale.batch_number || null,
+      quantity: sale.quantity || 0,
+      unit_id: null,
+      unit_name: null,
+      unit_price: sale.unit_price || 0,
+      discount: 0,
+      subtotal: sale.subtotal || 0,
+      created_at: sale.created_at
+    }));
+
+    // Use the first sale as the main sale object
+    const mainSale = group.items[0];
+    generateReceiptPdf(pharmacy, mainSale, items, 'print');
+  };
+
   // Handle Return Submit
   const handleReturnSubmit = async () => {
     if (!selectedSaleForReturn || !onProcessReturn) return;
@@ -158,7 +247,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setSelectedSaleForReturn(null);
   };
 
-  // 🆕 Handle manual refresh
+  // Handle manual refresh
   const handleRefresh = async () => {
     if (onRefresh && !isSyncing) {
       await onRefresh();
@@ -359,6 +448,156 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
+  // 🆕 Render a grouped multi-item sale row
+  const renderMultiSaleRow = (group: any) => {
+    const isExpanded = expandedMultiSales.has(group.sale_number);
+    const itemCount = group.items.length;
+    const totalQuantity = group.items.reduce((sum: number, s: Sale) => sum + (s.quantity || 0), 0);
+
+    return (
+      <React.Fragment key={group.sale_number}>
+        {/* Main Group Row */}
+        <tr
+          className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
+            }`}
+          onClick={() => toggleMultiExpanded(group.sale_number)}
+        >
+          <td className="p-3">
+            {isExpanded ?
+              <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
+              <ChevronRight className="w-4 h-4 text-[#2ea043]" />
+            }
+          </td>
+          <td className="p-3 font-mono font-bold text-[#2ea043]">#{group.sale_number}</td>
+          <td className={`p-3 ${textMuted}`}>
+            {new Date(group.sale_date || group.created_at).toLocaleDateString()}
+            <span className="ml-1 text-[10px]">
+              {new Date(group.sale_date || group.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </td>
+          <td className={`p-3 font-semibold ${textTitle}`}>{group.customer_name || 'Guest'}</td>
+          <td className={`p-3 ${textMuted}`}>
+            <span className="font-medium flex items-center gap-1">
+              <Package className="w-3 h-3 text-[#2ea043]" />
+              {itemCount} items
+            </span>
+            <span className="text-[11px] text-[#2ea043] ml-1">({totalQuantity} units)</span>
+            <div className="text-[10px] text-amber-500 mt-0.5">
+              {group.items.slice(0, 2).map((sale: Sale, idx: number) => (
+                <span key={idx}>
+                  {idx > 0 && ', '}
+                  {sale.product_name} (×{sale.quantity})
+                </span>
+              ))}
+              {group.items.length > 2 && ` +${group.items.length - 2} more`}
+            </div>
+          </td>
+          <td className={`p-3 font-extrabold text-[#2ea043]`}>{currency} {group.total.toFixed(2)}</td>
+          <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePrintMultiReceipt(group);
+              }}
+              className={`px-3 py-2 rounded-xl text-sm font-bold mr-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
+                }`}
+            >
+              <Receipt className="w-4 h-4 inline mr-1" />
+              Print All
+            </button>
+            {onProcessReturn && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedSaleForReturn(group.items[0]);
+                }}
+                className={`px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 rounded-xl text-sm font-bold ${touchTargetSmall}`}
+              >
+                Return
+              </button>
+            )}
+          </td>
+        </tr>
+
+        {/* Expanded Items Details Row */}
+        {isExpanded && (
+          <tr>
+            <td colSpan={7} className="p-0">
+              <div className={`p-3 ml-8 ${borderLine} ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'}`}>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Package className="w-4 h-4 text-[#2ea043]" />
+                    <span className={`text-sm font-bold ${textTitle}`}>
+                      All Items in this Sale ({itemCount} items)
+                    </span>
+                    <span className={`text-xs ${textMuted}`}>
+                      (Total: {totalQuantity} units)
+                    </span>
+                  </div>
+
+                  {group.items.map((sale: Sale, idx: number) => {
+                    const details = getSaleProductDetails(sale);
+                    return (
+                      <div key={idx} className={`grid grid-cols-2 md:grid-cols-5 gap-2 text-sm p-2 rounded-lg ${isDark ? 'bg-[#21262d]/50' : 'bg-white/50'}`}>
+                        <div className="col-span-2">
+                          <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Product</p>
+                          <p className={`font-semibold ${textTitle}`}>{details.productName}</p>
+                          {details.productDetails?.generic_name && (
+                            <p className={`text-xs ${textMuted}`}>{details.productDetails.generic_name}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Qty</p>
+                          <p className={`font-bold ${textTitle}`}>{details.quantity}</p>
+                        </div>
+                        <div>
+                          <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Unit Price</p>
+                          <p className={`font-bold ${textTitle}`}>{currency} {details.unitPrice.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Subtotal</p>
+                          <p className={`font-extrabold text-[#2ea043]`}>{currency} {details.subtotal.toFixed(2)}</p>
+                        </div>
+                        {details.batchNumber && (
+                          <div className="col-span-5">
+                            <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Batch</p>
+                            <p className={`text-xs font-mono ${textTitle}`}>{details.batchNumber}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Summary row */}
+                  <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 ${borderLine}`}>
+                    {group.discount > 0 && (
+                      <div>
+                        <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Discount</p>
+                        <p className={`text-amber-500 font-bold`}>-{currency} {group.discount.toFixed(2)}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Payment</p>
+                      <p className={`capitalize font-semibold ${textTitle}`}>{group.payment_method || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Items</p>
+                      <p className={`font-semibold ${textTitle}`}>{itemCount} ({totalQuantity} units)</p>
+                    </div>
+                    <div>
+                      <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Total</p>
+                      <p className={`font-extrabold text-[#2ea043]`}>{currency} {group.total.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
+
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6" key={renderKey}>
       {/* Header */}
@@ -373,9 +612,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </p>
         </div>
 
-        {/* 🆕 Refresh Button + Subtabs */}
+        {/* Subtabs */}
         <div className="flex items-center gap-2">
-          <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
+          <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 flex-wrap ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
             <button
               onClick={() => setActiveReportTab('daily')}
               className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'daily' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
@@ -396,6 +635,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 }`}
             >
               Sales Log
+            </button>
+            <button
+              onClick={() => setActiveReportTab('multi')}
+              className={`px-4 py-2 rounded-lg transition-colors ${touchTargetSmall} ${activeReportTab === 'multi' ? 'bg-[#2ea043] text-white font-extrabold shadow' : textMuted
+                }`}
+            >
+              <Receipt className="w-4 h-4 inline mr-1" />
+              Multi-Item Receipts
             </button>
           </div>
         </div>
@@ -685,6 +932,101 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </div>
         )
+      )}
+
+      {/* 🆕 Multi-Item Receipts View */}
+      {activeReportTab === 'multi' && (
+        <div className="space-y-4">
+          {/* Controls Bar */}
+          <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <Calendar className="w-5 h-5 text-[#2ea043]" />
+              <span className={`text-sm font-bold ${textMuted}`}>Select Date:</span>
+              <input
+                type="date"
+                value={multiDate}
+                onChange={(e) => setMultiDate(e.target.value)}
+                className={`text-sm rounded-xl px-4 py-3 focus:outline-none ${inputBg} ${touchTargetSmall}`}
+              />
+            </div>
+            <div className={`text-sm ${textMuted}`}>
+              Found {filteredMultiSales.length} multi-item sales
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {isLoading ? (
+              <>
+                <SkeletonStat />
+                <SkeletonStat />
+                <SkeletonStat />
+              </>
+            ) : (
+              <>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Multi-Item Sales</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {filteredMultiSales.length}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Total Revenue</p>
+                  <p className="text-xl font-extrabold text-[#2ea043] mt-1">
+                    {currency} {multiTotalRevenue.toFixed(2)}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl ${cardBg}`}>
+                  <p className={`text-sm font-semibold ${textMuted}`}>Avg Items per Sale</p>
+                  <p className={`text-xl font-extrabold mt-1 ${textTitle}`}>
+                    {filteredMultiSales.length > 0
+                      ? (filteredMultiSales.reduce((acc, g) => acc + g.items.length, 0) / filteredMultiSales.length).toFixed(1)
+                      : '0'}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Multi-Item Sales List */}
+          {isLoading ? (
+            <SkeletonTable rows={5} cols={6} />
+          ) : (
+            <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+              <div className={`p-4 font-bold text-sm ${borderLine} ${textTitle}`}>
+                Multi-Item Sales for {multiDate}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className={`uppercase font-bold text-[11px] tracking-wider ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+                    }`}>
+                    <tr>
+                      <th className="p-3 w-8"></th>
+                      <th className="p-3">Receipt #</th>
+                      <th className="p-3">Time</th>
+                      <th className="p-3">Customer</th>
+                      <th className="p-3">Items</th>
+                      <th className="p-3">Total</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${borderLine}`}>
+                    {filteredMultiSales.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className={`p-8 text-center ${textMuted}`}>
+                          No multi-item sales found for this date.
+                          <p className="text-xs mt-1">Multi-item sales are sales with more than one item purchased by the same customer.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredMultiSales.map(group => renderMultiSaleRow(group))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Return Modal */}
