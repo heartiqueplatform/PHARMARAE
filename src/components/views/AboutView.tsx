@@ -63,8 +63,8 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                 <div>
                     <div className="flex items-center gap-3 flex-wrap">
                         <h1 className="text-3xl sm:text-4xl font-bold flex items-center gap-1">
-                            <span className="text-[#003366]">PHARM</span>
-                            <span className="text-[#B30000]">IENTA</span>
+                            <span className="text-[#003366]">Pharm</span>
+                            <span className="text-[#B30000]">ienta</span>
                         </h1>
                         <span className="text-xs font-black px-2 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
                             PRO

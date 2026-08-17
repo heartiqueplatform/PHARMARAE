@@ -348,8 +348,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 truncate">
             <div className="flex items-center gap-1.5">
               <h1 className="font-extrabold text-sm tracking-tight truncate">
-                <span style={{ color: '#003366' }}>PHARM</span>
-                <span style={{ color: '#B30000' }}>IENTA</span>
+                <span style={{ color: '#003366' }}>Pharm</span>
+                <span style={{ color: '#B30000' }}>ienta</span>
               </h1>
               <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
                 PRO
