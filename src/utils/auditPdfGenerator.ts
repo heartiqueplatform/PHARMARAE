@@ -1,4 +1,5 @@
-// utils/auditPdfGenerator.ts - FIXED SUMMARY BOX
+// utils/auditPdfGenerator.ts - UPDATED TO MATCH MoreView
+
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -27,6 +28,11 @@ interface Pharmacy {
     address?: string;
     phone: string;
     currency?: string;
+}
+
+interface DateRange {
+    from: string;
+    to: string;
 }
 
 // Branding footer
@@ -58,10 +64,29 @@ export function generateAuditReportPdf(
     pharmacy: Pharmacy,
     auditLogs: AuditLog[],
     profile: Profile | null,
-    dateRange?: { from: string; to: string }
+    dateRange?: DateRange
 ) {
     const doc = new jsPDF();
     const currency = pharmacy.currency || 'KSh';
+
+    // --- FILTER LOGS BY DATE RANGE ---
+    let filteredLogs = [...auditLogs];
+
+    if (dateRange?.from && dateRange?.to) {
+        const fromDate = new Date(dateRange.from);
+        const toDate = new Date(dateRange.to);
+        toDate.setHours(23, 59, 59, 999); // Include the entire end date
+
+        filteredLogs = filteredLogs.filter(log => {
+            const logDate = new Date(log.created_at);
+            return logDate >= fromDate && logDate <= toDate;
+        });
+    }
+
+    // --- SORT LOGS FROM LATEST TO OLDEST ---
+    const sortedLogs = [...filteredLogs].sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
 
     // --- HEADER: Pharmienta Branding ---
     doc.setFontSize(18);
@@ -96,7 +121,7 @@ export function generateAuditReportPdf(
     doc.setFont('helvetica', 'normal');
     doc.text('AUDIT LOG REPORT', 105, 42, { align: 'center' });
 
-    const dateStr = dateRange
+    const dateStr = dateRange?.from && dateRange?.to
         ? `${new Date(dateRange.from).toLocaleDateString()} to ${new Date(dateRange.to).toLocaleDateString()}`
         : 'All Time';
     doc.text(`Period: ${dateStr}`, 105, 47, { align: 'center' });
@@ -105,11 +130,29 @@ export function generateAuditReportPdf(
     doc.line(14, 56, 196, 56);
 
     // --- ANALYZE AUDIT DATA ---
-    const sortedLogs = [...auditLogs].sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
     const totalLogs = sortedLogs.length;
+
+    if (totalLogs === 0) {
+        // --- NO DATA FOUND ---
+        let yPos = 64;
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(200, 50, 50);
+        doc.text('NO AUDIT RECORDS FOUND', 105, yPos, { align: 'center' });
+        yPos += 8;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(80, 80, 80);
+        doc.text(`No audit logs available for the selected date range: ${dateStr}`, 105, yPos, { align: 'center' });
+        yPos += 6;
+        doc.text('Please adjust your date range and try again.', 105, yPos, { align: 'center' });
+
+        // Footer
+        addBrandingFooter(doc, 280);
+        doc.save(`Audit_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+        return;
+    }
+
     const uniqueUsers = new Set(sortedLogs.map(log => log.user_name || 'System')).size;
 
     const actionCounts: Record<string, number> = {};
@@ -365,7 +408,7 @@ export function generateAuditReportPdf(
         insightY += 5;
     }
 
-    // --- EXECUTIVE SUMMARY BOX - FIXED WITH PROPER TEXT WRAPPING ---
+    // --- EXECUTIVE SUMMARY BOX ---
     if (insightY > 230) {
         doc.addPage();
         insightY = 20;
@@ -376,7 +419,7 @@ export function generateAuditReportPdf(
     // Make the box taller to accommodate wrapped text
     doc.setDrawColor(0, 51, 102);
     doc.setLineWidth(0.5);
-    doc.rect(14, insightY, 182, 50); // Increased height from 40 to 50
+    doc.rect(14, insightY, 182, 50);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
@@ -398,7 +441,6 @@ export function generateAuditReportPdf(
 
     let lineY = insightY + 14;
     summaryLines.forEach((line) => {
-        // Split long lines if needed
         const splitLines = doc.splitTextToSize(line, 165);
         splitLines.forEach((splitLine: string) => {
             doc.text(splitLine, 20, lineY);
@@ -407,7 +449,7 @@ export function generateAuditReportPdf(
     });
 
     // --- FOOTER ---
-    const footerY = insightY + 60; // Adjusted for taller box
+    const footerY = insightY + 60;
     if (footerY > 270) {
         doc.addPage();
         addBrandingFooter(doc, 20);
@@ -417,5 +459,8 @@ export function generateAuditReportPdf(
 
     // --- SAVE THE PDF ---
     const todayStr = new Date().toISOString().split('T')[0];
-    doc.save(`Audit_Report_${todayStr}.pdf`);
+    const dateRangeStr = dateRange?.from && dateRange?.to
+        ? `_${dateRange.from}_to_${dateRange.to}`
+        : '_all_time';
+    doc.save(`Audit_Report_${todayStr}${dateRangeStr}.pdf`);
 }

@@ -798,6 +798,40 @@ export class MedPDatabase extends Dexie {
   }
 }
 
+// lib/db.ts - Add this at the bottom, before export const db
+
+// =============================================
+// PERSISTENT STORAGE - Prevent cache clearing data loss
+// =============================================
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if ('storage' in navigator && 'persist' in navigator.storage) {
+      const isPersisted = await navigator.storage.persisted();
+      if (isPersisted) return true;
+
+      const granted = await navigator.storage.persist();
+      if (granted) {
+        localStorage.setItem('medp_storage_persistent', 'true');
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Check if data exists (for recovery)
+export async function hasLocalData(pharmacyName: string): Promise<boolean> {
+  try {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+    const count = await db.products.where('pharmacy_name').equals(normalized).count();
+    return count > 0;
+  } catch {
+    return false;
+  }
+}
+
 // Create and export a single instance
 export const db = new MedPDatabase();
 
@@ -805,6 +839,7 @@ export const db = new MedPDatabase();
 // FIXED: Optimized initialization with retry logic
 // =============================================
 export async function seedInitialDataIfNeeded() {
+  await requestPersistentStorage();
   let retries = 0;
   const maxRetries = 3;
 

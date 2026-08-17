@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Profile, UserRole, Supplier, AuditLog } from '../../types';
 import {
   Users, Truck, Eye, EyeOff, RefreshCw as RefreshIcon,
@@ -6,7 +6,8 @@ import {
   Database, ShieldCheck, CheckCircle2, AlertCircle,
   Image, FileCheck, Info, Download, X, UserPlus,
   Truck as TruckIcon, UserCog, Cloud, CloudOff,
-  Clock, AlertTriangle, Edit, Trash2, ChevronRight
+  Clock, AlertTriangle, Edit, Trash2, ChevronRight,
+  Calendar
 } from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
@@ -105,7 +106,12 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [avatarPublicId, setAvatarPublicId] = useState(profile?.avatar_public_id || '');
-
+  const [auditDateFrom, setAuditDateFrom] = useState<string>(
+    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
+  );
+  const [auditDateTo, setAuditDateTo] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
   const checkPharmacyNameExists = async (name: string): Promise<boolean> => {
     if (!name.trim()) return false;
     const existingProfiles = await db.profiles
@@ -130,6 +136,27 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
     return testName;
   };
+  // Add this computed property for filtered and sorted audit logs
+  const filteredAuditLogs = useMemo(() => {
+    // Sort logs from latest to oldest
+    const sorted = [...auditLogs].sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    // Filter by date range if both dates are set
+    if (auditDateFrom && auditDateTo) {
+      const fromDate = new Date(auditDateFrom);
+      const toDate = new Date(auditDateTo);
+      toDate.setHours(23, 59, 59, 999); // Include the entire end date
+
+      return sorted.filter(log => {
+        const logDate = new Date(log.created_at);
+        return logDate >= fromDate && logDate <= toDate;
+      });
+    }
+
+    return sorted;
+  }, [auditLogs, auditDateFrom, auditDateTo]);
 
   const generateUniqueStaffPin = async (): Promise<string> => {
     setIsGeneratingPin(true);
@@ -311,11 +338,22 @@ export const MoreView: React.FC<MoreViewProps> = ({
     }
   };
 
-
-  // Then, in the MoreView component, add the download handler:
+  // Update the download handler to use the filtered logs
   const handleDownloadAuditReport = () => {
     if (!profile) {
       triggerToast('Pharmacy profile was not found', 'error');
+      return;
+    }
+
+    // Check if date range is selected
+    if (!auditDateFrom || !auditDateTo) {
+      triggerToast('Please select a date range for the report', 'error');
+      return;
+    }
+
+    // Use filtered logs for the report
+    if (filteredAuditLogs.length === 0) {
+      triggerToast('No audit records found for the selected date range', 'info');
       return;
     }
 
@@ -327,20 +365,22 @@ export const MoreView: React.FC<MoreViewProps> = ({
       currency: profile.pharmacy_currency || 'KSh'
     };
 
-    // Call the PDF generator
+    // Call the PDF generator with filtered logs
     try {
       generateAuditReportPdf(
         pharmacy,
-        auditLogs,
+        filteredAuditLogs,
         profile,
-        { from: '2024-01-01', to: new Date().toISOString().split('T')[0] }
+        {
+          from: auditDateFrom,
+          to: auditDateTo
+        }
       );
-      triggerToast('Audit report is being prepared');
+      triggerToast(`Audit report prepared (${filteredAuditLogs.length} records)`);
     } catch (err) {
       triggerToast(getErrorMessage(err, 'Audit report could not be generated'), 'error');
     }
   };
-
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!staffName || !staffEmail || !staffPin || isSavingStaff) return;
@@ -1007,22 +1047,72 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
       {activeSection === 'audit' && (
         <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-          <div className={`p-4 flex items-center justify-between ${borderLine}`}>
-            <div className={`font-bold text-base ${textTitle}`}>
-              Activity Audit Trail
+          <div className={`p-4 space-y-4 ${borderLine}`}>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className={`font-bold text-base ${textTitle}`}>
+                Activity Audit Trail
+                <span className={`text-sm font-normal ${textMuted} ml-2`}>
+                  ({filteredAuditLogs.length} records)
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleDownloadAuditReport}
+                  className={`px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+                  title="Download Audit Report PDF"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Report</span>
+                </button>
+              </div>
             </div>
-            <button
-              onClick={handleDownloadAuditReport}
-              className={`px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
-              title="Download Audit Report PDF"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Report</span>
-            </button>
+
+            {/* Date Range Filter */}
+            <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'}`}>
+              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                <Calendar className="w-4 h-4 text-[#2ea043]" />
+                <span className={`text-sm font-bold ${textMuted}`}>Date Range:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="date"
+                    value={auditDateFrom}
+                    onChange={(e) => setAuditDateFrom(e.target.value)}
+                    className={`text-sm rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  />
+                  <span className={`text-xs ${textMuted}`}>to</span>
+                  <input
+                    type="date"
+                    value={auditDateTo}
+                    onChange={(e) => setAuditDateTo(e.target.value)}
+                    className={`text-sm rounded-xl px-3 py-2 focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  />
+                  <button
+                    onClick={() => {
+                      const today = new Date();
+                      const thirtyDaysAgo = new Date(today);
+                      thirtyDaysAgo.setDate(today.getDate() - 30);
+                      setAuditDateFrom(thirtyDaysAgo.toISOString().split('T')[0]);
+                      setAuditDateTo(today.toISOString().split('T')[0]);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-[#1f2328] hover:bg-slate-300'}`}
+                  >
+                    Last 30 Days
+                  </button>
+                </div>
+              </div>
+              <div className={`text-xs ${textMuted} ml-auto`}>
+                {filteredAuditLogs.length > 0 ? (
+                  <span>Showing {filteredAuditLogs.length} records</span>
+                ) : (
+                  <span className="text-amber-500">No records in range</span>
+                )}
+              </div>
+            </div>
           </div>
+
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="w-full text-left text-sm">
-              <thead className={`uppercase font-bold text-[11px] tracking-wider sticky top-0 ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
+              <thead className={`uppercase font-bold text-[11px] tracking-wider sticky top-0 z-10 ${isDark ? 'bg-[#21262d]/80 text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'
                 }`}>
                 <tr>
                   <th className="p-3">Time</th>
@@ -1032,15 +1122,39 @@ export const MoreView: React.FC<MoreViewProps> = ({
                 </tr>
               </thead>
               <tbody className={`divide-y ${borderLine}`}>
-                {auditLogs.slice(0, 50).map(a => (
-                  <tr key={a.id} className={`transition-colors ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
-                    }`}>
-                    <td className={`p-3 text-[11px] ${textMuted}`}>{new Date(a.created_at).toLocaleString()}</td>
-                    <td className={`p-3 font-semibold ${textTitle}`}>{a.user_name || 'System'}</td>
-                    <td className="p-3 font-bold text-[#2ea043]">{a.action}</td>
-                    <td className={`p-3 ${textMuted}`}>{a.details || '-'}</td>
+                {filteredAuditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className={`p-8 text-center ${textMuted}`}>
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="w-8 h-8 opacity-30" />
+                        <p className="font-medium">No audit records found</p>
+                        <p className="text-xs">
+                          {auditDateFrom && auditDateTo
+                            ? `No records between ${new Date(auditDateFrom).toLocaleDateString()} and ${new Date(auditDateTo).toLocaleDateString()}`
+                            : 'Adjust your date range to see more records'}
+                        </p>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredAuditLogs.map(a => (
+                    <tr key={a.id} className={`transition-colors ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
+                      }`}>
+                      <td className={`p-3 text-[11px] ${textMuted}`}>
+                        {new Date(a.created_at).toLocaleString()}
+                      </td>
+                      <td className={`p-3 font-semibold ${textTitle}`}>
+                        {a.user_name || 'System'}
+                      </td>
+                      <td className="p-3 font-bold text-[#2ea043]">
+                        {a.action}
+                      </td>
+                      <td className={`p-3 ${textMuted}`}>
+                        {a.details || '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

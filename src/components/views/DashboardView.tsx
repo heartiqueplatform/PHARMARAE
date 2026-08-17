@@ -1,7 +1,11 @@
 // components/views/DashboardView.tsx
 import React from 'react';
 import { Pharmacy, Profile, UserRole, Sale, Product, ProductBatch, RequestedItem, SalesReturn } from '../../types';
-import { ShoppingBag, PlusCircle, Package, FileText, AlertTriangle, Clock, ArrowRight, TrendingUp, CheckCircle2, Undo2, List } from 'lucide-react';
+import {
+  ShoppingBag, PlusCircle, Package, FileText, AlertTriangle,
+  Clock, ArrowRight, TrendingUp, CheckCircle2, Undo2, List,
+  Brain, BarChart3, PieChart, LineChart, Sparkles // Added for BI
+} from 'lucide-react';
 
 interface DashboardViewProps {
   pharmacy: Pharmacy | null;
@@ -49,21 +53,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const itemBg = isDark ? 'bg-[#21262d]/50' : 'bg-[#f6f8fa]';
 
-  //  FIXED: Theme-aware skeleton colors
+  // Theme-aware skeleton colors
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
-  const skeletonDark = isDark ? 'bg-[#161b22]' : 'bg-[#c0c5cc]';
 
   // Greeting
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
-  //  UPDATED: Metrics using single-table sales data
+  // Metrics using single-table sales data
   const totalSalesRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
   const totalTransactions = todaySales.length;
   const totalItemsSold = todaySales.reduce((acc, s) => acc + (s.quantity || 0), 0);
 
-  // 🆕 Simple metrics - just totals
+  // Simple metrics - just totals
   const totalRequests = requestedItems.length;
   const pendingRequests = requestedItems.filter(i => i.status === 'pending').length;
   const totalReturns = salesReturns.length;
@@ -74,7 +77,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const canViewFinancials = role === 'owner' || role === 'admin' || role === 'pharmacist';
 
-  //  FIXED: Theme-aware Skeleton Components
+  // Theme-aware Skeleton Components
   const SkeletonMetric = () => (
     <div className={`rounded-2xl p-3.5 animate-pulse ${cardBg}`}>
       <div className="flex items-center justify-between mb-1">
@@ -140,7 +143,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Welcome Banner - REMOVED border */}
+      {/* Welcome Banner */}
       {isLoading ? (
         <SkeletonBanner />
       ) : (
@@ -174,11 +177,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Key Metrics Grid - 4 original + 2 new = 6 cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 px-0 md:px-0">
+      {/* Key Metrics Grid - 7 cards now (added BI) */}
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 px-0 md:px-0">
         {isLoading ? (
-          // Show 6 skeleton metrics
+          // Show 7 skeleton metrics
           <>
+            <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
@@ -241,7 +245,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className={`text-[10px] mt-1 ${textMuted}`}>Need reorder</p>
             </button>
 
-            {/* 🆕 Requests - Simple */}
+            {/* Requests */}
             <button
               onClick={() => onNavigate('requests')}
               className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
@@ -258,7 +262,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </p>
             </button>
 
-            {/* 🆕 Returns - Simple */}
+            {/* Returns */}
             <button
               onClick={() => onNavigate('returns')}
               className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
@@ -274,16 +278,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {todayReturns > 0 ? `${todayReturns} today` : 'No returns'}
               </p>
             </button>
+
+            {/* 🆕 Business Intelligence Card */}
+            <button
+              onClick={() => onNavigate('intelligence')}
+              className={`text-left rounded-2xl p-3.5 transition-all ${cardBg} ${cardHover} relative overflow-hidden group`}
+            >
+              {/* Subtle gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#2ea043]/5 via-transparent to-[#58a6ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+              <div className="relative z-10">
+                <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                  <span>My Business Intel</span>
+                  <div className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-[#f0883e]" />
+                    <Brain className="w-4 h-4 text-[#2ea043]" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
+                    Insights
+                  </p>
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30 animate-pulse">
+                    NEW
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <BarChart3 className="w-3 h-3 text-[#2ea043]" />
+                  <PieChart className="w-3 h-3 text-[#58a6ff]" />
+                  <LineChart className="w-3 h-3 text-[#f0883e]" />
+                  <span className={`text-[9px] ${textMuted} ml-1`}>
+                    Smart analytics
+                  </span>
+                </div>
+                <p className={`text-[10px] mt-1 ${textMuted}`}>
+                  Revenue & product trends
+                </p>
+              </div>
+            </button>
           </>
         )}
       </div>
 
-      {/* Quick Action Hub - UPDATED with 5 actions */}
+      {/* Quick Action Hub - UPDATED with 6 actions (added BI) */}
       <div className={`rounded-2xl p-4 ${cardBg}`}>
         <h3 className={`text-xs font-extrabold uppercase tracking-wider mb-3 ${textMuted}`}>
           Quick Actions
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
           <button
             onClick={() => onNavigate('sell')}
             className="flex items-center gap-2.5 p-3 rounded-xl bg-[#2ea043]/15 hover:bg-[#2ea043]/25 border border-[#2ea043]/30 text-[#2ea043] font-bold text-xs transition-colors"
@@ -318,7 +360,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </button>
 
-          {/* 🆕 Requests Quick Action */}
           <button
             onClick={() => onNavigate('requests')}
             className="flex items-center gap-2.5 p-3 rounded-xl bg-[#d2a8ff]/15 hover:bg-[#d2a8ff]/25 border border-[#d2a8ff]/30 text-[#d2a8ff] font-bold text-xs transition-colors"
@@ -332,7 +373,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </button>
 
-          {/* 🆕 Returns Quick Action */}
           <button
             onClick={() => onNavigate('returns')}
             className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-500 font-bold text-xs transition-colors"
@@ -345,13 +385,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
           </button>
+
+          {/* 🆕 Business Intelligence Quick Action */}
+          <button
+            onClick={() => onNavigate('intelligence')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-[#2ea043]/15 to-[#58a6ff]/15 hover:from-[#2ea043]/25 hover:to-[#58a6ff]/25 border border-[#2ea043]/30 text-[#2ea043] font-bold text-xs transition-colors group"
+          >
+            <Brain className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
+            <div className="text-left">
+              <div className="font-extrabold flex items-center gap-1.5">
+                INSIGHTS
+                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
+                  NEW
+                </span>
+              </div>
+              <div className="text-[10px] opacity-80 font-normal">
+                Smart analytics
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 
-      {/* Smart Stock Alerts & Recent Sales Section - REMOVED borders */}
+      {/* Smart Stock Alerts & Recent Sales Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 px-0 md:px-0">
 
-        {/* Recent Transactions List - REMOVED border */}
+        {/* Recent Transactions List */}
         <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
@@ -417,7 +476,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </div>
 
-        {/* Low Stock & Expiry Warnings - REMOVED border */}
+        {/* Low Stock & Expiry Warnings */}
         <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>

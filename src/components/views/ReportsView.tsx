@@ -79,10 +79,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   // Force re-render key when sales data changes
   const [renderKey, setRenderKey] = useState(0);
 
-  // Watch for sales changes and force re-render
-  useEffect(() => {
-    setRenderKey(prev => prev + 1);
-  }, [sales.length]);
 
   if (!pharmacy) return null;
 
@@ -924,7 +920,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   );
 
   return (
-    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6" key={renderKey}>
+    <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
       {/* Header */}
       <div className={`p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cardBg}`}>
         <div>

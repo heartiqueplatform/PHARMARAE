@@ -4,12 +4,12 @@ import {
   Home, ShoppingBag, Package, BarChart3, MoreHorizontal,
   Sun, Moon, ShieldCheck, Info, Shield, FileCheck,
   TrendingUp,
-  Undo2, X, Settings, ChevronRight
+  Undo2, X, Settings, ChevronRight,
+  Brain
 } from 'lucide-react';
 import { Pharmacy, Profile } from '../types';
 
-export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns';
-
+export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns' | 'intelligence';
 interface NavigationProps {
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
@@ -38,7 +38,8 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'home' as NavTab, label: 'Dashboard', icon: Home },
     { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
     { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
-    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 }, // Changed from 'requests' to 'reports'
+    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
+    { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
   ];
 
   // Tabs shown in the More overlay
@@ -46,6 +47,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   const moreOverlayTabs = [
     { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp }, // Moved from main to here
     { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
+    { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
     { id: 'more' as NavTab, label: 'Settings & Hub', icon: Settings },
   ];
 

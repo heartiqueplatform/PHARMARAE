@@ -5,7 +5,10 @@ import {
     TrendingUp, Package, BarChart3, UserCog, Building2,
     CreditCard, FileCheck, Lock, Target, Lightbulb, Star,
     ArrowRight, Layers, Database, Cloud, GitBranch, Calendar,
-    GraduationCap, Truck, ShoppingBag, Store, BadgeCheck
+    GraduationCap, Truck, ShoppingBag, Store, BadgeCheck,
+    Brain, // Added for BI
+    LineChart, // Added for BI
+    PieChart // Added for BI
 } from 'lucide-react';
 
 interface AboutViewProps {
@@ -16,25 +19,35 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
     const isDark = theme === 'dark';
 
     const features = [
-        { icon: ShoppingBag, title: 'Point of Sale (POS)', description: 'Fast and intuitive sales processing with barcode scanning, instant receipts, and multi-payment support' },
-        { icon: Package, title: 'Inventory Management', description: 'Real-time stock tracking, batch management, expiry alerts, and automated reorder notifications' },
-        { icon: BarChart3, title: 'Analytics & Reports', description: 'Comprehensive insights into sales trends, inventory turnover, and staff performance metrics' },
-        { icon: Database, title: 'Offline-First Architecture', description: 'Work seamlessly without internet, sync automatically when back online with conflict resolution' },
-        { icon: UserCog, title: 'Multi-User Management', description: 'Role-based access for owners, managers, pharmacists, cashiers, and storekeepers with granular permissions' },
-        { icon: Cloud, title: 'Cloud Sync', description: 'Secure cloud backup and synchronization across multiple devices and branches' },
-        { icon: Smartphone, title: 'Mobile-First Design', description: 'Optimized for tablets and smartphones with touch-friendly interfaces and responsive layouts' },
-        { icon: Shield, title: 'Data Security', description: 'End-to-end encryption, secure authentication, and regular security audits to protect patient data' },
+        { icon: ShoppingBag, title: 'Point of Sale (POS)', description: 'Fast and intuitive sales processing with barcode scanning, instant receipts, and multi-payment support including M-Pesa' },
+        { icon: Package, title: 'Inventory Management', description: 'Real-time stock tracking, batch management, expiry alerts, and automated reorder notifications for Kenyan pharmacies' },
+        { icon: BarChart3, title: 'Analytics & Reports', description: 'Comprehensive insights into sales trends, inventory turnover, and staff performance metrics tailored for Kenyan market' },
+        { icon: Brain, title: 'Business Intelligence (BI)', description: 'AI-powered insights with interactive charts, revenue trends, product performance analytics, and smart recommendations for growth' },
+        { icon: Database, title: 'Offline-First Architecture', description: 'Work seamlessly without internet in remote areas, sync automatically when back online with conflict resolution' },
+        { icon: UserCog, title: 'Multi-User Management', description: 'Role-based access for owners, managers, pharmacists, cashiers, and storekeepers with Kenyan pharmacy hierarchy' },
+        { icon: Cloud, title: 'Cloud Sync', description: 'Secure cloud backup and synchronization across multiple devices and branches across Kenya' },
+        { icon: Smartphone, title: 'Mobile-First Design', description: 'Optimized for Kenyan tablets and smartphones with touch-friendly interfaces and responsive layouts' },
     ];
 
     const benefits = [
-        { icon: Globe, title: 'Built for Kenya', description: 'Specifically designed for Kenyan pharmacy operations with local regulations and practices in mind' },
-        { icon: Lock, title: 'Secure & Compliant', description: 'GDPR and local data protection compliant with regular security updates and penetration testing' },
-        { icon: Zap, title: 'Lightning Fast', description: 'Optimized for performance even on low-end devices with minimal loading times' },
-        { icon: Smartphone, title: 'Mobile-First', description: 'Works perfectly on tablets and smartphones with a responsive, touch-optimized interface' },
-        { icon: Headphones, title: 'Expert Support', description: 'Dedicated support team ready to help 24/7 with onboarding, training, and technical assistance' },
-        { icon: TrendingUp, title: 'Business Growth', description: 'Actionable insights to help you increase sales, reduce costs, and expand your pharmacy business' },
-        { icon: BadgeCheck, title: 'Quality Assurance', description: 'Rigorous testing and quality assurance processes ensure reliability and stability' },
-        { icon: Users, title: 'Community Driven', description: 'Regular updates based on user feedback from pharmacies across Kenya and East Africa' },
+        { icon: Globe, title: 'Built for Kenya', description: 'Specifically designed for Kenyan pharmacy operations with KRA eTIMS compliance, local regulations, and M-Pesa integration' },
+        { icon: Lock, title: 'Secure & Compliant', description: 'Kenya Data Protection Act compliant with regular security updates and penetration testing' },
+        { icon: Zap, title: 'Lightning Fast', description: 'Optimized for performance even on low-end devices common in Kenyan pharmacies with minimal loading times' },
+        { icon: Smartphone, title: 'Mobile-First', description: 'Works perfectly on tablets and smartphones popular in Kenya with a responsive, touch-optimized interface' },
+        { icon: Headphones, title: 'Local Support', description: 'Dedicated Kenyan support team ready to help 24/7 with onboarding, training, and technical assistance in Swahili and English' },
+        { icon: TrendingUp, title: 'Business Growth', description: 'Actionable insights to help you increase sales, reduce costs, and expand your pharmacy business across Kenya' },
+        { icon: BadgeCheck, title: 'Quality Assurance', description: 'Rigorous testing and quality assurance processes ensure reliability and stability for Kenyan pharmacies' },
+        { icon: Users, title: 'Community Driven', description: 'Regular updates based on user feedback from pharmacies across all 47 counties in Kenya' },
+    ];
+
+    // New BI-specific features
+    const biFeatures = [
+        { icon: LineChart, title: 'Revenue Trends', description: 'Track daily, weekly, and monthly revenue patterns with interactive line charts' },
+        { icon: PieChart, title: 'Payment Analytics', description: 'Visual breakdown of payment methods including M-Pesa, Cash, Card, and Insurance' },
+        { icon: Brain, title: 'Smart Insights', description: 'AI-powered recommendations for inventory optimization, pricing strategies, and growth opportunities' },
+        { icon: TrendingUp, title: 'Product Performance', description: 'Identify top-selling products, slow movers, and revenue concentration risks' },
+        { icon: Clock, title: 'Peak Hours Analysis', description: 'Know your busiest hours for optimal staff scheduling and resource allocation' },
+        { icon: Target, title: 'Profit Margin Tracking', description: 'Monitor profitability trends and get alerts when margins fall below targets' },
     ];
 
     return (
@@ -61,9 +74,11 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                         </span>
                     </div>
                     <p className={`text-sm font-medium ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-2 mt-1`}>
-                        <span>Revolutionizing Pharmacy Management in Africa</span>
+                        <span>Revolutionizing Pharmacy Management in Kenya</span>
                         <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
                         <span className="text-[#2ea043]">Since 2024</span>
+                        <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
+                        <span className="text-[#f0883e] text-[10px] font-bold">🇰🇪 Made in Kenya</span>
                     </p>
                 </div>
             </div>
@@ -75,10 +90,10 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                     <h2 className="text-lg font-semibold">Company Overview</h2>
                 </div>
                 <p className="text-sm leading-relaxed">
-                    Pharmienta Pro is a cutting-edge pharmacy management platform designed to transform how pharmacies operate in Kenya and across Africa.
-                    By combining innovative technology with deep industry knowledge, we provide a comprehensive solution that streamlines operations,
+                    Pharmienta Pro is a cutting-edge pharmacy management platform designed to transform how pharmacies operate in Kenya and across East Africa.
+                    By combining innovative technology with deep understanding of the Kenyan healthcare landscape, we provide a comprehensive solution that streamlines operations,
                     enhances patient care, and drives sustainable business growth. Our platform is trusted by pharmacies of all sizes, from independent
-                    community pharmacies to multi-branch chains.
+                    community pharmacies in Nairobi to multi-branch chains across all 47 counties.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-[#30363d]/30">
                     <div className="text-center">
@@ -95,7 +110,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                     </div>
                     <div className="text-center">
                         <p className="text-2xl font-bold text-[#da3633]">24/7</p>
-                        <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>Support Available</p>
+                        <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>Local Support</p>
                     </div>
                 </div>
             </div>
@@ -115,8 +130,9 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                                     <h3 className="font-semibold text-sm">Mission</h3>
                                 </div>
                                 <p className="text-sm leading-relaxed">
-                                    To empower pharmacies across Africa with innovative, accessible, and reliable technology
-                                    that streamlines operations, improves patient outcomes, and drives business growth.
+                                    To empower pharmacies across Kenya with innovative, accessible, and reliable technology
+                                    that streamlines operations, improves patient outcomes, and drives business growth
+                                    while supporting the Kenyan healthcare system.
                                 </p>
                             </div>
                             <div>
@@ -125,8 +141,8 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                                     <h3 className="font-semibold text-sm">Vision</h3>
                                 </div>
                                 <p className="text-sm leading-relaxed">
-                                    To become the leading pharmacy management platform in Africa, setting the standard for
-                                    digital transformation in healthcare retail across the continent.
+                                    To become the leading pharmacy management platform in Kenya and East Africa, setting the standard for
+                                    digital transformation in healthcare retail and contributing to Universal Health Coverage (UHC).
                                 </p>
                             </div>
                         </div>
@@ -186,6 +202,42 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                     </div>
                 </section>
 
+                {/* Business Intelligence Section - NEW */}
+                <section>
+                    <div className="flex items-center gap-2 mb-3">
+                        <Brain className="w-5 h-5 text-[#2ea043]" />
+                        <h2 className="text-lg font-semibold">Business Intelligence (BI) Dashboard</h2>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
+                            NEW
+                        </span>
+                    </div>
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
+                        <p className="text-sm mb-3">
+                            Our powerful Business Intelligence dashboard provides pharmacy owners with real-time insights and
+                            AI-powered recommendations to drive growth and optimize operations.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {biFeatures.map((feature, index) => (
+                                <div key={index} className={`p-3 rounded-lg ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <feature.icon className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
+                                        <p className="text-xs font-semibold">{feature.title}</p>
+                                    </div>
+                                    <p className={`text-[10px] ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} mt-1`}>
+                                        {feature.description}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className={`mt-3 pt-3 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} flex items-center justify-between text-xs`}>
+                            <span className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                Export reports in PDF format with interactive charts
+                            </span>
+                            <span className="text-[#2ea043] font-bold">📊 BI Powered</span>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Why Choose Us - Benefits */}
                 <section>
                     <div className="flex items-center gap-2 mb-3">
@@ -237,7 +289,15 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                             </div>
                             <div className="flex items-center gap-2">
                                 <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                                <span>RESTful API</span>
+                                <span>Supabase + KRA eTIMS</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                                <span>Chart.js Integration</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                                <span>M-Pesa API Ready</span>
                             </div>
                         </div>
                     </div>
@@ -272,11 +332,11 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Clock className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>Mon-Fri: 8AM - 6PM</span>
+                                    <span>Mon-Fri: 8AM - 6PM (EAT)</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Headphones className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>24/7 Emergency Support</span>
+                                    <span>24/7 Support in English & Swahili</span>
                                 </p>
                             </div>
                         </div>
@@ -289,6 +349,12 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                         </div>
                     </div>
                 </section>
+
+                {/* Footer Note */}
+                <div className={`text-center text-[10px] ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} pt-4 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'}`}>
+                    <p>🇰🇪 Proudly developed in Kenya for Kenyan pharmacies • Supporting Universal Health Coverage (UHC)</p>
+                    <p className="mt-1">Making quality pharmacy management accessible to all 47 counties</p>
+                </div>
             </div>
         </div>
     );

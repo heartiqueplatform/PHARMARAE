@@ -1,5 +1,7 @@
 // hooks/useApp.ts - fixed hook order, pharmacy-scale loading, no emojis
-
+// hooks/useApp.ts - Add import
+import { requestPersistentStorage } from '../lib/db';
+import { checkStorageStatus, restoreFromBackup } from '../lib/storage-check';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, seedInitialDataIfNeeded, forceDataFlush } from '../lib/db';
 import {
@@ -389,6 +391,25 @@ export const useApp = (): AppState => {
             }
 
             const pharmacyName = normalizePharmacyName(selectedProfile.pharmacy_name);
+            // hooks/useApp.ts - Inside loadDatabaseData, after pharmacyName is set
+
+            if (pharmacyName) {
+                // Check if storage is persistent and if data exists
+                const storageStatus = await checkStorageStatus(pharmacyName);
+
+                // If no data found, try to restore from backup
+                if (!storageStatus.hasData) {
+                    const restored = await restoreFromBackup(pharmacyName);
+                    if (restored) {
+                        console.log('Restored data from backup');
+                    }
+                }
+
+                // Request persistent storage on first load
+                if (isInitialLoad.current) {
+                    await requestPersistentStorage();
+                }
+            }
             setCurrentProfile(selectedProfile);
             setCurrentRole(selectedProfile.role || 'owner');
 

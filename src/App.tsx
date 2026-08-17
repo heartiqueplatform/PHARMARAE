@@ -24,6 +24,7 @@ import { TermsConditionsView } from '@/components/views/TermsConditionsView';
 import { StatusBar } from './components/StatusBar';
 import { db } from './lib/db';
 import { queueOfflineMutation } from './lib/supabase';
+import { BusinessIntelligenceView } from './components/views/BusinessIntelligenceView';
 
 
 export default function App() {
@@ -392,7 +393,19 @@ export default function App() {
                       onRefresh={triggerSyncQueue}
                     />
                   )}
-
+                  {/* NEW: Business Intelligence Tab */}
+                  {activeTab === 'intelligence' && (
+                    <BusinessIntelligenceView
+                      pharmacy={getPharmacyFromProfile(currentProfile)}
+                      sales={sales}
+                      products={products}
+                      movements={movements}
+                      auditLogs={auditLogs}
+                      theme={theme}
+                      isLoading={isLoading}
+                      onRefresh={triggerSyncQueue}
+                    />
+                  )}
                   {activeTab === 'requests' && (
                     <RequestedItemsView
                       requestedItems={requestedItems || []}
