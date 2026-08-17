@@ -597,7 +597,7 @@ export default function App() {
       )}
 
       {/* FLOATING REFRESH BUTTON */}
-      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-center gap-1">
+      <div className="fixed bottom-20 right-4 z-40 flex flex-col items-center gap-1">
         <button
           onClick={() => {
             triggerSyncQueue();
