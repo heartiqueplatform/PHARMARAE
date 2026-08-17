@@ -117,15 +117,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const SkeletonBanner = () => (
     <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden animate-pulse mx-0 ${isDark
       ? 'bg-[#161b22]'
-      : 'bg-[#0969da]'
+      : 'bg-[#e8eaed]' // Changed from blue to grey
       }`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className={`h-4 ${isDark ? 'bg-[#21262d]' : 'bg-white/30'} rounded w-32`}></div>
-          <div className={`h-6 ${isDark ? 'bg-[#21262d]' : 'bg-white/30'} rounded w-48 mt-2`}></div>
-          <div className={`h-3 ${isDark ? 'bg-[#30363d]' : 'bg-white/20'} rounded w-64 mt-2`}></div>
+          <div className={`h-4 ${isDark ? 'bg-[#21262d]' : 'bg-[#d0d7de]'} rounded w-32`}></div>
+          <div className={`h-6 ${isDark ? 'bg-[#21262d]' : 'bg-[#d0d7de]'} rounded w-48 mt-2`}></div>
+          <div className={`h-3 ${isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]'} rounded w-64 mt-2`}></div>
         </div>
-        <div className={`h-10 ${isDark ? 'bg-[#21262d]' : 'bg-white/30'} rounded-xl w-32`}></div>
+        <div className={`h-10 ${isDark ? 'bg-[#21262d]' : 'bg-[#d0d7de]'} rounded-xl w-32`}></div>
       </div>
     </div>
   );
