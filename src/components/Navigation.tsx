@@ -39,15 +39,15 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
     { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
     { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
-    { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
+
   ];
 
   // Tabs shown in the More overlay
   // Tabs shown in the More overlay
   const moreOverlayTabs = [
+    { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
     { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp }, // Moved from main to here
     { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
-    { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
     { id: 'more' as NavTab, label: 'Settings & Hub', icon: Settings },
   ];
 
