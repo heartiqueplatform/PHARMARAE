@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';  //  Correct import
+import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import { defineConfig } from 'vite';
 
@@ -50,6 +50,9 @@ export default defineConfig(() => {
           ]
         },
         workbox: {
+          // ✅ ADD THIS LINE - increases limit from 2 MB to 3 MB
+          maximumFileSizeToCacheInBytes: 3000000,
+
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           runtimeCaching: [
             {
