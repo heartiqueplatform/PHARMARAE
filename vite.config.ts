@@ -13,7 +13,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico'],
         manifest: {
-          name: 'Pharmienta Kenya',
+          name: 'Pharmienta',
           short_name: 'Pharmienta',
           description: 'Precision in Every Prescription. Pharmacy Management System',
           theme_color: '#ffffff',
