@@ -271,7 +271,7 @@ export interface Sale {
   id: string;
   pharmacy_name: string;
   sale_number: string;
-
+  sale_id?: string;
   // Customer Information
   customer_id?: string;
   customer_name?: string;

@@ -695,17 +695,6 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                         <Download className="w-4 h-4" />
                         <span>{isExporting ? 'Exporting...' : 'Export PDF'}</span>
                     </button>
-
-                    {onRefresh && (
-                        <button
-                            onClick={onRefresh}
-                            disabled={isLoading}
-                            className={`px-3 py-2.5 rounded-xl ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'
-                                }`}
-                        >
-                            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        </button>
-                    )}
                 </div>
             </div>
 

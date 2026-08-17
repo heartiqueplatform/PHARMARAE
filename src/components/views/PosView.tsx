@@ -120,8 +120,8 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // --- START: Sale Date State ---
   const [saleDate, setSaleDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    const now = new Date();
+    return now.toISOString(); // Full ISO string with time
   });
   // --- END: Sale Date State ---
 
@@ -277,7 +277,13 @@ export const PosView: React.FC<PosViewProps> = ({
         payment_status: 'paid',
         payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         status: 'completed',
-        sale_date: new Date(saleDate).toISOString(), // ✅ Use selected date instead of current date
+        sale_date: (() => {
+          // Combine selected date with current time
+          const dateObj = new Date(saleDate);
+          const now = new Date();
+          dateObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+          return dateObj.toISOString();
+        })(),// ✅ Use selected date instead of current date
         pharmacy_name: safePharmacyName,
         pharmacy_id: currentProfile?.pharmacy_id || null,
       };
@@ -305,7 +311,7 @@ export const PosView: React.FC<PosViewProps> = ({
       setDiscountReason('');
       setSelectedCustomer(null);
       setPaymentMethod('cash');
-      setSaleDate(new Date().toISOString().split('T')[0]); // ✅ Reset to today's date
+      setSaleDate(new Date().toISOString()); // ✅ Full ISO string with time// ✅ Reset to today's date
 
       setTimeout(() => {
         setProcessingStatus('idle');
@@ -676,15 +682,24 @@ export const PosView: React.FC<PosViewProps> = ({
             <div className={`flex items-center justify-between text-sm ${textMuted}`}>
               <span className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                Sale Date:
+                Sale Date & Time:
               </span>
               <input
-                type="date"
-                value={saleDate}
-                onChange={(e) => setSaleDate(e.target.value)}
-                max={new Date().toISOString().split('T')[0]} // Prevents future dates
+                type="datetime-local"
+                value={(() => {
+                  const now = new Date();
+                  const selectedDate = saleDate ? new Date(saleDate) : now;
+                  // Format: YYYY-MM-DDTHH:mm
+                  return selectedDate.toISOString().slice(0, 16);
+                })()}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value) {
+                    setSaleDate(new Date(value).toISOString());
+                  }
+                }}
                 className={`${inputBg} text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
-                title="Select sale date (default: today)"
+                title="Select sale date and time"
               />
             </div>
             {/* --- END: Sale Date Picker --- */}

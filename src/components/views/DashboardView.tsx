@@ -143,36 +143,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-      {/* Welcome Banner */}
+      {/* Welcome Banner with Image Background */}
       {isLoading ? (
         <SkeletonBanner />
       ) : (
-        <div className={`rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden transition-colors mx-0 ${isDark
-          ? 'bg-gradient-to-r from-[#161b22] via-[#21262d] to-[#161b22] text-white'
-          : 'bg-gradient-to-r from-[#0969da] via-[#1f883d] to-[#0969da] text-white'
-          }`}>
-          <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative rounded-2xl overflow-hidden shadow-lg mx-0">
+          {/* Background Image - replace 'pharmacy-banner.jpg' with your actual image filename */}
+          <div
+            className="absolute inset-0 bg-no-repeat"
+            style={{
+              backgroundImage: `url('/pharmacy-banner.jpg')`,
+              backgroundSize: 'contain',
+              backgroundPosition: 'right center', // ← Moves image to the right
+            }}
+          />
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                {greeting}, {profile?.full_name?.split(' ')[0] || 'Pharmacist'}
-              </p>
-              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mt-0.5">
-                {pharmacyName}
-              </h2>
-              <p className="text-xs text-white/80 mt-1">
-                {profile?.pharmacy_trading_name || pharmacy?.trading_name || 'Ready for fast dispensing & stock auditing today.'}
-              </p>
+
+          {/* Gradient Overlay - from left to right for readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/20" />
+
+          {/* Content */}
+          <div className="relative z-10 p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                  {greeting}, {profile?.full_name?.split(' ')[0] || 'Pharmacist'}
+                </p>
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mt-0.5">
+                  {pharmacyName}
+                </h2>
+                <p className="text-xs text-white/80 mt-1">
+                  {profile?.pharmacy_trading_name || pharmacy?.trading_name || 'Ready for fast dispensing & stock auditing today.'}
+                </p>
+              </div>
+
+              <button
+                onClick={() => onNavigate('sell')}
+                className="self-start sm:self-auto bg-[#2ea043] hover:bg-[#3fb950] text-white px-5 py-2.5 rounded-xl font-extrabold text-sm shadow-xl flex items-center gap-2 transition-transform active:scale-95"
+              >
+                <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
+                <span>SELL NOW</span>
+              </button>
             </div>
-
-            <button
-              onClick={() => onNavigate('sell')}
-              className="self-start sm:self-auto bg-[#2ea043] hover:bg-[#3fb950] text-white px-5 py-2.5 rounded-xl font-extrabold text-sm shadow-xl flex items-center gap-2 transition-transform active:scale-95"
-            >
-              <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
-              <span>SELL NOW</span>
-            </button>
           </div>
         </div>
       )}
