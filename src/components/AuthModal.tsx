@@ -325,12 +325,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
         pharmacy_name: normalizedName,
         pharmacy_trading_name: normalizedName,
-        pharmacy_phone: phone.trim() || '+254 700 000 000',
+        pharmacy_phone: phone.trim() || '+254 717 517 371',
         pharmacy_email: email.trim(),
         pharmacy_address: 'Main Branch',
         pharmacy_county: 'Nairobi',
         pharmacy_town: 'Nairobi',
-        pharmacy_receipt_header: `${normalizedName}\nTel: ${phone || '+254 700 000 000'}`,
+        pharmacy_receipt_header: `${normalizedName}\nTel: ${phone || '+254 717 517 371'}`,
         pharmacy_receipt_footer: 'Thank you for trusting us with your healthcare!',
         pharmacy_currency: 'KSh',
         pharmacy_settings: {
@@ -342,7 +342,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
         full_name: fullName.trim(),
         email: email.trim(),
-        phone: phone.trim() || '+254 700 000 000',
+        phone: phone.trim() || '+254 717 517 371',
         pin_code: finalPin, // Use the auto-generated PIN
         role: role,
         is_owner: role === 'owner',

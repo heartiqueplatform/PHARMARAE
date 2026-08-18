@@ -48,7 +48,7 @@ const addFooter = (doc: jsPDF) => {
 
     const footerTexts = [
         'Powered by PHARMIENTA KENYA',
-        'For more info: medraenursing@gmail.com | 0704473503'
+        'For more info: pharmienta@gmail.com | 0717517371'
     ];
 
     footerTexts.forEach((line, index) => {

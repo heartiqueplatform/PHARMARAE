@@ -25,6 +25,7 @@ import { StatusBar } from './components/StatusBar';
 import { db } from './lib/db';
 import { queueOfflineMutation } from './lib/supabase';
 import { BusinessIntelligenceView } from './components/views/BusinessIntelligenceView';
+import { SmartOrderView } from './components/views/SmartOrderView';
 
 
 export default function App() {
@@ -391,6 +392,21 @@ export default function App() {
                       isLoading={isLoading}
                       isSyncing={isSyncing}
                       onRefresh={triggerSyncQueue}
+                    />
+                  )}
+
+                  {activeTab === 'orders' && (
+                    <SmartOrderView
+                      pharmacyName={currentProfile?.pharmacy_name || ''}
+                      pharmacyId={currentProfile?.id || ''}
+                      profileId={currentProfile?.id || ''}
+                      profileName={currentProfile?.full_name || ''}
+                      products={products}
+                      theme={theme}
+                      currency={currentProfile?.pharmacy_currency || 'KSh'}
+                      onOrderPlaced={() => {
+                        loadDatabaseData();
+                      }}
                     />
                   )}
                   {/* NEW: Business Intelligence Tab */}

@@ -2,8 +2,11 @@
 import { db } from '../db';
 import { getSupabaseClient, isSupabaseConfigured } from './client';
 import { normalizePharmacyName, TABLE_CONFIGS } from './utils';
+import { genUUID } from '../../utils/helpers';
 
-// Pull a single table with filtering - OPTIMIZED with bulk operations
+// =============================================
+// PULL SINGLE TABLE - Existing function
+// =============================================
 async function pullTable<T>(
     tableName: string,
     pharmacyName: string,
@@ -17,14 +20,12 @@ async function pullTable<T>(
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        // Try filtered query first
         let { data, error } = await client
             .from(tableName)
             .select('*')
             .eq('pharmacy_name', normalizedName)
             .limit(limit);
 
-        // If filtered fails, pull all and filter locally
         if (error) {
             const { data: allData } = await client
                 .from(tableName)
@@ -44,13 +45,11 @@ async function pullTable<T>(
             return 0;
         }
 
-        // ✅ FIXED: For sales table, ensure sale_id is preserved
         let itemsWithPharmacy = data.map(item => ({
             ...item,
             pharmacy_name: normalizedName
         }));
 
-        // ✅ If this is the sales table, ensure sale_id exists
         if (tableName === 'sales') {
             itemsWithPharmacy = itemsWithPharmacy.map(item => ({
                 ...item,
@@ -58,10 +57,8 @@ async function pullTable<T>(
             }));
         }
 
-        // OPTIMIZATION: Use bulk delete instead of individual deletes
         await dbTable.where('pharmacy_name').equals(normalizedName).delete();
 
-        // OPTIMIZATION: Use bulkPut for batch insert (much faster)
         if (itemsWithPharmacy.length > 0) {
             await dbTable.bulkPut(itemsWithPharmacy);
         }
@@ -72,7 +69,220 @@ async function pullTable<T>(
     }
 }
 
-// Main pull function - pulls all tables in parallel
+// =============================================
+// PROCESS CONFIRMED ORDER - Auto-add stock
+// =============================================
+async function processConfirmedOrder(orderId: string) {
+    try {
+        const order = await db.suppliers_orders.get(orderId);
+        if (!order) return;
+
+        // Check if already processed
+        if (order.delivery_info?.stock_added) return;
+
+        const items = await db.suppliers_order_items
+            .where('order_id')
+            .equals(orderId)
+            .toArray();
+
+        const pharmacyName = order.pharmacy_name;
+
+        for (const item of items) {
+            if (!item.product_id) continue;
+            if (item.accepted_quantity <= 0) continue;
+
+            const product = await db.products.get(item.product_id);
+            if (!product) continue;
+
+            // Add to stock
+            const currentStock = product.quantity || 0;
+            const newStock = currentStock + item.accepted_quantity;
+
+            await db.products.update(item.product_id, {
+                quantity: newStock,
+                updated_at: new Date().toISOString()
+            });
+
+            // Create stock movement
+            const movement = {
+                id: genUUID(),
+                pharmacy_name: pharmacyName,
+                product_id: item.product_id,
+                product_name: item.product_name,
+                batch_id: null,
+                batch_number: item.batch_number || null,
+                movement_type: 'purchase',
+                quantity_base: item.accepted_quantity,
+                reference_type: 'suppliers_orders',
+                reference_id: orderId,
+                performed_by: order.pharmacy_contact_person,
+                performed_by_name: order.pharmacy_contact_person,
+                reason: `Order #${order.order_number} confirmed - Supplier added stock`,
+                created_at: new Date().toISOString()
+            };
+            await db.stock_movements.put(movement);
+        }
+
+        // Mark order as processed
+        await db.suppliers_orders.update(orderId, {
+            'delivery_info.stock_added': true,
+            'delivery_info.stock_added_at': new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Failed to process confirmed order:', error);
+    }
+}
+
+// =============================================
+// PULL SUPPLIER PARTNERSHIPS
+// =============================================
+async function pullSupplierPartnerships(pharmacyName: string): Promise<number> {
+    const client = getSupabaseClient();
+    if (!client) return 0;
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+
+    try {
+        const { data, error } = await client
+            .from('suppliers_partnership_requests')
+            .select('*')
+            .eq('pharmacy_name', normalizedName)
+            .order('created_at', { ascending: false });
+
+        if (error || !data || data.length === 0) {
+            return 0;
+        }
+
+        // Update local DB
+        await db.suppliers_partnership_requests.bulkPut(data);
+        return data.length;
+    } catch (err) {
+        return 0;
+    }
+}
+
+// =============================================
+// PULL SUPPLIER ORDERS
+// =============================================
+async function pullSupplierOrders(pharmacyName: string): Promise<number> {
+    const client = getSupabaseClient();
+    if (!client) return 0;
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+
+    try {
+        const { data, error } = await client
+            .from('suppliers_orders')
+            .select('*')
+            .eq('pharmacy_name', normalizedName)
+            .order('created_at', { ascending: false });
+
+        if (error || !data || data.length === 0) {
+            return 0;
+        }
+
+        // Update local DB
+        await db.suppliers_orders.bulkPut(data);
+
+        // Check for confirmed orders to auto-add stock
+        for (const order of data) {
+            if (order.status === 'confirmed') {
+                await processConfirmedOrder(order.id);
+            }
+        }
+
+        return data.length;
+    } catch (err) {
+        return 0;
+    }
+}
+
+// =============================================
+// PULL SUPPLIER ORDER ITEMS
+// =============================================
+// lib/supabase/pull.ts
+async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
+    const client = getSupabaseClient();
+    if (!client) return 0;
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+
+    try {
+        const orders = await db.suppliers_orders
+            .where('pharmacy_name')
+            .equals(normalizedName)
+            .toArray();
+
+        const orderIds = orders.map(o => o.id);
+
+        if (orderIds.length === 0) {
+            return 0;
+        }
+
+        const { data, error } = await client
+            .from('suppliers_order_items')
+            .select('*')
+            .in('order_id', orderIds);
+
+        if (error || !data || data.length === 0) {
+            return 0;
+        }
+
+        // ✅ CRITICAL: Preserve local product_id when pulling from Supabase
+        for (const item of data) {
+            // Check if we already have this item locally
+            const localItem = await db.suppliers_order_items.get(item.id);
+            if (localItem && localItem.product_id) {
+                // ✅ Keep the pharmacy's product_id
+                item.product_id = localItem.product_id;
+            }
+        }
+
+        await db.suppliers_order_items.bulkPut(data);
+        return data.length;
+    } catch (err) {
+        console.warn('Failed to pull supplier order items:', err);
+        return 0;
+    }
+}
+
+// =============================================
+// PULL AVAILABLE SUPPLIERS (From suppliers_accounts)
+// =============================================
+async function pullAvailableSuppliers(): Promise<number> {
+    const client = getSupabaseClient();
+    if (!client) return 0;
+
+    try {
+        // ✅ Pull all active suppliers from supplier app
+        const { data, error } = await client
+            .from('suppliers_accounts')
+            .select('*')
+            .eq('status', 'active')
+            .order('business_name', { ascending: true });
+
+        if (error || !data || data.length === 0) {
+            return 0;
+        }
+
+        // ✅ Store in a local table or cache
+        // Since we don't have a local table for suppliers_accounts,
+        // we store them in localStorage as a cache
+        localStorage.setItem('medp_available_suppliers', JSON.stringify(data));
+        localStorage.setItem('medp_available_suppliers_updated', new Date().toISOString());
+
+        return data.length;
+    } catch (err) {
+        console.warn('Failed to pull available suppliers:', err);
+        return 0;
+    }
+}
+// =============================================
+// MAIN PULL FUNCTIONS - UPDATED
+// =============================================
+
+// Full pull - all tables including supplier
 export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boolean> {
     const client = getSupabaseClient();
 
@@ -87,7 +297,6 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        // Pull all tables in parallel for speed
         const results = await Promise.allSettled([
             pullTable('products', normalizedName, db.products),
             pullTable('product_batches', normalizedName, db.product_batches),
@@ -101,6 +310,11 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
             pullTable('profiles', normalizedName, db.profiles),
             pullTable('requested_items', normalizedName, db.requested_items, { limit: 500 }),
             pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }),
+            // ✅ ADD SUPPLIER TABLES
+            pullSupplierPartnerships(normalizedName),
+            pullSupplierOrders(normalizedName),
+            pullSupplierOrderItems(normalizedName),
+            pullAvailableSuppliers(),
         ]);
 
         return true;
@@ -109,7 +323,11 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     }
 }
 
-// Smart pull - only pull what's needed based on last sync
+// =============================================
+// SMART PULL - Updated with supplier tables
+// =============================================
+// lib/supabase/pull.ts
+
 export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?: Date): Promise<boolean> {
     const client = getSupabaseClient();
 
@@ -120,13 +338,19 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        const pullPromises = TABLE_CONFIGS.map(async (config) => {
+        // ✅ Filter TABLE_CONFIGS to exclude tables that don't have pharmacy_name
+        const filteredConfigs = TABLE_CONFIGS.filter(config => {
+            // suppliers_order_items doesn't have pharmacy_name - handled separately
+            if (config.table === 'suppliers_order_items') return false;
+            return true;
+        });
+
+        const pullPromises = filteredConfigs.map(async (config) => {
             let query = client
                 .from(config.table)
                 .select('*')
                 .eq('pharmacy_name', normalizedName);
 
-            // Only pull updated records if we have a last sync time
             if (lastSyncTime) {
                 query = query.gte('updated_at', lastSyncTime.toISOString());
             }
@@ -137,7 +361,6 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
                 return 0;
             }
 
-            // ✅ FIXED: For sales table, ensure sale_id is preserved
             let itemsWithPharmacy = data.map(item => ({
                 ...item,
                 pharmacy_name: normalizedName
@@ -150,7 +373,6 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
                 }));
             }
 
-            // OPTIMIZATION: Use bulkPut for batch upsert
             const dbTable = db[config.dbKey as keyof typeof db] as any;
             if (dbTable && typeof dbTable.bulkPut === 'function') {
                 await dbTable.bulkPut(itemsWithPharmacy);
@@ -162,14 +384,23 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
 
         const results = await Promise.allSettled(pullPromises);
 
+        // ✅ Pull partnerships separately
+        await pullSupplierPartnerships(normalizedName);
+
+        // ✅ Pull orders
+        await pullSupplierOrders(normalizedName);
+
+        // ✅ Pull order items (uses order_id, not pharmacy_name)
+        await pullSupplierOrderItems(normalizedName);
+        await pullAvailableSuppliers();
         return true;
     } catch (err) {
+        console.warn('Smart pull failed:', err);
         return false;
     }
 }
-
 // =============================================
-// INCREMENTAL PULL - Only pull changed records
+// INCREMENTAL PULL - Updated
 // =============================================
 export async function incrementalPullFromSupabase(
     pharmacyName: string,
@@ -201,7 +432,6 @@ export async function incrementalPullFromSupabase(
                 return 0;
             }
 
-            // ✅ FIXED: For sales table, ensure sale_id is preserved
             let itemsWithPharmacy = data.map(item => ({
                 ...item,
                 pharmacy_name: normalizedName
@@ -229,6 +459,18 @@ export async function incrementalPullFromSupabase(
             return sum;
         }, 0);
 
+        // ✅ Also pull partnerships
+        const partnershipCount = await pullSupplierPartnerships(normalizedName);
+        totalUpdated += partnershipCount;
+
+        // ✅ Pull orders
+        const orderCount = await pullSupplierOrders(normalizedName);
+        totalUpdated += orderCount;
+
+        // ✅ Pull order items
+        const itemCount = await pullSupplierOrderItems(normalizedName);
+        totalUpdated += itemCount;
+
         return { success: true, updated: totalUpdated };
     } catch (err) {
         return { success: false, updated: totalUpdated };
@@ -236,7 +478,7 @@ export async function incrementalPullFromSupabase(
 }
 
 // =============================================
-// PULL SINGLE TABLE - For targeted updates
+// PULL SINGLE TABLE - Updated
 // =============================================
 export async function pullSingleTable(
     pharmacyName: string,
@@ -268,7 +510,6 @@ export async function pullSingleTable(
             return 0;
         }
 
-        // ✅ FIXED: For sales table, ensure sale_id is preserved
         let itemsWithPharmacy = data.map(item => ({
             ...item,
             pharmacy_name: normalizedName
@@ -279,6 +520,29 @@ export async function pullSingleTable(
                 ...item,
                 sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
             }));
+        }
+
+        // Check if it's a supplier table
+        if (tableName === 'suppliers_partnership_requests') {
+            await db.suppliers_partnership_requests.bulkPut(itemsWithPharmacy);
+            return data.length;
+        }
+
+        if (tableName === 'suppliers_orders') {
+            await db.suppliers_orders.bulkPut(itemsWithPharmacy);
+
+            // Check for confirmed orders
+            for (const order of itemsWithPharmacy) {
+                if (order.status === 'confirmed') {
+                    await processConfirmedOrder(order.id);
+                }
+            }
+            return data.length;
+        }
+
+        if (tableName === 'suppliers_order_items') {
+            await db.suppliers_order_items.bulkPut(itemsWithPharmacy);
+            return data.length;
         }
 
         const config = TABLE_CONFIGS.find(c => c.table === tableName);
@@ -304,7 +568,7 @@ export async function pullSingleTable(
 }
 
 // =============================================
-// CHECK FOR CHANGES - Quick check if data changed
+// CHECK FOR CHANGES - Updated
 // =============================================
 export async function hasDataChanged(
     pharmacyName: string,
@@ -320,7 +584,15 @@ export async function hasDataChanged(
     const changedTables: string[] = [];
 
     try {
-        const checks = TABLE_CONFIGS.map(async (config) => {
+        // Check all tables including supplier tables
+        const allTableConfigs = [
+            ...TABLE_CONFIGS,
+            { table: 'suppliers_partnership_requests', dbKey: 'suppliers_partnership_requests' },
+            { table: 'suppliers_orders', dbKey: 'suppliers_orders' },
+            { table: 'suppliers_order_items', dbKey: 'suppliers_order_items' },
+        ];
+
+        const checks = allTableConfigs.map(async (config) => {
             const { count, error } = await client
                 .from(config.table)
                 .select('*', { count: 'exact', head: true })

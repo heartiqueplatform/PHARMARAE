@@ -811,3 +811,116 @@ export interface ChangePasswordResult {
   error?: string;
 }
 
+// types/index.ts - Add these types
+
+// =============================================
+// SUPPLIER PARTNERSHIP & ORDERING
+// =============================================
+
+export interface SupplierPartnershipRequest {
+  id: string;
+  supplier_id: string;
+  supplier_name: string;
+  supplier_license_number: string | null;
+  pharmacy_id: string | null;
+  pharmacy_name: string;
+  pharmacy_email: string | null;
+  pharmacy_phone: string | null;
+  pharmacy_town: string | null;
+  pharmacy_county: string | null;
+  proposed_credit_limit: number | null;
+  proposed_payment_terms: string | null;
+  discount_offered_percent: number | null;
+  categories_offered: string[] | null;
+  message: string | null;
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  pharmacy_response_note: string | null;
+  responded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupplierOrder {
+  id: string;
+  supplier_id: string;
+  order_number: string;
+  pharmacy_id: string | null;
+  pharmacy_name: string;
+  pharmacy_contact_person: string;
+  pharmacy_phone: string;
+  pharmacy_email: string | null;
+  pharmacy_address: string;
+  pharmacy_county: string;
+  pharmacy_town: string;
+  status: 'new' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'confirmed' | 'rejected' | 'cancelled';
+  subtotal: number;
+  tax_amount: number;
+  delivery_fee: number;
+  total_amount: number;
+  payment_terms: string;
+  payment_status: 'unpaid' | 'paid' | 'partial';
+  rejection_reason: string | null;
+  order_notes: string | null;
+  order_date: string;
+  created_at: string;
+  updated_at?: string;
+  delivery_info?: any;
+}
+
+export interface SupplierOrderItem {
+  id: string;
+  order_id: string;
+  product_id: string | null;
+  product_name: string;
+  sku: string | null;
+  dosage_form: string | null;
+  strength: string | null;
+  pack_size: string | null;
+  requested_quantity: number;
+  accepted_quantity: number;
+  unit_price: number;
+  total_price: number;
+  batch_number: string | null;
+  item_status: 'pending' | 'accepted' | 'rejected' | 'partially_accepted' | 'delivered';
+  created_at: string;
+}
+
+export interface ReorderRecommendation {
+  product_id: string;
+  product_name: string;
+  current_stock: number;
+  reorder_level: number;
+  reorder_quantity: number;
+  days_until_out: number;
+  monthly_sales: number;
+  weekly_sales: number;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  reason: string;
+  category?: string;
+}
+
+// types/index.ts - Add after SupplierPartnershipRequest
+
+// =============================================
+// SUPPLIER ACCOUNTS (Read-only from supplier app)
+// =============================================
+
+export interface SupplierAccount {
+  id: string;
+  user_id: string | null;
+  business_name: string;
+  trading_name: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  physical_address: string;
+  town: string;
+  county: string;
+  license_number: string;
+  tax_pin: string | null;
+  currency: string;
+  payment_terms: string;
+  status: 'active' | 'pending_verification' | 'suspended';
+  created_at: string;
+  updated_at: string;
+}

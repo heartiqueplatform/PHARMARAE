@@ -30,6 +30,9 @@ export function mapEntityTypeToTable(entityType: string): string {
         'audit_log': 'audit_logs',
         'requested_item': 'requested_items',
         'sales_return': 'sales_returns',
+        'supplier_order': 'suppliers_orders',
+        'supplier_order_item': 'suppliers_order_items',
+        'supplier_partnership': 'suppliers_partnership_requests',
     };
     return mapping[entityType] || entityType;
 }
@@ -47,6 +50,17 @@ export const TABLE_CONFIGS = [
     { table: 'profiles', dbKey: 'profiles', limit: 500 },
     { table: 'requested_items', dbKey: 'requested_items', limit: 500 },
     { table: 'sales_returns', dbKey: 'sales_returns', limit: 500 },
+    {
+        table: 'suppliers_partnership_requests',
+        dbKey: 'suppliers_partnership_requests',
+        limit: 500,
+    },
+    {
+        table: 'suppliers_orders',
+        dbKey: 'suppliers_orders',
+        limit: 500,
+    },
+
 ];
 
 // Cache for table existence checks

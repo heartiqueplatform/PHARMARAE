@@ -1,7 +1,7 @@
 // components/views/InventoryView/ProductModals.tsx
 import React, { useMemo, useState } from 'react';
 import { Product, ProductBatch, Category, Supplier, DosageFormType, StorageCondition } from '../../../types';
-import { AlertTriangle, Loader2, Minus, Package, Plus, Save, Search } from 'lucide-react';
+import { AlertTriangle, Loader2, Minus, Package, Plus, Save, Search, Database } from 'lucide-react';
 import { COMMON_DRUGS_LIST, CommonDrug } from '../../../data/commonDrugs';
 
 const parseNumberInput = (value: string, fallback = 0) => {
@@ -233,11 +233,44 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
     } = props;
 
     const [formError, setFormError] = useState<string | null>(null);
-    const featuredDrugs = useMemo(() => COMMON_DRUGS_LIST.slice(0, 10), []);
+    const [showDrugDatabase, setShowDrugDatabase] = useState(false);
+    const [databaseSearchQuery, setDatabaseSearchQuery] = useState('');
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+    // Get categories from the drug list
+    const drugCategories = useMemo(() => {
+        const cats = new Set(COMMON_DRUGS_LIST.map(d => d.category_name));
+        return Array.from(cats);
+    }, []);
+
+    // Filter drugs from database with category filter
+    const filteredDrugs = useMemo(() => {
+        if (!databaseSearchQuery.trim() || databaseSearchQuery.length < 2) {
+            return [];
+        }
+        const query = databaseSearchQuery.toLowerCase().trim();
+
+        let results = COMMON_DRUGS_LIST.filter(drug =>
+            drug.name.toLowerCase().includes(query) ||
+            drug.generic_name.toLowerCase().includes(query) ||
+            drug.brand.toLowerCase().includes(query) ||
+            drug.category_name.toLowerCase().includes(query)
+        );
+
+        // Apply category filter
+        if (selectedCategoryFilter !== 'all') {
+            results = results.filter(drug => drug.category_name === selectedCategoryFilter);
+        }
+
+        return results.slice(0, 20);
+    }, [databaseSearchQuery, selectedCategoryFilter]);
+    // Featured/quick access drugs
+    const featuredDrugs = useMemo(() => COMMON_DRUGS_LIST.slice(0, 8), []);
+
+    // Search suggestions for the main search
     const filteredDrugSuggestions = useMemo(() => {
         const query = newProdName.trim().toLowerCase();
 
-        if (!query) {
+        if (!query || query.length < 2) {
             return [];
         }
 
@@ -317,35 +350,172 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
     // Product Form Render Helper
     const renderProductForm = (isEdit: boolean) => (
         <div className="space-y-3 text-sm">
-            {/* Common medicine shortcut */}
-            <div className={`p-3 rounded-xl space-y-2 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
-                <div className="flex items-center justify-between text-[12px] font-extrabold text-[#2ea043]">
-                    <span className="flex items-center gap-2">
-                        <Search className="w-4 h-4" />
-                        <span>Common Medicine</span>
-                    </span>
-                    <span className={`text-[11px] font-normal ${textMuted}`}>Auto-fill details</span>
+            {/* Database Quick Access - NEW and IMPROVED */}
+            {/* Database Quick Access - With Always Visible Search */}
+            <div className={`p-3 rounded-xl space-y-3 ${isDark ? 'bg-[#21262d]/60' : 'bg-[#f6f8fa]'}`}>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-[#2ea043]" />
+                        <span className="text-[12px] font-extrabold text-[#2ea043]">Search Database</span>
+                        <span className={`text-[10px] ${textMuted}`}>
+                            ({COMMON_DRUGS_LIST.length} items)
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowDrugDatabase(!showDrugDatabase)}
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'bg-[#161b22] hover:bg-[#30363d]' : 'bg-white hover:bg-gray-200'
+                            }`}
+                    >
+                        {showDrugDatabase ? 'Hide Results' : 'Show Results'}
+                    </button>
                 </div>
-                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pt-1">
-                    {featuredDrugs.map((d) => (
+
+                {/* ALWAYS VISIBLE SEARCH BAR */}
+                <div className="relative">
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${textMuted}`} />
+                    <input
+                        type="text"
+                        value={databaseSearchQuery}
+                        onChange={(e) => {
+                            setDatabaseSearchQuery(e.target.value);
+                            setShowDrugDatabase(true);
+                        }}
+                        onFocus={() => setShowDrugDatabase(true)}
+                        placeholder="Search by name, brand, generic, or category..."
+                        className={`w-full pl-9 pr-9 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${isDark ? 'bg-[#0d1117] text-white' : 'bg-white text-gray-900'
+                            }`}
+                    />
+                    {databaseSearchQuery && (
                         <button
-                            key={d.name}
                             type="button"
                             onClick={() => {
-                                setFormError(null);
-                                handleSelectCommonDrug(d);
+                                setDatabaseSearchQuery('');
+                                setShowDrugDatabase(false);
                             }}
-                            className={`px-3 py-2 text-[11px] rounded-xl transition-colors text-left ${touchTargetSmall} ${isDark
-                                ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]'
-                                : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-gray-200'
+                                } ${textMuted}`}
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+
+                {/* Category Filter Pills - Always Visible */}
+                <div className="flex flex-wrap gap-1.5">
+                    <button
+                        type="button"
+                        onClick={() => setSelectedCategoryFilter('all')}
+                        className={`px-2.5 py-1 text-[9px] rounded-full transition-colors whitespace-nowrap ${selectedCategoryFilter === 'all'
+                            ? 'bg-[#2ea043] text-white'
+                            : isDark ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]' : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
+                            }`}
+                    >
+                        All
+                    </button>
+                    {['Analgesics & Pain Relievers', 'Antibiotics & Antimicrobials', 'Medical Supplies', 'Antihypertensives', 'Gastrointestinal Care', 'Vitamins & Supplements', 'Antidiabetics', 'Antimalarials'].slice(0, 6).map(cat => (
+                        <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setSelectedCategoryFilter(cat)}
+                            className={`px-2.5 py-1 text-[9px] rounded-full transition-colors whitespace-nowrap ${selectedCategoryFilter === cat
+                                ? 'bg-[#2ea043] text-white'
+                                : isDark ? 'bg-[#161b22] hover:bg-[#2ea043]/20 text-[#c9d1d9]' : 'bg-white hover:bg-[#2ea043]/10 text-[#1f2328]'
                                 }`}
                         >
-                            {d.name}
+                            {cat.replace(' &', '').split(' ').slice(0, 2).join(' ')}
                         </button>
                     ))}
                 </div>
-            </div>
 
+                {/* Results - Only show when there are results */}
+                {showDrugDatabase && databaseSearchQuery.length >= 2 && (
+                    <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-[#161b22]' : 'bg-white'}`}>
+                        {/* Results count */}
+                        {databaseSearchQuery.length >= 2 && (
+                            <div className={`px-3 pt-2 text-[10px] ${textMuted}`}>
+                                {filteredDrugs.length} results found
+                            </div>
+                        )}
+
+                        {/* Results List */}
+                        {filteredDrugs.length > 0 && (
+                            <div className="max-h-64 overflow-y-auto divide-y divide-gray-700/30">
+                                {filteredDrugs.map((drug) => (
+                                    <button
+                                        key={`${drug.name}-${drug.brand}`}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormError(null);
+                                            handleSelectCommonDrug(drug);
+                                            setShowDrugDatabase(false);
+                                            setDatabaseSearchQuery('');
+                                            setSelectedCategoryFilter('all');
+                                        }}
+                                        className={`w-full p-3 text-left text-sm transition-colors ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`font-bold ${textTitle}`}>{drug.name}</span>
+                                                    {drug.prescription_required && (
+                                                        <span className="text-[8px] font-bold text-amber-500 bg-amber-500/15 px-1.5 py-0.5 rounded">
+                                                            Rx
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className={`text-xs ${textMuted}`}>
+                                                    {drug.generic_name} • {drug.brand}
+                                                </div>
+                                                <div className={`text-[10px] ${textMuted} flex items-center gap-2 flex-wrap mt-0.5`}>
+                                                    <span className="capitalize">{drug.form}</span>
+                                                    <span>•</span>
+                                                    <span>{drug.strength}</span>
+                                                    <span>•</span>
+                                                    <span className="text-[#2ea043]">{drug.category_name}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0 ml-3">
+                                                <div className="text-[#2ea043] font-bold text-sm">
+                                                    {currency} {drug.default_selling_price}
+                                                </div>
+                                                <div className={`text-[9px] ${textMuted}`}>
+                                                    Cost: {currency} {drug.default_cost_price}
+                                                </div>
+                                                <div className={`text-[9px] ${textMuted} mt-0.5 px-2 py-0.5 rounded ${isDark ? 'bg-[#0d1117]' : 'bg-gray-200'
+                                                    }`}>
+                                                    Click to fill
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {filteredDrugs.length === 0 && (
+                            <div className={`p-4 text-center text-sm ${textMuted}`}>
+                                No items found. Try a different search term.
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Show hint when typing but results hidden */}
+                {databaseSearchQuery.length >= 2 && !showDrugDatabase && (
+                    <div className={`text-center text-xs ${textMuted} py-1`}>
+                        Click "Show Results" or press Enter to see matches
+                    </div>
+                )}
+
+                {/* Show initial hint */}
+                {!databaseSearchQuery && (
+                    <div className={`text-center text-xs ${textMuted} py-1`}>
+                        Start typing to search {COMMON_DRUGS_LIST.length} items...
+                    </div>
+                )}
+            </div>
             {/* Product Name */}
             <div className="relative">
                 <label className={`block mb-1.5 font-bold ${textMuted}`}>Product Name *</label>
@@ -361,15 +531,16 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                     placeholder="Type product name..."
                     className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
                 />
-                {showDrugSuggestions && newProdName.trim().length >= 1 && (
+                {showDrugSuggestions && newProdName.trim().length >= 2 && (
                     <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl shadow-xl z-[999] max-h-56 overflow-y-auto divide-y ${cardBg}`}>
                         {filteredDrugSuggestions.map(d => (
                             <button
-                                key={d.name}
+                                key={`${d.name}-${d.brand}`}
                                 type="button"
                                 onClick={() => {
                                     setFormError(null);
                                     handleSelectCommonDrug(d);
+                                    setShowDrugSuggestions(false);
                                 }}
                                 className={`w-full p-3 text-left flex items-center justify-between text-sm transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'
                                     }`}
@@ -757,7 +928,9 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                     <div className={`rounded-2xl max-w-lg w-full p-4 overflow-y-auto max-h-[95vh] shadow-2xl ${cardBg}`}>
                         <h3 className={`text-base font-bold pb-3 mb-3 ${borderLine} ${textTitle}`}>Add New Product</h3>
                         <ErrorBanner />
-                        <form onSubmit={(e) => submitWithFallback(e, handleSaveProduct, 'Product could not be saved. Check the product details and try again.')}>{renderProductForm(false)}</form>
+                        <form onSubmit={(e) => submitWithFallback(e, handleSaveProduct, 'Product could not be saved. Check the product details and try again.')}>
+                            {renderProductForm(false)}
+                        </form>
                     </div>
                 </div>
             )}
@@ -770,7 +943,9 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                             Edit Product: {editingProduct.name}
                         </h3>
                         <ErrorBanner />
-                        <form onSubmit={(e) => submitWithFallback(e, handleEditProduct, 'Product changes could not be saved. Check the product details and try again.')}>{renderProductForm(true)}</form>
+                        <form onSubmit={(e) => submitWithFallback(e, handleEditProduct, 'Product changes could not be saved. Check the product details and try again.')}>
+                            {renderProductForm(true)}
+                        </form>
                     </div>
                 </div>
             )}
@@ -823,7 +998,7 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                         type="number"
                                         min="0"
                                         step="0.01"
-                                        value={newBatchCost || selectedProductForBatch.default_cost_price || ''}
+                                        value={newBatchCost || selectedProductForBatch.purchase_price || ''}
                                         onChange={(e) => setNewBatchCost(parseNumberInput(e.target.value))}
                                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                                     />
@@ -910,15 +1085,17 @@ export const ProductModals: React.FC<ProductModalsProps> = (props) => {
                                     placeholder="e.g. 10 or -5"
                                     className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-bold ${inputBg}`}
                                 />
-                                <div className="flex gap-2 mt-2">
+                                <div className="flex gap-2 mt-2 flex-wrap">
                                     {[1, 5, 10].map(v => (
-                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}>
+                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'
+                                            }`}>
                                             <Plus className="h-3 w-3" />
                                             <span>{v}</span>
                                         </button>
                                     ))}
-                                    {[-1, -5].map(v => (
-                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'}`}>
+                                    {[-1, -5, -10].map(v => (
+                                        <button key={v} type="button" onClick={() => setAdjustBatchQty(v)} className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-slate-200 hover:bg-slate-300'
+                                            }`}>
                                             <Minus className="h-3 w-3" />
                                             <span>{Math.abs(v)}</span>
                                         </button>

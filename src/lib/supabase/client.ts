@@ -9,11 +9,8 @@ export function getSupabaseCredentials(): { url: string; key: string } {
     const localUrl = localStorage.getItem('medp_supabase_url') || '';
     const localKey = localStorage.getItem('medp_supabase_key') || '';
 
-    const defaultUrl = 'https://byygilnxaleiocapybuz.supabase.co';
-    const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5eWdpbG54YWxlaW9jYXB5YnV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMzg0MDYsImV4cCI6MjEwMTgxNDQwNn0.S399WEWx0e8gTRPCCEUpzWyDEwbreldt4fJee70wlM8';
-
-    const url = localUrl || env.VITE_SUPABASE_URL || defaultUrl;
-    const key = localKey || env.VITE_SUPABASE_ANON_KEY || defaultKey;
+    const url = localUrl || env.VITE_SUPABASE_URL || '';
+    const key = localKey || env.VITE_SUPABASE_ANON_KEY || '';
 
     return { url, key };
 }

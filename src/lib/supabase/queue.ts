@@ -70,6 +70,8 @@ export async function queueOfflineMutation(
         processOfflineSyncQueue().catch(() => { });
     }
 }
+// lib/supabase/queue.ts
+// lib/supabase/queue.ts - Full updated function
 
 export async function processOfflineSyncQueue(): Promise<{ synced: number; failed: number }> {
     const client = getSupabaseClient();
@@ -111,35 +113,130 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
         try {
             let error: any = null;
 
+            // ✅ Tables that DO NOT have pharmacy_name column
+            const tablesWithoutPharmacyName = [
+                'suppliers_order_items',
+                'purchase_items',
+                'sale_items',
+                'product_units',
+                'stocktake_items'
+            ];
+
+            // ✅ Tables that DO NOT have updated_at column
+            const tablesWithoutUpdatedAt = [
+                'suppliers_order_items'
+            ];
+
             if (operation === 'DELETE') {
-                // ✅ DELETE: Remove the entire row
                 const { error: delErr } = await client
                     .from(tableName)
                     .delete()
-                    .eq('id', item.payload.id)
-                    .eq('pharmacy_name', item.pharmacy_name);
+                    .eq('id', item.payload.id);
                 error = delErr;
+
             } else if (operation === 'UPDATE') {
-                // ✅ UPDATE: Update the row
-                const payload = {
-                    ...item.payload,
-                    pharmacy_name: item.pharmacy_name,
-                    updated_at: new Date().toISOString()
+                let payload = {
+                    ...item.payload
                 };
+
+                if (!tablesWithoutUpdatedAt.includes(tableName)) {
+                    payload.updated_at = new Date().toISOString();
+                }
+
+                if (!tablesWithoutPharmacyName.includes(tableName)) {
+                    payload.pharmacy_name = item.pharmacy_name;
+                }
+
+                // ✅ Handle suppliers_order_items special cases
+                // ✅ Handle suppliers_order_items special cases
+                if (tableName === 'suppliers_order_items') {
+                    delete payload.pharmacy_name;
+                    delete payload.updated_at;
+
+                    // ✅ ALWAYS set product_id to null for Supabase (foreign key constraint)
+                    // The supplier will match by product_name
+                    payload.product_id = null;
+
+                    if (!payload.batch_number || payload.batch_number === '' || payload.batch_number === 'null') {
+                        payload.batch_number = null;
+                    }
+                    if (!payload.sku || payload.sku === '' || payload.sku === 'null') {
+                        payload.sku = null;
+                    }
+                }
 
                 const { error: updateErr } = await client
                     .from(tableName)
                     .update(payload)
-                    .eq('id', item.payload.id)
-                    .eq('pharmacy_name', item.pharmacy_name);
+                    .eq('id', item.payload.id);
                 error = updateErr;
+
             } else {
-                // ✅ INSERT: Insert new row
-                const payload = {
-                    ...item.payload,
-                    pharmacy_name: item.pharmacy_name,
-                    updated_at: new Date().toISOString()
+                // ✅ INSERT
+                let payload = {
+                    ...item.payload
                 };
+
+                if (!tablesWithoutUpdatedAt.includes(tableName)) {
+                    payload.updated_at = new Date().toISOString();
+                }
+
+                if (!tablesWithoutPharmacyName.includes(tableName)) {
+                    payload.pharmacy_name = item.pharmacy_name;
+                }
+
+                // ✅ Handle suppliers_order_items special cases
+                if (tableName === 'suppliers_order_items') {
+                    delete payload.pharmacy_name;
+                    delete payload.updated_at;
+
+                    // ✅ Check if this item already exists in Supabase
+                    const { data: existing, error: checkError } = await client
+                        .from(tableName)
+                        .select('id')
+                        .eq('id', payload.id)
+                        .maybeSingle();
+
+                    if (!checkError && existing) {
+                        // ✅ Already exists - do UPDATE instead
+                        console.log(`Item ${payload.id} already exists in Supabase, updating`);
+
+                        // Set product_id to null for supplier foreign key
+                        payload.product_id = null;
+
+                        if (!payload.batch_number || payload.batch_number === '' || payload.batch_number === 'null') {
+                            payload.batch_number = null;
+                        }
+                        if (!payload.sku || payload.sku === '' || payload.sku === 'null') {
+                            payload.sku = null;
+                        }
+
+                        const { error: updateErr } = await client
+                            .from(tableName)
+                            .update(payload)
+                            .eq('id', payload.id);
+
+                        if (!updateErr) {
+                            if (item.id) {
+                                await db.sync_queue.delete(item.id);
+                                syncedCount++;
+                            }
+                            continue;
+                        }
+                        throw updateErr;
+                    }
+
+                    // ✅ New item - INSERT with product_id = null
+                    // ALWAYS set product_id to null for Supabase (foreign key constraint)
+                    payload.product_id = null;
+
+                    if (!payload.batch_number || payload.batch_number === '' || payload.batch_number === 'null') {
+                        payload.batch_number = null;
+                    }
+                    if (!payload.sku || payload.sku === '' || payload.sku === 'null') {
+                        payload.sku = null;
+                    }
+                }
 
                 // Ensure 'name' is included for products
                 if (tableName === 'products' && !payload.name) {
@@ -157,7 +254,32 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
                 error = insertErr;
             }
 
-            if (error) throw error;
+            if (error) {
+                // ✅ If it's a foreign key error, retry with product_id = null
+                if (error.code === '23503' && tableName === 'suppliers_order_items') {
+                    console.warn('Foreign key error, retrying without product_id...');
+                    const retryPayload = { ...item.payload };
+
+                    // ✅ Force product_id to null
+                    retryPayload.product_id = null;
+                    delete retryPayload.pharmacy_name;
+                    delete retryPayload.updated_at;
+
+                    const { error: retryErr } = await client
+                        .from(tableName)
+                        .upsert(retryPayload, { onConflict: 'id' });
+
+                    if (!retryErr) {
+                        if (item.id) {
+                            await db.sync_queue.delete(item.id);
+                            syncedCount++;
+                        }
+                        continue;
+                    }
+                    throw retryErr;
+                }
+                throw error;
+            }
 
             if (item.id) {
                 await db.sync_queue.delete(item.id);
@@ -192,6 +314,8 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
 
 // lib/supabase/queue.ts - Updated processSingleSyncItem
 
+// lib/supabase/queue.ts - Updated processSingleSyncItem
+
 export async function processSingleSyncItem(item: OfflineSyncItem): Promise<{ success: boolean; error?: string }> {
     const client = getSupabaseClient();
 
@@ -205,26 +329,37 @@ export async function processSingleSyncItem(item: OfflineSyncItem): Promise<{ su
 
         let error: any = null;
 
+        // ✅ Tables that DO NOT have pharmacy_name column
+        const tablesWithoutPharmacyName = [
+            'suppliers_order_items',
+            'purchase_items',
+            'sale_items',
+            'product_units',
+            'stocktake_items'
+        ];
+
         if (operation === 'DELETE') {
-            // ✅ DELETE: Remove the entire row
             const { error: delErr } = await client
                 .from(tableName)
                 .delete()
                 .eq('id', item.payload.id);
+            error = delErr;
 
-            // If the row doesn't exist, that's fine - consider it synced
-            if (delErr && delErr.code === 'PGRST116') {
-                // Row not found - consider it already deleted
-                error = null;
-            } else {
-                error = delErr;
-            }
         } else if (operation === 'UPDATE') {
-            const payload = {
+            let payload = {
                 ...item.payload,
-                pharmacy_name: item.pharmacy_name,
                 updated_at: new Date().toISOString()
             };
+
+            // ✅ Only add pharmacy_name if table HAS this column
+            if (!tablesWithoutPharmacyName.includes(tableName)) {
+                payload.pharmacy_name = item.pharmacy_name;
+            }
+
+            // ✅ For suppliers_order_items, remove pharmacy_name if present
+            if (tableName === 'suppliers_order_items') {
+                delete payload.pharmacy_name;
+            }
 
             const { error: updateErr } = await client
                 .from(tableName)
@@ -232,13 +367,23 @@ export async function processSingleSyncItem(item: OfflineSyncItem): Promise<{ su
                 .eq('id', item.payload.id)
                 .eq('pharmacy_name', item.pharmacy_name);
             error = updateErr;
+
         } else {
             // INSERT
-            const payload = {
+            let payload = {
                 ...item.payload,
-                pharmacy_name: item.pharmacy_name,
                 updated_at: new Date().toISOString()
             };
+
+            // ✅ Only add pharmacy_name if table HAS this column
+            if (!tablesWithoutPharmacyName.includes(tableName)) {
+                payload.pharmacy_name = item.pharmacy_name;
+            }
+
+            // ✅ For suppliers_order_items, remove pharmacy_name if present
+            if (tableName === 'suppliers_order_items') {
+                delete payload.pharmacy_name;
+            }
 
             const { error: insertErr } = await client
                 .from(tableName)

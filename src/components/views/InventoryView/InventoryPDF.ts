@@ -16,7 +16,7 @@ const addBrandingFooter = (doc: jsPDF, y?: number) => {
 
     const footerTexts = [
         'Powered by Pharmienta Kenya',
-        'For more info: support@Pharmienta.com | 0704473503'
+        'For more info: support@Pharmienta.com | 0717517371'
     ];
 
     footerTexts.forEach((line, index) => {

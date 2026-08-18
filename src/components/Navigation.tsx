@@ -8,8 +8,9 @@ import {
   Brain
 } from 'lucide-react';
 import { Pharmacy, Profile } from '../types';
-
-export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns' | 'intelligence';
+// components/Navigation.tsx - Line ~10
+export type NavTab = 'home' | 'sell' | 'stock' | 'reports' | 'more' | 'about' | 'privacy' | 'terms' | 'requests' | 'returns' | 'intelligence' | 'orders';
+//                                                                                                                          ↑ ADD THIS
 interface NavigationProps {
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
@@ -46,6 +47,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   // Tabs shown in the More overlay
   const moreOverlayTabs = [
     { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
+    { id: 'orders' as NavTab, label: 'Orders', icon: Package }, // ✅ ADD THIS
     { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp }, // Moved from main to here
     { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
     { id: 'more' as NavTab, label: 'Settings & Hub', icon: Settings },

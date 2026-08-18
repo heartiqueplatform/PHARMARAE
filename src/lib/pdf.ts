@@ -12,8 +12,8 @@ const addBrandingFooter = (doc: jsPDF, y?: number) => {
   doc.setFont('helvetica', 'italic');
 
   const footerTexts = [
-    'Powered by MEDRAE NURSING KENYA',
-    'For more info: medraenursing@gmail.com | 0704473503'
+    'Powered by Pharmienta Kenya',
+    'For more info: pharmienta@gmail.com | 0717517371'
   ];
 
   footerTexts.forEach((line, index) => {

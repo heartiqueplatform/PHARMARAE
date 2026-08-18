@@ -310,7 +310,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Phone className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>+254 704 473 503</span>
+                                    <span>+254 717 517 371</span>
                                 </p>
                             </div>
                             <div className="space-y-2">

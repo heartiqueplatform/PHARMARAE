@@ -395,7 +395,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
       await onAddStaff({
         full_name: staffName,
         email: staffEmail,
-        phone: staffPhone || '+254 700 000 000',
+        phone: staffPhone || '+254 717 517 371',
         pin_code: staffPin,
         role: staffRole,
         is_active: true,
