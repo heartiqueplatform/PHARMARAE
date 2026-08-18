@@ -119,10 +119,10 @@ export const PosView: React.FC<PosViewProps> = ({
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
   const [processingMessage, setProcessingMessage] = useState('');
 
-  // --- START: Sale Date State ---
   const [saleDate, setSaleDate] = useState<string>(() => {
     const now = new Date();
-    return now.toISOString(); // Full ISO string with time
+    // Store as full ISO string but timezone-aware for the input
+    return now.toISOString();
   });
   // --- END: Sale Date State ---
 
@@ -279,10 +279,12 @@ export const PosView: React.FC<PosViewProps> = ({
         payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         status: 'completed',
         sale_date: (() => {
-          // Combine selected date with current time
+          // Use the selected date/time directly
           const dateObj = new Date(saleDate);
-          const now = new Date();
-          dateObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+          // If invalid date, fallback to current time
+          if (isNaN(dateObj.getTime())) {
+            return new Date().toISOString();
+          }
           return dateObj.toISOString();
         })(),// ✅ Use selected date instead of current date
         pharmacy_name: safePharmacyName,
@@ -312,7 +314,8 @@ export const PosView: React.FC<PosViewProps> = ({
       setDiscountReason('');
       setSelectedCustomer(null);
       setPaymentMethod('cash');
-      setSaleDate(new Date().toISOString()); // ✅ Full ISO string with time// ✅ Reset to today's date
+      // Reset to current date/time
+      setSaleDate(new Date().toISOString());
 
       setTimeout(() => {
         setProcessingStatus('idle');
@@ -688,15 +691,24 @@ export const PosView: React.FC<PosViewProps> = ({
               <input
                 type="datetime-local"
                 value={(() => {
-                  const now = new Date();
-                  const selectedDate = saleDate ? new Date(saleDate) : now;
-                  // Format: YYYY-MM-DDTHH:mm
-                  return selectedDate.toISOString().slice(0, 16);
+                  // Use the stored saleDate or current time
+                  const dateObj = saleDate ? new Date(saleDate) : new Date();
+                  // Convert to local datetime string for the input
+                  const year = dateObj.getFullYear();
+                  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                  const day = String(dateObj.getDate()).padStart(2, '0');
+                  const hours = String(dateObj.getHours()).padStart(2, '0');
+                  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
                 })()}
                 onChange={(e) => {
                   const value = e.target.value;
                   if (value) {
-                    setSaleDate(new Date(value).toISOString());
+                    // Parse the local datetime and store as ISO string
+                    const dateObj = new Date(value);
+                    if (!isNaN(dateObj.getTime())) {
+                      setSaleDate(dateObj.toISOString());
+                    }
                   }
                 }}
                 className={`${inputBg} text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
