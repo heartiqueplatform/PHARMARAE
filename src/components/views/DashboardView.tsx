@@ -195,7 +195,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {isLoading ? (
           // Show 7 skeleton metrics
           <>
-          // In the skeleton metrics section (around line 170)
+
             <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />

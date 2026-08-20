@@ -21,7 +21,10 @@ import {
     ShoppingCart,
     FileSpreadsheet,
     Lock,
-    Key
+    Key,
+    Phone,
+    HelpCircle,
+    AlertCircle
 } from 'lucide-react';
 import { db } from '../../lib/db';
 import { isSupabaseConfigured, getSupabaseClient, pullFromSupabaseToLocal } from '../../lib/supabase';
@@ -55,6 +58,15 @@ export const HardResetView: React.FC<HardResetViewProps> = ({
     const [verificationCode, setVerificationCode] = useState('');
     const [verificationError, setVerificationError] = useState('');
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+    // New state for emergency clear
+    const [showEmergencyClear, setShowEmergencyClear] = useState(false);
+    const [emergencyCode, setEmergencyCode] = useState('');
+    const [emergencyError, setEmergencyError] = useState('');
+    const [isEmergencyClearing, setIsEmergencyClearing] = useState(false);
+
+    // Developer code - only Pharmienta team knows this
+    const EMERGENCY_CODE = 'PHARM2026'; // Change this to your secret code
 
     React.useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -94,6 +106,111 @@ export const HardResetView: React.FC<HardResetViewProps> = ({
         { name: 'sync_queue', label: 'Sync Queue', icon: CloudOff },
         { name: 'requested_items', label: 'Requested Items', icon: FileText },
     ];
+
+    // Emergency clear that bypasses all sync checks
+    const handleEmergencyClear = async () => {
+        if (emergencyCode !== EMERGENCY_CODE) {
+            setEmergencyError('Invalid emergency code. Contact support for assistance.');
+            return;
+        }
+
+        setEmergencyError('');
+        setIsEmergencyClearing(true);
+        setStep('clearing');
+        setProgress(0);
+        setClearedTables([]);
+
+        try {
+            const tableNames = tables.map(t => t.name);
+            let cleared = 0;
+
+            // Log the emergency clear attempt
+            try {
+                await db.audit_logs.add({
+                    id: `audit-${Date.now()}`,
+                    pharmacy_name: pharmacyName || 'UNKNOWN',
+                    user_id: 'emergency',
+                    user_name: 'Emergency Clear',
+                    action: 'EMERGENCY_CLEAR_INITIATED',
+                    entity_type: 'SYSTEM',
+                    details: 'Emergency data clear initiated - bypassing sync checks',
+                    created_at: new Date().toISOString()
+                });
+            } catch (e) {
+                // Continue even if audit fails
+            }
+
+            for (const tableName of tableNames) {
+                try {
+                    const table = db[tableName as keyof typeof db] as any;
+                    if (table && typeof table.clear === 'function') {
+                        await table.clear();
+                    } else {
+                        await db.table(tableName).clear();
+                    }
+                    cleared++;
+                    setClearedTables(prev => [...prev, tableName]);
+                    setProgress(Math.round((cleared / tableNames.length) * 100));
+                } catch (error) {
+                    // Continue with other tables
+                }
+            }
+
+            // Clear all localStorage except theme
+            const theme = localStorage.getItem('medp_theme');
+            const allKeys = Object.keys(localStorage);
+            const keysToKeep = ['medp_theme'];
+
+            for (const key of allKeys) {
+                if (!keysToKeep.includes(key)) {
+                    localStorage.removeItem(key);
+                }
+            }
+
+            // Restore theme if it was set
+            if (theme) {
+                localStorage.setItem('medp_theme', theme);
+            }
+
+            // Clear sessionStorage
+            try {
+                sessionStorage.clear();
+            } catch (e) {
+                // Silent fail
+            }
+
+            setProgress(100);
+
+            // Try to restore from cloud if online
+            if (isOnline && pharmacyName) {
+                try {
+                    const client = getSupabaseClient();
+                    if (client) {
+                        const pulled = await pullFromSupabaseToLocal(pharmacyName);
+                        if (pulled) {
+                            setStep('complete');
+                            setProgress(100);
+                            if (onTriggerSync) {
+                                onTriggerSync();
+                            }
+                            setIsEmergencyClearing(false);
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    // Continue to complete even if restore fails
+                }
+            }
+
+            setStep('complete');
+            setIsEmergencyClearing(false);
+
+        } catch (error: any) {
+            setStep('error');
+            setErrorMessage(error.message || 'An unexpected error occurred during the emergency clear.');
+            setIsEmergencyClearing(false);
+        }
+    };
 
     const handleVerifyAndReset = async () => {
         // Require verification code for security
@@ -256,6 +373,7 @@ export const HardResetView: React.FC<HardResetViewProps> = ({
 
     const renderConfirmStep = () => (
         <div className="space-y-6">
+            {/* Main Reset Section - Keep as is */}
             <div className={`p-6 rounded-2xl border-2 border-red-500/30 bg-red-500/10 ${cardBg}`}>
                 <div className="flex items-center gap-4 mb-4">
                     <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
@@ -389,6 +507,111 @@ export const HardResetView: React.FC<HardResetViewProps> = ({
             <p className={`text-[10px] text-center ${textMuted} pt-2`}>
                 This action cannot be undone. All unsynced data will be lost.
             </p>
+
+            {/* --- NEW EMERGENCY CLEAR SECTION --- */}
+            <div className="mt-8 pt-6 border-t border-slate-700/50">
+                <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 text-amber-400" />
+                    <h3 className={`text-sm font-bold ${textTitle}`}>Emergency Data Clear</h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400`}>
+                        Bypass Sync
+                    </span>
+                </div>
+
+                <p className={`text-xs ${textMuted} mb-4`}>
+                    Use this only when sync is broken and you cannot perform a normal reset.
+                    This will clear all data without checking sync status.
+                </p>
+
+                <button
+                    onClick={() => setShowEmergencyClear(!showEmergencyClear)}
+                    className={`w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 ${isDark
+                        ? 'hover:bg-[#21262d] text-slate-400 border border-slate-700/50'
+                        : 'hover:bg-gray-100 text-gray-600 border border-gray-200'
+                        }`}
+                >
+                    <HelpCircle className="w-4 h-4" />
+                    <span>Show Emergency Clear Options</span>
+                </button>
+
+                {showEmergencyClear && (
+                    <div className="mt-4 p-4 rounded-xl bg-red-500/5 border-2 border-red-500/30">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                                <AlertCircle className="w-5 h-5 text-red-400" />
+                            </div>
+                            <div>
+                                <p className={`text-sm font-bold text-red-400`}>Emergency Clear</p>
+                                <p className={`text-xs ${textMuted}`}>
+                                    Bypasses all sync checks - contact support for the code
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                <Phone className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                <div>
+                                    <p className={`text-xs font-medium text-amber-400`}>
+                                        Contact Pharmienta Support
+                                    </p>
+                                    <p className={`text-[10px] ${textMuted}`}>
+                                        WhatsApp: 0717517371 • Request emergency code
+                                    </p>
+                                </div>
+                            </div>
+
+                            <input
+                                type="password"
+                                value={emergencyCode}
+                                onChange={(e) => {
+                                    setEmergencyCode(e.target.value.toUpperCase());
+                                    setEmergencyError('');
+                                }}
+                                placeholder="Enter emergency code"
+                                className={`w-full px-4 py-3 rounded-xl text-sm font-mono ${touchTarget} ${isDark
+                                    ? 'bg-[#0d1117] border-[#30363d] text-[#f0f6fc] focus:border-red-500'
+                                    : 'bg-gray-50 border-gray-300 text-[#1f2328] focus:border-red-500'
+                                    } border focus:outline-none transition-colors`}
+                                autoComplete="off"
+                                maxLength={20}
+                            />
+
+                            {emergencyError && (
+                                <p className="text-xs text-red-400">{emergencyError}</p>
+                            )}
+
+                            <button
+                                onClick={handleEmergencyClear}
+                                disabled={emergencyCode !== EMERGENCY_CODE || isEmergencyClearing}
+                                className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-all ${touchTarget} ${emergencyCode === EMERGENCY_CODE && !isEmergencyClearing
+                                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30'
+                                    : 'bg-gray-600 cursor-not-allowed text-gray-400'
+                                    } flex items-center justify-center gap-2`}
+                            >
+                                {isEmergencyClearing ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <span>Clearing Data...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-5 h-5" />
+                                        <span>Clear All Data (Emergency)</span>
+                                    </>
+                                )}
+                            </button>
+
+                            <div className={`p-3 rounded-xl bg-red-500/10 border border-red-500/20`}>
+                                <p className={`text-[10px] text-center ${textMuted}`}>
+                                    Warning: This will clear all local data without syncing.
+                                    Any unsynced changes will be permanently lost.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 
@@ -563,6 +786,10 @@ export const HardResetView: React.FC<HardResetViewProps> = ({
                         setErrorMessage('');
                         setVerificationCode('');
                         setVerificationError('');
+                        setEmergencyCode('');
+                        setEmergencyError('');
+                        setShowEmergencyClear(false);
+                        setIsEmergencyClearing(false);
                     }}
                     className={`flex-1 py-3.5 px-6 rounded-xl font-bold text-sm transition-all ${touchTarget} ${isDark
                         ? 'bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9]'

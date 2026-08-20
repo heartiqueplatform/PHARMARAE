@@ -4,7 +4,7 @@ import {
     Shield, Lock, Key, User, Trash2,
     AlertCircle, CheckCircle2, Loader2,
     ArrowLeft, Mail, Phone, UserCheck,
-    Eye, EyeOff, Save, X
+    Eye, EyeOff, Save, X, Crown, UserMinus
 } from 'lucide-react';
 import { Profile } from '../../types';
 
@@ -110,7 +110,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
             await onChangePin(pinData);
             setShowPinModal(false);
             setPinData({ currentPin: '', newPin: '', confirmPin: '' });
-            alert('✅ PIN changed successfully!');
+            alert('PIN changed successfully!');
         } catch (err: any) {
             alert('Error: ' + (err.message || 'Failed to change PIN'));
         } finally {
@@ -144,7 +144,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
             await onChangePassword(passwordData);
             setShowPasswordModal(false);
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-            alert('✅ Password changed successfully!');
+            alert('Password changed successfully!');
         } catch (err: any) {
             alert('Error: ' + (err.message || 'Failed to change password'));
         } finally {
@@ -180,7 +180,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                 setShowDeleteModal(false);
                 setDeleteConfirmText('');
                 setSelectedStaffId(null);
-                alert('✅ Staff member removed successfully!');
+                alert('Staff member removed successfully!');
             }
         } catch (err: any) {
             alert('Error: ' + (err.message || 'Failed to delete account'));
@@ -220,14 +220,24 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                 <div>
                     <h2 className={`text-base font-extrabold flex items-center gap-2 ${textTitle}`}>
                         <Shield className="w-5 h-5 text-[#2ea043]" />
-                        <span>Security & Account Management</span>
+                        <span>Security and Account Management</span>
                     </h2>
                     <p className={`text-xs mt-0.5 ${textMuted}`}>
                         Manage your PIN, password, and account settings securely.
                     </p>
                 </div>
-                <div className={`text-xs px-3 py-1.5 rounded-full ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'} ${textMuted}`}>
-                    {isOwner ? '👑 Owner' : '🛡️ Staff'}
+                <div className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'} ${textMuted}`}>
+                    {isOwner ? (
+                        <>
+                            <Crown className="w-3 h-3 text-amber-400" />
+                            <span>Owner</span>
+                        </>
+                    ) : (
+                        <>
+                            <Shield className="w-3 h-3 text-blue-400" />
+                            <span>Staff</span>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -327,7 +337,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                             <div>
                                 <p className="font-bold text-sm text-rose-500">Delete My Account</p>
                                 <p className={`text-[11px] ${textMuted}`}>Permanently delete your account</p>
-                                <p className={`text-[10px] mt-0.5 text-rose-400`}>⚠️ This cannot be undone</p>
+                                <p className={`text-[10px] mt-0.5 text-rose-400`}>Warning: Cannot be undone</p>
                             </div>
                         </div>
                     </button>
@@ -348,12 +358,12 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                         >
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center flex-shrink-0">
-                                    <User className="w-6 h-6 text-rose-500" />
+                                    <UserMinus className="w-6 h-6 text-rose-500" />
                                 </div>
                                 <div>
                                     <p className="font-bold text-sm text-rose-500">Remove Staff</p>
                                     <p className={`text-[11px] ${textMuted}`}>Remove a staff member ({staffList.length})</p>
-                                    <p className={`text-[10px] mt-0.5 text-rose-400`}>⚠️ Owner only</p>
+                                    <p className={`text-[10px] mt-0.5 text-rose-400`}>Owner only</p>
                                 </div>
                             </div>
                         </button>
@@ -626,7 +636,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
 
                         <div className={`p-3 rounded-xl mb-4 ${isDark ? 'bg-rose-950/20 border border-rose-500/20' : 'bg-rose-50 border border-rose-200'}`}>
                             <p className={`text-xs ${textMuted}`}>
-                                <span className="font-bold text-rose-500">⚠️ Warning:</span>
+                                <span className="font-bold text-rose-500">Warning:</span>
                                 {deleteTarget === 'self'
                                     ? ' All your data, including sales, stock movements, and audit logs will be permanently removed.'
                                     : ` All data associated with ${selectedStaffId ? getStaffName(selectedStaffId) : 'this staff member'} will be removed.`

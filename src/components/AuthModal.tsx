@@ -558,7 +558,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           </h2>
           <p className={`text-[11px] ${textSecondary} flex items-center justify-center gap-1.5 flex-wrap`}>
             {showSupabaseConfig
-              ? 'Configure your Supabase Cloud Database'
+              ? 'Configure your Pharmienta Cloud Database'
               : mode === 'register'
                 ? 'Create your Pharmacy Account'
                 : 'Sign in with PIN or Email'}
@@ -582,20 +582,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
         >
           <div className="flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Supabase Cloud</span>
+            <span>Pharmienta Cloud</span>
           </div>
           <span className={`text-[9px] px-2 py-0.5 rounded-full border ${creds.url && !creds.url.includes('your-supabase-project')
             ? isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/80' : 'text-emerald-700 bg-emerald-100 border-emerald-200'
             : isDark ? 'text-amber-400 bg-amber-950/80 border-amber-800/80' : 'text-amber-700 bg-amber-100 border-amber-200'
             }`}>
-            {creds.url && !creds.url.includes('your-supabase-project') ? '✅' : '⚠️'}
+            {creds.url && !creds.url.includes('your-supabase-project') ? 'Configured' : 'Not Configured'}
           </span>
         </button>
 
         {showSupabaseConfig ? (
           <form onSubmit={handleSaveSupabase} className={`space-y-2.5 text-[11px] ${isDark ? 'bg-slate-950/60' : 'bg-slate-50'} p-3 rounded-xl ${borderColor} border`}>
             <div>
-              <label className={`block ${textSecondary} mb-1 font-medium`}>Supabase URL</label>
+              <label className={`block ${textSecondary} mb-1 font-medium`}>Pharmienta Cloud URL</label>
               <input
                 type="url"
                 required
@@ -985,7 +985,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
         <div className={`text-[10px] ${textMuted} text-center border-t ${borderColor} pt-2.5 flex items-center justify-center gap-1.5 flex-wrap`}>
           <ShieldCheck className="w-3 h-3 text-emerald-500" />
-          <span>Supabase Auth • Offline First</span>
+          <span>Pharmienta Auth • Offline First</span>
           <span className={`w-0.5 h-0.5 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></span>
           <span className="text-[9px]">v2.0</span>
         </div>
