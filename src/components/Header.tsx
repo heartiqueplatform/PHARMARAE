@@ -211,7 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
           <img
             src={profile.avatar_url}
             alt={profile.full_name || 'Profile'}
-            className={`${sizes[size]} rounded-full object-cover ring-2 ${isDark ? 'ring-white/10' : 'ring-black/5'
+            className={`${sizes[size]} rounded-full object-cover ring-4 ${isDark ? 'ring-emerald-400/30' : 'ring-emerald-500/30'
               }`}
           />
         ) : (
@@ -306,20 +306,14 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'All changes synced'
                 : 'Offline — changes will sync when connection returns'
             }
-            className={`group relative flex h-10 shrink-0 items-center justify-center rounded-xl border px-2.5 transition-all duration-200 disabled:cursor-wait sm:px-3 ${control}`}
+            className={`group relative flex h-10 shrink-0 items-center justify-center rounded-xl px-2.5 transition-all duration-200 disabled:cursor-wait sm:px-3 hover:opacity-80`}
           >
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-lg ${isOnline
                 ? syncPendingCount > 0
-                  ? isDark
-                    ? 'bg-amber-400/10 text-amber-400'
-                    : 'bg-amber-50 text-amber-600'
-                  : isDark
-                    ? 'bg-emerald-400/10 text-emerald-400'
-                    : 'bg-emerald-50 text-emerald-600'
-                : isDark
-                  ? 'bg-rose-400/10 text-rose-400'
-                  : 'bg-rose-50 text-rose-600'
+                  ? 'text-amber-400'
+                  : 'text-emerald-400'
+                : 'text-rose-400'
                 }`}
             >
               {isSyncing ? (
@@ -367,7 +361,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setShowProfileMenu((value) => !value)}
               aria-expanded={showProfileMenu}
               aria-haspopup="menu"
-              className={`flex h-10 items-center gap-2 rounded-xl border p-1 transition-all duration-200 sm:h-11 sm:pl-1.5 sm:pr-2 ${control}`}
+              className={`flex h-10 items-center gap-2 rounded-xl p-1 transition-all duration-200 sm:h-11 sm:pl-1.5 sm:pr-2 hover:opacity-80`}
             >
               <Avatar profile={currentProfile} size="sm" online={isOnline} />
 

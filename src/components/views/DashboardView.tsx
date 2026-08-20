@@ -4,7 +4,8 @@ import { Pharmacy, Profile, UserRole, Sale, Product, ProductBatch, RequestedItem
 import {
   ShoppingBag, PlusCircle, Package, FileText, AlertTriangle,
   Clock, ArrowRight, TrendingUp, CheckCircle2, Undo2, List,
-  Brain, BarChart3, PieChart, LineChart, Sparkles // Added for BI
+  Brain, BarChart3, PieChart, LineChart, Sparkles, // Added for BI
+  ShoppingCart
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -194,6 +195,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {isLoading ? (
           // Show 7 skeleton metrics
           <>
+          // In the skeleton metrics section (around line 170)
+            <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
@@ -328,6 +331,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </p>
               </div>
             </button>
+            {/* Orders Metric - Shows items needing reorder */}
+            <button
+              onClick={() => onNavigate('orders')}
+              className={`text-left rounded-2xl p-3.5 transition-colors ${cardBg} ${cardHover}`}
+            >
+              <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
+                <span>Need Reorder</span>
+                <ShoppingCart className={`w-4 h-4 ${lowStockProducts.length > 0 ? 'text-[#f0883e]' : textMuted}`} />
+              </div>
+              <p className={`text-lg sm:text-xl font-extrabold ${lowStockProducts.length > 0 ? 'text-[#f0883e]' : textTitle}`}>
+                {lowStockProducts.length}
+              </p>
+              <p className={`text-[10px] mt-1 ${textMuted}`}>
+                {lowStockProducts.length > 0
+                  ? `${lowStockProducts.filter(p => (p.quantity || 0) <= 5).length} critical`
+                  : 'All stocks healthy'}
+              </p>
+            </button>
           </>
         )}
       </div>
@@ -397,7 +418,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
           </button>
-
+          {/* 🆕 Smart Orders Quick Action */}
+          <button
+            onClick={() => onNavigate('orders')}
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#f0883e]/15 hover:bg-[#f0883e]/25 border border-[#f0883e]/30 text-[#f0883e] font-bold text-xs transition-colors"
+          >
+            <FileText className="w-5 h-5 shrink-0" />
+            <div className="text-left">
+              <div className="font-extrabold flex items-center gap-1.5">
+                ORDERS
+                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#f0883e]/20 text-[#f0883e] border border-[#f0883e]/30">
+                  SMART
+                </span>
+              </div>
+              <div className="text-[10px] opacity-80 font-normal">
+                Supplier orders
+              </div>
+            </div>
+          </button>
           {/* 🆕 Business Intelligence Quick Action */}
           <button
             onClick={() => onNavigate('intelligence')}

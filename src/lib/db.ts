@@ -535,9 +535,9 @@ export class MedPDatabase extends Dexie {
     // lib/db.ts - Update VERSION 9 schema
 
     // =============================================
-    // VERSION 10: Performance optimizations + ADD sale_id
+    // VERSION 11: Add entity_type+payload.id index to sync_queue
     // =============================================
-    this.version(10).stores({
+    this.version(11).stores({
       profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at, [pharmacy_name+role], [pharmacy_name+is_active]',
       categories: 'id, pharmacy_name, name, active, [pharmacy_name+name]',
       units: 'id, pharmacy_name, name, abbreviation, [pharmacy_name+name]',
@@ -548,7 +548,7 @@ export class MedPDatabase extends Dexie {
       purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
       purchase_items: 'id, purchase_id, product_id, batch_id',
       customers: 'id, pharmacy_name, name, phone, created_at, [pharmacy_name+name]',
-      sales: 'id, pharmacy_name, sale_id, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at, [pharmacy_name+sale_date], [pharmacy_name+product_id], [pharmacy_name+status]',  // ✅ ADDED sale_id
+      sales: 'id, pharmacy_name, sale_id, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at, [pharmacy_name+sale_date], [pharmacy_name+product_id], [pharmacy_name+status]',
       payments: 'id, pharmacy_name, sale_id, method, status',
       stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at, [pharmacy_name+product_id], [pharmacy_name+created_at]',
       stocktakes: 'id, pharmacy_name, status, started_at',
@@ -559,14 +559,13 @@ export class MedPDatabase extends Dexie {
       audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type]',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id]',  // ✅ ADDED the missing index
       push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]',
-
-      // ✅ ADD NEW TABLES
       suppliers_partnership_requests: 'id, pharmacy_name, supplier_id, status, [pharmacy_name+status], [pharmacy_name+supplier_id]',
       suppliers_orders: 'id, pharmacy_name, supplier_id, order_number, status, order_date, [pharmacy_name+status], [pharmacy_name+supplier_id], [pharmacy_name+order_date]',
       suppliers_order_items: 'id, order_id, product_id, item_status, [order_id+product_id]',
     }).upgrade(async (tx) => {
+      // The existing upgrade code from version 10 stays the same
       try {
         // ✅ ADD: Migrate existing sales to include sale_id
         const sales = await tx.table('sales').toArray();

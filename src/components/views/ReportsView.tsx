@@ -36,7 +36,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const currency = pharmacy?.currency || 'KSh';
   const isDark = theme === 'dark';
 
-  // Base card styles
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
@@ -53,12 +52,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
   const [expandedMultiSales, setExpandedMultiSales] = useState<Set<string>>(new Set());
 
-  // Filter state
   const [filterText, setFilterText] = useState<string>('');
   const [filterField, setFilterField] = useState<'customer' | 'product' | 'payment' | 'all'>('all');
   const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
 
-  // Edit state with paymentMethod
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
     quantity: number;
@@ -67,22 +64,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     paymentMethod: string;
   }>({ quantity: 1, unitPrice: 0, discount: 0, paymentMethod: 'cash' });
 
-  // Date pickers
+  const [stockWarning, setStockWarning] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
   const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [monthlyPeriod, setMonthlyPeriod] = useState<string>(new Date().toISOString().substring(0, 7));
   const [multiDate, setMultiDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // Return modal
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [returnReason, setReturnReason] = useState<string>('Customer returned item');
 
-  // Force re-render key when sales data changes
   const [renderKey, setRenderKey] = useState(0);
-
 
   if (!pharmacy) return null;
 
-  // Helper: Get product details from sale
   const getSaleProductDetails = (sale: Sale) => {
     return {
       productName: sale.product_name || 'Unknown Product',
@@ -96,7 +91,31 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     };
   };
 
-  // Filter function for sales
+  const validateQuantity = (sale: Sale, newQuantity: number): { valid: boolean; message: string; maxAllowed: number } => {
+    const product = products.find(p => p.id === sale.product_id);
+    if (!product) {
+      return { valid: true, message: '', maxAllowed: Infinity };
+    }
+
+    const currentStock = product.quantity || 0;
+    const originalQuantity = sale.quantity || 0;
+    const maxAllowed = currentStock + originalQuantity;
+
+    if (newQuantity > maxAllowed) {
+      return {
+        valid: false,
+        message: `Only ${currentStock} units available in stock. You can adjust up to ${maxAllowed} units.`,
+        maxAllowed
+      };
+    }
+
+    if (newQuantity < 0) {
+      return { valid: false, message: 'Quantity cannot be negative.', maxAllowed };
+    }
+
+    return { valid: true, message: '', maxAllowed };
+  };
+
   const applyFilters = (salesList: Sale[]): Sale[] => {
     if (!filterText.trim()) return salesList;
 
@@ -127,9 +146,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   };
 
-  // Start editing a sale
   const startEditing = (sale: Sale) => {
     setEditingSaleId(sale.id);
+    setStockWarning(null);
+    setIsSaving(false);
+
+    const product = products.find(p => p.id === sale.product_id);
+    if (product) {
+      const currentStock = product.quantity || 0;
+      const originalQty = sale.quantity || 0;
+      const maxAllowed = currentStock + originalQty;
+
+      if (sale.quantity >= maxAllowed) {
+        setStockWarning(`Stock is fully allocated. You can only reduce quantity.`);
+      }
+    }
+
     setEditValues({
       quantity: sale.quantity || 1,
       unitPrice: sale.unit_price || 0,
@@ -138,30 +170,83 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   };
 
-  // Cancel editing
   const cancelEditing = () => {
     setEditingSaleId(null);
+    setStockWarning(null);
+    setIsSaving(false);
     setEditValues({ quantity: 1, unitPrice: 0, discount: 0, paymentMethod: 'cash' });
   };
 
-  // Save edited sale
   const saveEditing = async (sale: Sale) => {
-    if (!onUpdateSale) return;
+    if (!onUpdateSale || isSaving) return;
 
     try {
-      const newSubtotal = editValues.quantity * editValues.unitPrice;
-      const newTotal = Math.max(0, newSubtotal - editValues.discount);
+      setIsSaving(true);
+
+      let quantity = Number(editValues.quantity) || 0;
+      let unitPrice = Number(editValues.unitPrice) || 0;
+      let discount = Number(editValues.discount) || 0;
+
+      quantity = Math.max(0, quantity);
+      unitPrice = Math.max(0, unitPrice);
+      discount = Math.max(0, discount);
+
+      const product = products.find(p => p.id === sale.product_id);
+
+      if (product) {
+        const currentStock = product.quantity || 0;
+        const originalQuantity = sale.quantity || 0;
+        const maxAllowedQuantity = currentStock + originalQuantity;
+
+        if (quantity > maxAllowedQuantity) {
+          alert(
+            `Cannot set quantity to ${quantity}. Available stock: ${currentStock} units.\n` +
+            `You sold ${originalQuantity} units, so you can adjust up to ${maxAllowedQuantity} total.`
+          );
+          quantity = maxAllowedQuantity;
+          setEditValues(prev => ({ ...prev, quantity: maxAllowedQuantity }));
+          setIsSaving(false);
+          return;
+        }
+
+        if (quantity === 0) {
+          const confirmZero = window.confirm(
+            `Are you sure you want to set quantity to 0? This will remove the item from this sale.`
+          );
+          if (!confirmZero) {
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+
+      const newSubtotal = quantity * unitPrice;
+
+      if (discount > newSubtotal) {
+        discount = newSubtotal;
+        setEditValues(prev => ({ ...prev, discount }));
+      }
+
+      const roundedSubtotal = Math.round(newSubtotal * 100) / 100;
+      const roundedDiscount = Math.round(discount * 100) / 100;
+      const roundedTotal = Math.round((newSubtotal - discount) * 100) / 100;
+
+      if (isNaN(roundedSubtotal) || isNaN(roundedTotal) || roundedSubtotal < 0 || roundedTotal < 0) {
+        throw new Error('Invalid calculation resulted in NaN or negative value');
+      }
 
       await onUpdateSale(sale.id, {
-        quantity: editValues.quantity,
-        unit_price: editValues.unitPrice,
-        subtotal: newSubtotal,
-        discount: editValues.discount,
-        total: newTotal,
+        quantity: quantity,
+        unit_price: unitPrice,
+        subtotal: roundedSubtotal,
+        discount: roundedDiscount,
+        total: roundedTotal,
         payment_method: editValues.paymentMethod as any,
       });
 
       setEditingSaleId(null);
+      setStockWarning(null);
+      setIsSaving(false);
       setEditValues({ quantity: 1, unitPrice: 0, discount: 0, paymentMethod: 'cash' });
 
       if (onRefresh) {
@@ -169,13 +254,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       }
     } catch (error) {
       console.error('Failed to update sale:', error);
-      alert('Failed to update sale. Please try again.');
+      alert(`Failed to update sale: ${error instanceof Error ? error.message : 'Please check your values and try again.'}`);
+      setIsSaving(false);
     }
   };
 
-  // =============================================
-  // FIXED: Helper: Group sales by sale_number to get multi-item receipts
-  // =============================================
   const getGroupedSales = (salesList: Sale[]) => {
     const groups: Record<string, {
       sale_number: string;
@@ -197,30 +280,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           sale_number: sale.sale_number,
           customer_name: sale.customer_name || 'Guest',
           items: [],
-          total: 0,  // ✅ Initialize to 0
-          discount: 0,  // ✅ Initialize to 0
-          subtotal: 0,  // ✅ Initialize to 0
+          total: 0,
+          discount: 0,
+          subtotal: 0,
           payment_method: sale.payment_method || 'cash',
           sale_date: sale.sale_date || sale.created_at,
           created_at: sale.created_at,
         };
       }
 
-      // ✅ Add item to group
       groups[groupKey].items.push(sale);
-
-      // ✅ SUM the totals (not just set)
       groups[groupKey].total += sale.total || 0;
       groups[groupKey].subtotal += sale.subtotal || 0;
-
-      // ✅ SUM the discount (each item might have discount applied)
       groups[groupKey].discount += sale.discount || 0;
-
-      // ✅ Use the first item's payment method as the group payment method
-      // (or keep the last one - consistent for the sale)
       groups[groupKey].payment_method = sale.payment_method || groups[groupKey].payment_method;
 
-      // ✅ Use the earliest date for the group
       const saleDate = sale.sale_date || sale.created_at;
       if (saleDate && (!groups[groupKey].sale_date || saleDate < groups[groupKey].sale_date)) {
         groups[groupKey].sale_date = saleDate;
@@ -233,7 +307,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return Object.values(groups);
   };
 
-  // Filter Daily Sales
   const filteredDailySalesRaw = useMemo(() => {
     return sales.filter(s => {
       const date = s.sale_date || s.created_at;
@@ -249,7 +322,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return filteredDailySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredDailySales]);
 
-  // Filter Monthly Sales
   const filteredMonthlySalesRaw = useMemo(() => {
     return sales.filter(s => {
       const date = s.sale_date || s.created_at;
@@ -265,20 +337,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return filteredMonthlySales.reduce((acc, s) => acc + s.total, 0);
   }, [filteredMonthlySales]);
 
-  // =============================================
-  // FIXED: Filter Multi-Item Sales (grouped by sale_number)
-  // =============================================
   const filteredMultiSalesRaw = useMemo(() => {
-    // Get all sales for the selected date
     const salesForDate = sales.filter(s => {
       const date = s.sale_date || s.created_at;
       return date?.startsWith(multiDate);
     });
 
-    // Group them by sale_number
     const grouped = getGroupedSales(salesForDate);
-
-    // ✅ Return groups with more than 1 item (multi-item sales)
     return grouped.filter(group => group.items.length > 1);
   }, [sales, multiDate]);
 
@@ -318,12 +383,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return filteredMultiSales.reduce((acc, group) => acc + group.total, 0);
   }, [filteredMultiSales]);
 
-  // Apply filters to history sales
   const filteredHistorySales = useMemo(() => {
     return applyFilters(sales);
   }, [sales, filterText, filterField]);
 
-  // Toggle expanded sale
   const toggleExpanded = (saleId: string) => {
     const newExpanded = new Set(expandedSales);
     if (newExpanded.has(saleId)) {
@@ -334,7 +397,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setExpandedSales(newExpanded);
   };
 
-  // Toggle expanded multi-item sale
   const toggleMultiExpanded = (saleNumber: string) => {
     const newExpanded = new Set(expandedMultiSales);
     if (newExpanded.has(saleNumber)) {
@@ -345,18 +407,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     setExpandedMultiSales(newExpanded);
   };
 
-  // Low stock products
   const lowStockProducts = useMemo(() => {
     return products.filter(p => (p.quantity || 0) <= p.reorder_level);
   }, [products]);
 
-  // Expiring batches
   const todayStr = new Date().toISOString().split('T')[0];
   const expiringBatches = useMemo(() => {
     return batches.filter(b => b.expiry_date <= todayStr && b.quantity_base > 0);
   }, [batches, todayStr]);
 
-  // Handle Daily PDF Download
   const handleDownloadDailyPdf = () => {
     generateDailyReportPdf(
       pharmacy,
@@ -368,7 +427,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // Handle Monthly PDF Download
   const handleDownloadMonthlyPdf = () => {
     generateMonthlyReportPdf(
       pharmacy,
@@ -379,7 +437,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // Handle Multi-Item Receipt Print
   const handlePrintMultiReceipt = (group: any) => {
     const items = group.items.map((sale: Sale) => ({
       id: sale.id,
@@ -401,14 +458,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     generateReceiptPdf(pharmacy, mainSale, items, 'print');
   };
 
-  // Handle Return Submit
   const handleReturnSubmit = async () => {
     if (!selectedSaleForReturn || !onProcessReturn) return;
     await onProcessReturn(selectedSaleForReturn.id, returnReason);
     setSelectedSaleForReturn(null);
   };
 
-  // Handle manual refresh
   const handleRefresh = async () => {
     if (onRefresh && !isSyncing) {
       await onRefresh();
@@ -416,14 +471,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
   };
 
-  // Clear filters
   const clearFilters = () => {
     setFilterText('');
     setFilterField('all');
     setShowFilterPanel(false);
   };
 
-  // Skeleton Components
   const SkeletonRow = ({ cols = 6 }) => (
     <tr className="animate-pulse">
       {Array.from({ length: cols }).map((_, i) => (
@@ -468,15 +521,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     </div>
   );
 
-  // Render a sale row with product details from the sale record
   const renderSaleRow = (sale: Sale) => {
     const isExpanded = expandedSales.has(sale.id);
     const productDetails = getSaleProductDetails(sale);
     const isEditing = editingSaleId === sale.id;
+    const product = products.find(p => p.id === sale.product_id);
+    const currentStock = product?.quantity || 0;
+    const originalQty = sale.quantity || 0;
+    const maxAllowed = currentStock + originalQty;
 
     return (
       <React.Fragment key={sale.id}>
-        {/* Main Sale Row */}
         <tr
           className={`transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
             }`}
@@ -499,15 +554,38 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <td className={`p-3 ${textMuted}`}>
             <span className="font-medium">{productDetails.productName}</span>
             {isEditing ? (
-              <div className="flex items-center gap-1 mt-1">
-                <input
-                  type="number"
-                  min="0"
-                  value={editValues.quantity}
-                  onChange={(e) => setEditValues({ ...editValues, quantity: Number(e.target.value) || 0 })}
-                  className={`w-14 text-center rounded px-2 py-1 text-sm ${inputBg} ${touchTargetSmall}`}
-                />
-                <span className="text-[11px] text-[#2ea043]">units</span>
+              <div className="flex flex-col gap-1 mt-1">
+                {product && (
+                  <div className={`text-[10px] ${stockWarning ? 'text-amber-400' : textMuted}`}>
+                    Stock: {currentStock} | Max: {maxAllowed}
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max={maxAllowed}
+                    value={editValues.quantity}
+                    onChange={(e) => {
+                      const newQuantity = Number(e.target.value) || 0;
+                      const validation = validateQuantity(sale, newQuantity);
+                      if (!validation.valid) {
+                        setStockWarning(validation.message);
+                      } else {
+                        setStockWarning(null);
+                      }
+                      setEditValues({ ...editValues, quantity: newQuantity });
+                    }}
+                    className={`w-14 text-center rounded px-2 py-1 text-sm ${inputBg} ${touchTargetSmall} ${stockWarning ? 'border-2 border-amber-500' : ''
+                      }`}
+                  />
+                  <span className="text-[11px] text-[#2ea043]">units</span>
+                </div>
+                {stockWarning && (
+                  <div className="text-[10px] text-amber-400 max-w-[200px]">
+                    {stockWarning}
+                  </div>
+                )}
               </div>
             ) : (
               <span className="text-[11px] text-[#2ea043] ml-1">(x{productDetails.quantity})</span>
@@ -567,13 +645,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <div className="flex items-center justify-end gap-1 sm:gap-2">
                 <button
                   onClick={() => saveEditing(sale)}
-                  className={`px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center min-w-[44px]`}
+                  disabled={isSaving}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center min-w-[44px] ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden sm:inline ml-1">Save</span>
+                  <span className="hidden sm:inline ml-1">{isSaving ? 'Saving...' : 'Save'}</span>
                 </button>
                 <button
                   onClick={cancelEditing}
+                  disabled={isSaving}
                   className={`px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-sm font-bold ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'} flex items-center justify-center min-w-[44px]`}
                 >
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -628,7 +708,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </td>
         </tr>
 
-        {/* Expanded Product Details Row */}
         {isExpanded && productDetails.productName && (
           <tr>
             <td colSpan={7} className="p-0">
@@ -698,9 +777,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // =============================================
-  // FIXED: Render a grouped multi-item sale row with correct totals
-  // =============================================
   const renderMultiSaleRow = (group: any) => {
     const isExpanded = expandedMultiSales.has(group.sale_number);
     const itemCount = group.items.length;
@@ -708,7 +784,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
     return (
       <React.Fragment key={group.sale_number}>
-        {/* Main Group Row */}
         <tr
           className={`transition-colors cursor-pointer ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
             }`}
@@ -781,7 +856,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </td>
         </tr>
 
-        {/* Expanded Items Details Row */}
         {isExpanded && (
           <tr>
             <td colSpan={7} className="p-0">
@@ -830,7 +904,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     );
                   })}
 
-                  {/* ✅ FIXED: Summary row with correct totals */}
                   <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 ${borderLine}`}>
                     <div>
                       <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Subtotal</p>
@@ -864,7 +937,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   };
 
-  // Filter UI Component
   const FilterUI = () => (
     <div className={`p-3 rounded-xl ${isDark ? 'bg-[#21262d]/80' : 'bg-[#f6f8fa]'}`}>
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -921,7 +993,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   return (
     <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
-      {/* Header */}
       <div className={`p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cardBg}`}>
         <div>
           <h2 className={`text-base font-extrabold flex items-center gap-2 ${textTitle}`}>
@@ -933,7 +1004,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </p>
         </div>
 
-        {/* Subtabs */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className={`flex p-1 rounded-xl text-sm font-bold gap-1 flex-wrap ${isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]'}`}>
             <button
@@ -969,10 +1039,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       </div>
 
-      {/* Daily Report View */}
       {activeReportTab === 'daily' && (
         <div className="space-y-4">
-          {/* Controls Bar */}
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
             <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
@@ -1005,14 +1073,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </div>
 
-          {/* Filter Panel */}
           {showFilterPanel && (
             <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
               <FilterUI />
             </div>
           )}
 
-          {/* Daily Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {isLoading ? (
               <>
@@ -1056,7 +1122,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             )}
           </div>
 
-          {/* Daily Transactions */}
           {isLoading ? (
             <SkeletonTable rows={5} cols={6} />
           ) : (
@@ -1099,7 +1164,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           )}
 
-          {/* Low Stock Alert */}
           {!isLoading && lowStockProducts.length > 0 && (
             <div className={`rounded-2xl p-4 ${isDark ? 'bg-amber-950/20' : 'bg-amber-50'}`}>
               <div className="flex items-center gap-2 text-amber-500">
@@ -1123,7 +1187,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* Monthly Audit View */}
       {activeReportTab === 'monthly' && (
         <div className="space-y-4">
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
@@ -1158,7 +1221,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </div>
 
-          {/* Filter Panel */}
           {showFilterPanel && (
             <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
               <FilterUI />
@@ -1208,7 +1270,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             )}
           </div>
 
-          {/* Top Products */}
           {isLoading ? (
             <SkeletonTable rows={5} cols={3} />
           ) : (
@@ -1277,7 +1338,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* Sales Log View */}
       {activeReportTab === 'history' && (
         <div className="space-y-4">
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
@@ -1305,7 +1365,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </button>
           </div>
 
-          {/* Filter Panel */}
           {showFilterPanel && (
             <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
               <FilterUI />
@@ -1361,10 +1420,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* Multi-Item Receipts View */}
       {activeReportTab === 'multi' && (
         <div className="space-y-4">
-          {/* Controls Bar */}
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
             <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
@@ -1396,14 +1453,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
           </div>
 
-          {/* Filter Panel */}
           {showFilterPanel && (
             <div className={`rounded-2xl overflow-hidden ${cardBg}`}>
               <FilterUI />
             </div>
           )}
 
-          {/* Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {isLoading ? (
               <>
@@ -1437,7 +1492,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             )}
           </div>
 
-          {/* Multi-Item Sales List */}
           {isLoading ? (
             <SkeletonTable rows={5} cols={6} />
           ) : (
@@ -1483,7 +1537,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* Return Modal */}
       {selectedSaleForReturn && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
           <div className={`rounded-2xl max-w-sm w-full p-4 shadow-2xl ${cardBg}`}>
@@ -1522,7 +1575,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
         </div>
       )}
-
     </div>
   );
 };

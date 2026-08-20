@@ -1,7 +1,7 @@
 // components/views/SmartOrderView.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../lib/db';
-import { queueOfflineMutation, getSupabaseClient, isSupabaseConfigured } from '../../lib/supabase';
+import { getSupabaseClient, isSupabaseConfigured } from '../../lib/supabase';
 import { normalizePharmacyName, genUUID } from '../../utils/helpers';
 import { Product, SupplierPartnershipRequest, SupplierOrder, SupplierOrderItem, ReorderRecommendation, SupplierAccount } from '../../types';
 
@@ -13,6 +13,12 @@ interface SmartOrderViewProps {
     products: Product[];
     theme: 'light' | 'dark';
     currency: string;
+    pharmacyPhone?: string;
+    pharmacyEmail?: string;
+    pharmacyAddress?: string;
+    pharmacyTown?: string;
+    pharmacyCounty?: string;
+    pharmacyPpbLicense?: string;
     onOrderPlaced?: () => void;
     onRefresh?: () => void;
 }
@@ -38,6 +44,12 @@ export function SmartOrderView({
     products,
     theme,
     currency,
+    pharmacyPhone = '',
+    pharmacyEmail = '',
+    pharmacyAddress = '',
+    pharmacyTown = 'Nairobi',
+    pharmacyCounty = 'Nairobi',
+    pharmacyPpbLicense = '',
     onOrderPlaced,
     onRefresh
 }: SmartOrderViewProps) {
@@ -95,6 +107,15 @@ export function SmartOrderView({
                 .equals(normalized)
                 .toArray();
             setOrders(ordersData);
+
+            // Clean up orphaned order items
+            const validOrderIds = ordersData.map(o => o.id);
+            if (validOrderIds.length > 0) {
+                await db.suppliers_order_items
+                    .where('order_id')
+                    .noneOf(validOrderIds)
+                    .delete();
+            }
 
             const itemsData = await db.suppliers_order_items.toArray();
             setOrderItems(itemsData);
@@ -383,10 +404,10 @@ export function SmartOrderView({
                 supplier_license_number: supplier.license_number || null,
                 pharmacy_id: pharmacyId,
                 pharmacy_name: normalizePharmacyName(pharmacyName),
-                pharmacy_email: '',
-                pharmacy_phone: '',
-                pharmacy_town: '',
-                pharmacy_county: '',
+                pharmacy_email: pharmacyEmail,
+                pharmacy_phone: pharmacyPhone,
+                pharmacy_town: pharmacyTown,
+                pharmacy_county: pharmacyCounty,
                 proposed_credit_limit: null,
                 proposed_payment_terms: 'Net 30 Days',
                 discount_offered_percent: null,
@@ -423,7 +444,6 @@ export function SmartOrderView({
             setSendingRequest(null);
         }
     };
-
     const handleConfirmOrder = async (orderId: string) => {
         if (!confirm('Confirm receipt of this order? This will add all items to your inventory.')) return;
 
@@ -442,7 +462,9 @@ export function SmartOrderView({
             }
 
             const items = orderItems.filter(item => item.order_id === orderId);
+            const normalizedPharmacyName = normalizePharmacyName(pharmacyName);
 
+            // Update order status
             const { error: orderError } = await client
                 .from('suppliers_orders')
                 .update({
@@ -468,25 +490,132 @@ export function SmartOrderView({
                 updated_at: new Date().toISOString()
             });
 
+            // Process each item - add stock as batches
             for (const item of items) {
-                const product = await db.products.get(item.product_id);
-                if (product) {
-                    const newQuantity = (product.quantity || 0) + item.accepted_quantity;
-                    await db.products.update(item.product_id, {
-                        quantity: newQuantity,
-                        updated_at: new Date().toISOString()
-                    });
+                try {
+                    // First, find or create the product
+                    let product = null;
 
-                    await client
-                        .from('products')
-                        .update({
-                            quantity: newQuantity,
+                    // Try to find by product_id if it exists
+                    if (item.product_id) {
+                        try {
+                            product = await db.products.get(item.product_id);
+                        } catch (err) {
+                            console.warn(`Product ${item.product_id} not found in local DB`);
+                        }
+                    }
+
+                    // If not found by ID, try to find by name
+                    if (!product) {
+                        try {
+                            const productsByName = await db.products
+                                .where('name')
+                                .equals(item.product_name)
+                                .and(p => p.pharmacy_name === normalizedPharmacyName)
+                                .toArray();
+
+                            if (productsByName.length > 0) {
+                                product = productsByName[0];
+                            }
+                        } catch (err) {
+                            console.warn('Could not find product by name:', err);
+                        }
+                    }
+
+                    // If product doesn't exist, create it
+                    if (!product) {
+                        const newProductId = genUUID();
+                        const newProduct = {
+                            id: newProductId,
+                            pharmacy_name: normalizedPharmacyName,
+                            name: item.product_name,
+                            selling_price: (item.unit_price || 0) * 1.3,
+                            default_cost_price: item.unit_price || 0,
+                            quantity: item.accepted_quantity,
+                            reorder_level: 10,
+                            low_stock_threshold: 5,
+                            is_active: true,
+                            product_type: 'medication',
+                            created_at: new Date().toISOString(),
                             updated_at: new Date().toISOString()
-                        })
-                        .eq('id', item.product_id);
+                        };
+
+                        const { error: createProductError } = await client
+                            .from('products')
+                            .insert(newProduct);
+
+                        if (!createProductError) {
+                            await db.products.put(newProduct);
+                            product = newProduct;
+                            console.log(`Created new product: ${product.name}`);
+                        } else {
+                            console.error('Failed to create product:', createProductError);
+                            continue;
+                        }
+                    }
+
+                    // Now create a batch entry for the received stock
+                    const batchId = genUUID();
+                    const batchNumber = `BATCH-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+                    const expiryDate = new Date();
+                    expiryDate.setFullYear(expiryDate.getFullYear() + 2);
+
+                    // FIX: Set supplier_id to null to avoid foreign key constraint
+                    const batchData = {
+                        id: batchId,
+                        product_id: product.id,
+                        supplier_id: null, // Set to null since the supplier might not exist in suppliers table
+                        batch_number: batchNumber,
+                        expiry_date: expiryDate.toISOString().split('T')[0],
+                        quantity_base: item.accepted_quantity,
+                        cost_price: item.unit_price || 0,
+                        selling_price: (item.unit_price || 0) * 1.3,
+                        received_at: new Date().toISOString(),
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                        pharmacy_name: normalizedPharmacyName
+                    };
+
+                    // Insert batch into Supabase
+                    const { error: batchError } = await client
+                        .from('product_batches')
+                        .insert(batchData);
+
+                    if (batchError) {
+                        console.error('Failed to create batch:', batchError);
+                    } else {
+                        // Save batch to IndexedDB
+                        if (db.product_batches) {
+                            await db.product_batches.put(batchData);
+                        }
+                        console.log(`Created batch: ${batchNumber} with ${item.accepted_quantity} units`);
+                    }
+
+                    // Update the product's total quantity
+                    const currentProduct = await db.products.get(product.id);
+                    if (currentProduct) {
+                        const newTotalQuantity = (currentProduct.quantity || 0) + item.accepted_quantity;
+                        await db.products.update(product.id, {
+                            quantity: newTotalQuantity,
+                            updated_at: new Date().toISOString()
+                        });
+
+                        await client
+                            .from('products')
+                            .update({
+                                quantity: newTotalQuantity,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', product.id)
+                            .eq('pharmacy_name', normalizedPharmacyName);
+                    }
+
+                } catch (err) {
+                    console.error(`Error processing item ${item.product_name}:`, err);
                 }
             }
 
+            // Refresh data
             const normalized = normalizePharmacyName(pharmacyName);
             const updatedOrders = await db.suppliers_orders
                 .where('pharmacy_name')
@@ -498,15 +627,16 @@ export function SmartOrderView({
             setShowOrderDetail(false);
             setSelectedOrder(null);
 
+            if (onRefresh) onRefresh();
             if (onOrderPlaced) onOrderPlaced();
-            alert('Order confirmed and stock updated successfully!');
+            alert('Order confirmed and stock added as batches successfully!');
         } catch (error: any) {
+            console.error('Order confirmation error:', error);
             alert('Failed to confirm order: ' + (error.message || 'Unknown error'));
         } finally {
             setConfirmingOrder(null);
         }
     };
-
     const handleCreateOrder = async () => {
         if (selectedProducts.size === 0) {
             alert('Please select at least one product');
@@ -528,7 +658,7 @@ export function SmartOrderView({
 
             const now = new Date().toISOString();
             const orderId = genUUID();
-            const orderNumber = `ORD-${Date.now().toString().slice(-8)}`;
+            const orderNumber = `ORD-${Date.now().toString().slice(-8)}-${Math.floor(Math.random() * 1000)}`;
 
             let subtotal = 0;
             const orderItemsData: SupplierOrderItem[] = [];
@@ -537,13 +667,72 @@ export function SmartOrderView({
                 const product = await db.products.get(productId);
                 if (!product) continue;
 
+                // Try to find or create product in suppliers_products
+                let supplierProductId = null;
+
+                try {
+                    // Check if product exists in suppliers_products
+                    const { data: existingProduct } = await client
+                        .from('suppliers_products')
+                        .select('id')
+                        .eq('name', product.name)
+                        .eq('supplier_id', selectedSupplier)
+                        .maybeSingle();
+
+                    if (existingProduct) {
+                        supplierProductId = existingProduct.id;
+                    } else {
+                        // Create product in suppliers_products with safe defaults
+                        const newProductId = genUUID();
+
+                        // Build the product data with fallbacks for missing fields
+                        const supplierProductData = {
+                            id: newProductId,
+                            supplier_id: selectedSupplier,
+                            name: product.name || 'Unknown Product',
+                            brand_name: product.brand || product.name || 'Unknown Brand',
+                            generic_name: product.generic_name || product.name || 'Unknown Generic',
+                            sku: product.sku || `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                            category: product.category_name || 'General Pharmaceuticals',
+                            dosage_form: product.form || 'Tablets',
+                            strength: product.strength || null,
+                            pack_size: 'Pack of 100',
+                            wholesale_price: product.selling_price || product.unit_price || 0,
+                            cost_price: product.default_cost_price || product.unit_price || 0,
+                            min_order_qty: 1,
+                            manufacturer: product.manufacturer || 'Unknown Manufacturer',
+                            country_of_origin: 'Kenya',
+                            is_active: true,
+                            storage_condition: 'ambient',
+                            ppb_registration_no: null,
+                            created_at: now,
+                            updated_at: now
+                        };
+
+                        const { error: createError } = await client
+                            .from('suppliers_products')
+                            .insert(supplierProductData);
+
+                        if (!createError) {
+                            supplierProductId = newProductId;
+                            console.log(`Created supplier product: ${product.name}`);
+                        } else {
+                            console.error('Failed to create supplier product:', createError);
+                            // If creation fails, we'll still create the order item with null product_id
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Could not create supplier product:', err);
+                    // Continue with null product_id
+                }
+
                 const unitPrice = product.unit_price || 0;
                 const totalPrice = unitPrice * quantity;
 
                 const item: SupplierOrderItem = {
                     id: genUUID(),
                     order_id: orderId,
-                    product_id: productId,
+                    product_id: supplierProductId, // Will be null if creation failed
                     product_name: product.name,
                     requested_quantity: quantity,
                     accepted_quantity: quantity,
@@ -557,7 +746,6 @@ export function SmartOrderView({
                 subtotal += totalPrice;
                 orderItemsData.push(item);
             }
-
             const deliveryFee = 0;
             const totalAmount = subtotal + deliveryFee;
 
@@ -567,34 +755,58 @@ export function SmartOrderView({
                 supplier_id: selectedSupplier,
                 pharmacy_id: pharmacyId,
                 pharmacy_name: normalizePharmacyName(pharmacyName),
+                pharmacy_contact_person: profileName || 'Superintendent Pharmacist',
+                pharmacy_phone: pharmacyPhone || '',
+                pharmacy_address: pharmacyAddress || '',
+                pharmacy_town: pharmacyTown || 'Nairobi',
+                pharmacy_county: pharmacyCounty || 'Nairobi',
+                pharmacy_email: pharmacyEmail || '',
+                pharmacy_ppb_license: pharmacyPpbLicense || '',
                 status: 'new',
                 order_date: now,
                 subtotal: subtotal,
+                tax_amount: 0,
                 delivery_fee: deliveryFee,
                 total_amount: totalAmount,
+                payment_terms: 'Net 30 Days',
+                payment_status: 'unpaid',
                 order_notes: orderNotes || '',
                 created_at: now,
                 updated_at: now,
-                delivery_info: null
+                delivery_info: null,
+                rejection_reason: null
             };
 
+            // Insert the order
             const { error: orderError } = await client
                 .from('suppliers_orders')
                 .insert(orderData);
 
-            if (orderError) throw orderError;
+            if (orderError) {
+                throw new Error(`Order creation failed: ${orderError.message}`);
+            }
 
+            // Insert all order items
             for (const item of orderItemsData) {
                 const { error: itemError } = await client
                     .from('suppliers_order_items')
                     .insert(item);
 
-                if (itemError) throw itemError;
+                if (itemError) {
+                    // If an item fails, delete the order to keep things clean
+                    await client
+                        .from('suppliers_orders')
+                        .delete()
+                        .eq('id', orderId);
+                    throw new Error(`Failed to add item: ${item.product_name} - ${itemError.message}`);
+                }
             }
 
+            // Save to IndexedDB
             await db.suppliers_orders.put(orderData);
             await db.suppliers_order_items.bulkPut(orderItemsData);
 
+            // Refresh data
             const normalized = normalizePharmacyName(pharmacyName);
             const updatedOrders = await db.suppliers_orders
                 .where('pharmacy_name')
@@ -612,6 +824,7 @@ export function SmartOrderView({
             if (onOrderPlaced) onOrderPlaced();
             alert(`Order ${orderNumber} created successfully!`);
         } catch (error: any) {
+            console.error('Order creation error:', error);
             alert('Failed to create order: ' + (error.message || 'Unknown error'));
         } finally {
             setIsCreatingOrder(false);
@@ -696,20 +909,12 @@ export function SmartOrderView({
                             Manage partnerships and orders
                         </p>
                     </div>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={isRefreshing}
-                        className={`p-2.5 rounded-full transition-all ${isRefreshing ? 'opacity-50' : ''} ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f0f2f5]'}`}
-                    >
-                        <svg className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </button>
+
                 </div>
             </div>
 
             {/* Tabs - Facebook style pill tabs */}
-            <div className={`sticky top-[56px] z-30 px-4 py-2 ${isDark ? 'bg-[#0d1117]' : 'bg-[#f0f2f5]'}`}>
+            <div className={`sticky -top-[56px] z-30 px-4 py-2 ${isDark ? 'bg-[#0d1117]' : 'bg-[#f0f2f5]'}`}>
                 <div className="flex gap-1 max-w-7xl mx-auto overflow-x-auto scrollbar-hide py-1">
                     <button
                         onClick={() => setActiveTab('partnerships')}
