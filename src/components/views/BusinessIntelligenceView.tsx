@@ -1045,6 +1045,7 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
             </div>
 
             {/* TEXTUAL SUMMARY - Full details with copy to clipboard */}
+            {/* TEXTUAL SUMMARY - Full details with copy to clipboard */}
             {filteredSales.length > 0 && (
                 <div className={`p-4 mx-2 rounded-2xl ${cardBg}`}>
                     <div className="flex items-center justify-between mb-3">
@@ -1074,14 +1075,13 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                             )}
                         </button>
                     </div>
-                    <div className={`p-4 rounded-xl ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} text-sm leading-relaxed`}>
-                        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} text-sm leading-relaxed overflow-x-auto`}>
+                        <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-w-full">
                             {generateDetailedSummary()}
                         </pre>
                     </div>
                 </div>
             )}
-
             {/* Quick Stats Footer - Edge to Edge */}
             <div className={`p-4 mx-0 rounded-2xl ${cardBg} ${isDark ? 'border-t border-[#30363d]' : 'border-t border-[#d0d7de]'}`}>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
