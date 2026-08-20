@@ -1,4 +1,4 @@
-// utils/biReportGenerator.ts - Fixed Layout Version
+// utils/biReportGenerator.ts - Fixed Layout Version with Detailed Summary
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -36,6 +36,7 @@ interface BIReportData {
         description: string;
         type: 'positive' | 'warning' | 'critical' | 'info';
     }>;
+    detailedSummary?: string; // Add this field
 }
 
 // Branding footer
@@ -47,7 +48,7 @@ const addFooter = (doc: jsPDF) => {
     doc.setFont('helvetica', 'italic');
 
     const footerTexts = [
-        'Powered by PHARMIENTA KENYA',
+        'Powered by Pharmienta Kenya',
         'For more info: pharmienta@gmail.com | 0717517371'
     ];
 
@@ -64,8 +65,8 @@ const addHeader = (doc: jsPDF, pharmacyName: string, period: string) => {
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
 
-    const pTitle = 'PHARM';
-    const rTitle = 'IENTA';
+    const pTitle = 'Pharm';
+    const rTitle = 'ienta';
     const pTitleWidth = doc.getTextWidth(pTitle);
     const rTitleWidth = doc.getTextWidth(rTitle);
     const startXTitle = 105 - ((pTitleWidth + rTitleWidth) / 2);
@@ -565,6 +566,81 @@ const addInsightsSection = (doc: jsPDF, data: BIReportData, startY: number) => {
     return y + 6;
 };
 
+// Add detailed summary section
+const addDetailedSummarySection = (doc: jsPDF, data: BIReportData, startY: number) => {
+    let y = startY;
+
+    // Check if we have a detailed summary
+    if (!data.detailedSummary) return y;
+
+    // Check if we need a new page
+    if (y > 180) { doc.addPage(); y = 20; }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 51, 102);
+    doc.text('DETAILED EXECUTIVE SUMMARY', 14, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0);
+
+    // Split the summary into lines
+    const summaryLines = data.detailedSummary.split('\n');
+
+    summaryLines.forEach((line) => {
+        if (y > 270) {
+            doc.addPage();
+            y = 20;
+            // Add section title on new page
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 51, 102);
+            doc.text('DETAILED EXECUTIVE SUMMARY (continued)', 14, y);
+            y += 6;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(0, 0, 0);
+        }
+
+        // Check if it's a section header (contains ':' or is all caps)
+        const isHeader = line.includes(':') || line === line.toUpperCase();
+        const isSeparator = line.startsWith('=') || line.startsWith('-');
+
+        if (isHeader && !isSeparator) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 51, 102);
+        } else if (isSeparator) {
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(150, 150, 150);
+        } else {
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(0, 0, 0);
+        }
+
+        // Handle indentation
+        const indent = line.startsWith('  ') ? 6 : 0;
+        const text = line.trim();
+
+        if (text) {
+            const splitLines = doc.splitTextToSize(text, 180 - indent);
+            splitLines.forEach((splitLine: string) => {
+                doc.text(splitLine, 14 + indent, y);
+                y += 4;
+            });
+        } else {
+            y += 2; // Empty line
+        }
+    });
+
+    // Reset text color and font
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+
+    return y + 6;
+};
+
 // Main export function
 export function generateBIReportPdf(data: BIReportData) {
     const doc = new jsPDF();
@@ -590,49 +666,8 @@ export function generateBIReportPdf(data: BIReportData) {
     // Insights
     y = addInsightsSection(doc, data, y);
 
-    // Executive Summary Box
-    if (y > 230) {
-        doc.addPage();
-        y = 20;
-    }
-
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.5);
-    doc.rect(14, y, 182, 40);
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 51, 102);
-    doc.text('EXECUTIVE SUMMARY', 20, y + 6);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-
-    const { metrics, currency, topProducts, paymentMethods } = data;
-    const topProduct = topProducts[0]?.name || 'N/A';
-    const topRevenue = topProducts[0]?.revenue || 0;
-
-    const summaryLines = [
-        `This report covers ${metrics.totalTransactions} transactions with total revenue of ${currency} ${metrics.totalRevenue.toLocaleString()}.`,
-        `The pharmacy sold ${metrics.totalItems} items across ${data.topProducts.length} products.`,
-        `Top product: "${topProduct}" with ${currency} ${topRevenue.toFixed(2)} in revenue.`,
-        `Average transaction value: ${currency} ${metrics.avgTransaction.toFixed(2)}.`,
-        `Profit margin: ${metrics.profitMargin.toFixed(1)}%.`,
-        `Payment methods: ${paymentMethods.map(p => p.method).join(', ')}.`,
-    ];
-
-    let lineY = y + 14;
-    summaryLines.forEach((line) => {
-        if (lineY > 250) { doc.addPage(); lineY = 20; }
-        const splitLines = doc.splitTextToSize(line, 175);
-        splitLines.forEach((splitLine: string) => {
-            doc.text(splitLine, 20, lineY);
-            lineY += 4.5;
-        });
-    });
-
-    y = lineY + 10;
+    // Detailed Summary
+    y = addDetailedSummarySection(doc, data, y);
 
     // Footer
     if (y > 270) {

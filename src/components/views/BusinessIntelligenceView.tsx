@@ -10,7 +10,7 @@ import {
     Target, Sparkles, Lightbulb,
     Star, Trophy,
     AlertTriangle, Info, Maximize2, Minimize2,
-    Activity
+    Activity, Copy, Check
 } from 'lucide-react';
 
 // Chart.js imports
@@ -83,6 +83,7 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
     const [showInsights, setShowInsights] = useState<boolean>(true);
     const [isExporting, setIsExporting] = useState<boolean>(false);
     const [chartView, setChartView] = useState<'revenue' | 'items' | 'both'>('both');
+    const [copied, setCopied] = useState<boolean>(false);
 
     // Date range
     const dateRange = useMemo(() => {
@@ -442,6 +443,174 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
         return list.slice(0, 8);
     }, [metrics, currency]);
 
+    // --- COPY TO CLIPBOARD ---
+    const handleCopySummary = async () => {
+        const summary = generateDetailedSummary();
+        try {
+            await navigator.clipboard.writeText(summary);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 3000);
+        } catch (err) {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = summary;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 3000);
+        }
+    };
+
+    // --- GENERATE DETAILED SUMMARY ---
+    const generateDetailedSummary = () => {
+        const { totalRevenue, totalItems, totalTransactions, avgTransaction, profitMargin, productStats, paymentStats, hourlyStats, totalDiscounts } = metrics;
+        const topProducts = Object.values(productStats).sort((a, b) => b.revenue - a.revenue);
+        const totalProducts = Object.keys(productStats).length;
+        const totalPaymentMethods = Object.keys(paymentStats).length;
+        const totalPaymentRevenue = Object.values(paymentStats).reduce((sum, d) => sum + d.revenue, 0);
+
+        const formatCurrency = (amount: number) => `${currency} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const formatNumber = (num: number) => num.toLocaleString();
+        const formatPercentage = (num: number) => num.toFixed(1);
+
+        const sections = [];
+
+        // Header
+        sections.push('='.repeat(70));
+        sections.push('BUSINESS INTELLIGENCE EXECUTIVE SUMMARY');
+        sections.push('='.repeat(70));
+        sections.push(`Pharmacy:           ${pharmacy?.name || 'Pharmacy'}`);
+        sections.push(`Analysis Period:    ${timeRange === 'all' ? 'All Time' : `Last ${timeRange.replace('d', ' Days')}`}`);
+        sections.push(`Report Generated:   ${new Date().toLocaleString()}`);
+        sections.push(`Transactions Analyzed: ${formatNumber(filteredSales.length)}`);
+        sections.push('='.repeat(70));
+        sections.push('');
+
+        // Section 1: Key Performance Metrics
+        sections.push('KEY PERFORMANCE METRICS');
+        sections.push('-'.repeat(70));
+        sections.push(`Total Revenue:            ${formatCurrency(totalRevenue)}`);
+        sections.push(`Total Items Sold:         ${formatNumber(totalItems)} units`);
+        sections.push(`Total Transactions:       ${formatNumber(totalTransactions)}`);
+        sections.push(`Average Transaction:      ${formatCurrency(avgTransaction)}`);
+        sections.push(`Average Items Per Sale:   ${totalTransactions > 0 ? (totalItems / totalTransactions).toFixed(1) : '0'} items`);
+        sections.push(`Profit Margin:            ${formatPercentage(profitMargin)}%`);
+        sections.push(`Total Discounts Given:    ${formatCurrency(totalDiscounts)}`);
+        sections.push(`Discount Rate:            ${totalRevenue > 0 ? ((totalDiscounts / totalRevenue) * 100).toFixed(1) : '0'}%`);
+        sections.push('');
+
+        // Section 2: Product Performance
+        sections.push('PRODUCT PERFORMANCE ANALYSIS');
+        sections.push('-'.repeat(70));
+        sections.push(`Unique Products Sold:     ${formatNumber(totalProducts)}`);
+        sections.push(`Product Diversity Score:  ${totalProducts > 0 ? (Math.min(totalProducts / 10 * 100, 100)).toFixed(0) : 0}%`);
+        sections.push('');
+
+        if (topProducts.length > 0) {
+            sections.push('Top 5 Best Selling Products:');
+            sections.push('');
+            topProducts.slice(0, 5).forEach((p, index) => {
+                const revenueShare = totalRevenue > 0 ? (p.revenue / totalRevenue) * 100 : 0;
+                const rank = ['1st', '2nd', '3rd', '4th', '5th'][index] || '•';
+                sections.push(`  ${rank}: ${p.name}`);
+                sections.push(`      Revenue:      ${formatCurrency(p.revenue)} (${formatPercentage(revenueShare)}% of total)`);
+                sections.push(`      Units Sold:   ${formatNumber(p.quantity)}`);
+                sections.push(`      Avg Price:    ${formatCurrency(p.revenue / p.quantity)}`);
+                sections.push('');
+            });
+        }
+
+        // Section 3: Payment Method Analysis
+        sections.push('PAYMENT METHOD BREAKDOWN');
+        sections.push('-'.repeat(70));
+        sections.push(`Payment Methods Used:     ${totalPaymentMethods}`);
+        sections.push('');
+        Object.entries(paymentStats)
+            .sort((a, b) => b[1].revenue - a[1].revenue)
+            .forEach(([method, data]) => {
+                const percentage = totalPaymentRevenue > 0 ? (data.revenue / totalPaymentRevenue) * 100 : 0;
+                const methodLabel = method.charAt(0).toUpperCase() + method.slice(1);
+                sections.push(`  ${methodLabel}:`);
+                sections.push(`      Revenue:      ${formatCurrency(data.revenue)} (${formatPercentage(percentage)}%)`);
+                sections.push(`      Transactions: ${formatNumber(data.count)}`);
+                sections.push(`      Avg Value:    ${formatCurrency(data.revenue / data.count)}`);
+                sections.push('');
+            });
+
+        // Section 4: Hourly & Time Analysis
+        sections.push('OPERATIONAL TIME ANALYSIS');
+        sections.push('-'.repeat(70));
+        const peakHours = Object.entries(hourlyStats)
+            .sort((a, b) => b[1].revenue - a[1].revenue);
+
+        if (peakHours.length > 0) {
+            const [peakHour, peakData] = peakHours[0];
+            const hourNum = parseInt(peakHour);
+            const peakHourStr = hourNum >= 12
+                ? `${hourNum === 0 ? 12 : hourNum - 12}:00 ${hourNum >= 12 ? 'PM' : 'AM'}`
+                : `${hourNum}:00 AM`;
+            sections.push(`Peak Business Hour:      ${peakHourStr}`);
+            sections.push(`  Transactions:           ${formatNumber(peakData.count)}`);
+            sections.push(`  Revenue:                ${formatCurrency(peakData.revenue)}`);
+            sections.push('');
+        }
+
+        // Section 5: Business Insights
+        if (insights.length > 0) {
+            sections.push('BUSINESS INSIGHTS & RECOMMENDATIONS');
+            sections.push('-'.repeat(70));
+            insights.forEach((i) => {
+                const typeLabel = i.type === 'positive' ? '[Positive]' :
+                    i.type === 'warning' ? '[Warning]' :
+                        i.type === 'critical' ? '[Critical]' : '[Info]';
+                sections.push(`${typeLabel} ${i.title}`);
+                sections.push(`   ${i.description}`);
+                sections.push('');
+            });
+        }
+
+        // Section 6: Recommendations
+        sections.push('STRATEGIC RECOMMENDATIONS');
+        sections.push('-'.repeat(70));
+
+        // Generate recommendations based on data
+        if (totalRevenue < 50000 && totalTransactions > 0) {
+            sections.push('  - Consider running promotional campaigns to boost revenue');
+        }
+        if (avgTransaction < 300) {
+            sections.push('  - Implement upselling and cross-selling strategies');
+        }
+        if (profitMargin < 15) {
+            sections.push('  - Review supplier pricing and negotiate better rates');
+        }
+        if (Object.keys(productStats).length < 10) {
+            sections.push('  - Expand product portfolio to attract more customers');
+        }
+        if (Object.keys(paymentStats).length < 2) {
+            sections.push('  - Add more payment options to improve customer convenience');
+        }
+        if (Object.keys(hourlyStats).length > 0) {
+            const peakHour = Object.entries(hourlyStats).sort((a, b) => b[1].revenue - a[1].revenue)[0];
+            const lowHour = Object.entries(hourlyStats).sort((a, b) => a[1].revenue - b[1].revenue)[0];
+            if (lowHour && peakHour && lowHour[1].revenue < peakHour[1].revenue * 0.3) {
+                sections.push('  - Consider special offers during slow hours to increase traffic');
+            }
+        }
+        if (sections[sections.length - 1] === 'STRATEGIC RECOMMENDATIONS') {
+            sections.push('  - Continue monitoring performance and maintain current strategies');
+        }
+
+        sections.push('');
+        sections.push('='.repeat(70));
+        sections.push(`Report generated from ${formatNumber(filteredSales.length)} transactions`);
+        sections.push(`Data freshness: ${new Date().toLocaleString()}`);
+        sections.push('='.repeat(70));
+
+        return sections.join('\n');
+    };
+
     // --- EXPORT ---
     const handleExportPDF = async () => {
         setIsExporting(true);
@@ -472,6 +641,7 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                 .map(([hour, data]) => ({ hour: parseInt(hour), ...data }))
                 .sort((a, b) => b.revenue - a.revenue);
 
+            // In handleExportPDF function, add this:
             const reportData = {
                 pharmacyName: pharmacy?.name || 'Pharmacy',
                 currency: currency,
@@ -492,7 +662,8 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                     title: i.title,
                     description: i.description,
                     type: i.type
-                }))
+                })),
+                detailedSummary: generateDetailedSummary() // Add this line
             };
 
             generateBIReportPdf(reportData);
@@ -615,42 +786,6 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
             <div className={`h-48 ${isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]'} rounded`}></div>
         </div>
     );
-
-    // Generate textual summary
-    const generateTextSummary = () => {
-        const { totalRevenue, totalItems, totalTransactions, avgTransaction, profitMargin, productStats, paymentStats } = metrics;
-        const topProducts = Object.values(productStats).sort((a, b) => b.revenue - a.revenue);
-        const totalProducts = Object.keys(productStats).length;
-        const totalPaymentMethods = Object.keys(paymentStats).length;
-
-        const summary = [
-            `Business Intelligence Report for ${pharmacy?.name || 'Pharmacy'}`,
-            `Period: ${timeRange === 'all' ? 'All Time' : timeRange.replace('d', ' Days')}`,
-            '',
-            'Key Metrics:',
-            `- Total Revenue: ${currency} ${totalRevenue.toLocaleString()}`,
-            `- Total Items Sold: ${totalItems.toLocaleString()}`,
-            `- Total Transactions: ${totalTransactions}`,
-            `- Average Transaction Value: ${currency} ${avgTransaction.toFixed(2)}`,
-            `- Profit Margin: ${profitMargin.toFixed(1)}%`,
-            '',
-            'Product Performance:',
-            `- ${totalProducts} unique products sold`,
-            `- Top Product: "${topProducts[0]?.name || 'N/A'}" with ${topProducts[0]?.quantity || 0} units sold`,
-            `- Top Product Revenue: ${currency} ${topProducts[0]?.revenue.toFixed(2) || '0.00'}`,
-            '',
-            'Payment Methods:',
-            `- ${totalPaymentMethods} payment methods used`,
-            ...Object.entries(paymentStats).map(([method, data]) =>
-                `- ${method.charAt(0).toUpperCase() + method.slice(1)}: ${data.count} transactions, ${currency} ${data.revenue.toFixed(2)}`
-            ),
-            '',
-            'Business Insights:',
-            ...insights.map(i => `- ${i.title}: ${i.description}`)
-        ];
-
-        return summary.join('\n');
-    };
 
     return (
         <div className="space-y-3 px-0 pb-20 md:pb-6">
@@ -909,15 +1044,40 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                 ) : null}
             </div>
 
-            {/* TEXTUAL SUMMARY - Full details in plain English */}
+            {/* TEXTUAL SUMMARY - Full details with copy to clipboard */}
             {filteredSales.length > 0 && (
                 <div className={`p-4 mx-2 rounded-2xl ${cardBg}`}>
-                    <h3 className={`font-bold text-sm mb-3 flex items-center gap-2 ${textTitle}`}>
-                        <Info className="w-4 h-4 text-[#2ea043]" />
-                        <span>Executive Summary</span>
-                    </h3>
-                    <div className={`p-3 rounded-xl ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} text-xs leading-relaxed whitespace-pre-wrap font-mono`}>
-                        {generateTextSummary()}
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className={`font-bold text-sm flex items-center gap-2 ${textTitle}`}>
+                            <Info className="w-4 h-4 text-[#2ea043]" />
+                            <span>Executive Summary</span>
+                        </h3>
+                        <button
+                            onClick={handleCopySummary}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${touchTargetSmall} ${copied
+                                ? 'bg-[#2ea043] text-white'
+                                : isDark
+                                    ? 'bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9]'
+                                    : 'bg-[#f6f8fa] hover:bg-[#e8eaed] text-[#1f2328]'
+                                }`}
+                        >
+                            {copied ? (
+                                <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Copied</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Copy to Clipboard</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} text-sm leading-relaxed`}>
+                        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                            {generateDetailedSummary()}
+                        </pre>
                     </div>
                 </div>
             )}
