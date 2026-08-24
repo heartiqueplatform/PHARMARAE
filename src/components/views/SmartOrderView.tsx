@@ -978,20 +978,22 @@ export function SmartOrderView({
             {/* Content */}
             <div className="px-4 py-4 max-w-7xl mx-auto pb-32">
                 {/* Partnerships Tab */}
+                {/* Partnerships Tab */}
                 {activeTab === 'partnerships' && (
                     <div>
-                        {partnerships.filter(p => p.status === 'pending').length === 0 && partnerships.length === 0 && (
+                        {/* Show empty state when NO partnerships exist at all (no pending, no accepted) */}
+                        {partnerships.length === 0 && (
                             <div className={`text-center py-16 rounded-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'}`}>
                                 <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
                                     <svg className="w-10 h-10 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
                                 </div>
-                                <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>No Partnership Requests</p>
-                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
-                                    You don't have any partnership requests yet.
+                                <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>No Partnerships Yet</p>
+                                <p className={`text-sm mt-2 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    You don't have any partnerships with suppliers yet.
                                 </p>
-                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
                                     Go to the <span className="font-bold text-emerald-500">Available</span> tab to find suppliers and send partnership requests.
                                 </p>
                                 <button
