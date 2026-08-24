@@ -279,12 +279,11 @@ export const PosView: React.FC<PosViewProps> = ({
   const handleConfirmSale = async () => {
     if (cart.length === 0) return;
 
-    playCompletionFeedback();
+    // Remove playCompletionFeedback() from here - sound only plays on checkout tap
     setIsSubmitting(true);
     setShowConfirmOverlay(false);
     setProcessingStatus('saving');
     setProcessingMessage('Saving sale locally...');
-
     try {
       // ✅ Ensure pharmacy_name is not null or undefined
       const safePharmacyName = pharmacyName || 'Unknown Pharmacy';

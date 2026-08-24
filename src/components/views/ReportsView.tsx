@@ -530,18 +530,64 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     const originalQty = sale.quantity || 0;
     const maxAllowed = currentStock + originalQty;
 
+    // Get avatar initials from customer name
+    // Get avatar initials from customer name
+    const getAvatarInitials = (name: string) => {
+      if (!name || name === 'Guest' || name === 'Cash Customer') {
+        return null; // Will show icon instead of initials
+      }
+      const parts = name.trim().split(' ');
+      if (parts.length >= 2) {
+        return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
+      }
+      return name.charAt(0).toUpperCase();
+    };
+    // Get avatar color based on customer name
+    // Get avatar color based on customer name
+    const getAvatarColor = (name: string) => {
+      if (!name || name === 'Guest' || name === 'Cash Customer') {
+        return isDark ? 'bg-[#21262d] text-[#8b949e]' : 'bg-[#f0f0f0] text-[#656d76]';
+      }
+      const colors = [
+        'bg-emerald-500/20 text-emerald-400',
+        'bg-blue-500/20 text-blue-400',
+        'bg-purple-500/20 text-purple-400',
+        'bg-pink-500/20 text-pink-400',
+        'bg-amber-500/20 text-amber-400',
+        'bg-cyan-500/20 text-cyan-400',
+        'bg-rose-500/20 text-rose-400',
+        'bg-indigo-500/20 text-indigo-400',
+      ];
+      // Use the name to pick a consistent color
+      const index = name.length % colors.length;
+      return colors[index];
+    };
+
     return (
       <React.Fragment key={sale.id}>
         <tr
           className={`transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]/50' : 'hover:bg-[#f6f8fa]'
             }`}
         >
-          <td className="p-3 cursor-pointer" onClick={() => toggleExpanded(sale.id)}>
-            {productDetails.productName && (
-              isExpanded ?
-                <ChevronDown className="w-4 h-4 text-[#2ea043]" /> :
-                <ChevronRight className="w-4 h-4 text-[#2ea043]" />
-            )}
+          {/* Avatar Column - Click to expand */}
+          {/* Avatar Column - Click to expand */}
+          <td className="p-2 pl-3 cursor-pointer" onClick={() => toggleExpanded(sale.id)}>
+            <div className={`w-11 h-11 rounded-full font-bold flex items-center justify-center text-base flex-shrink-0 ${getAvatarColor(sale.customer_name)} ${isExpanded ? 'ring-2 ring-[#2ea043]/50' : ''}`}>
+              {(() => {
+                const initials = getAvatarInitials(sale.customer_name);
+                if (initials === null) {
+                  // Guest/Cash Customer - show the pharmacy icon
+                  return (
+                    <img
+                      src="/pwa-192x192.png"
+                      alt="Guest"
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  );
+                }
+                return initials;
+              })()}
+            </div>
           </td>
           <td className="p-3 font-mono font-bold text-[#2ea043]">#{sale.sale_number}</td>
           <td className={`p-3 ${textMuted}`}>
@@ -1381,7 +1427,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     <tr>
                       <th className="p-3 w-8"></th>
                       <th className="p-3">Receipt #</th>
-                      <th className="p-3">Date</th>
+                      <th className="p-3">Time</th>
                       <th className="p-3">Customer</th>
                       <th className="p-3">Item</th>
                       <th className="p-3">Total</th>
