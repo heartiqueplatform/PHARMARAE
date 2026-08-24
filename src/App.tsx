@@ -257,7 +257,6 @@ export default function App() {
         pharmacyName={currentProfile?.pharmacy_name || null}
         currentProfile={currentProfile}
       />
-
       <div className="flex-1 flex flex-col w-full min-w-0 transition-all duration-300 overflow-y-auto">
         <Header
           pharmacy={getPharmacyFromProfile(currentProfile)}
@@ -284,11 +283,15 @@ export default function App() {
           appVersion="1.0.0"
         />
 
+
         <StatusBar
           message={statusMessage}
           type={statusType}
           show={showStatusBar}
           onClose={clearStatus}
+          syncPendingCount={syncPendingCount}
+          isOnline={isOnline}
+          isSyncing={isSyncing}
         />
 
         <main className="flex-1 w-full px-2 sm:px-3 md:px-4 pt-2 sm:pt-4 pb-24 min-w-0 overflow-y-auto">

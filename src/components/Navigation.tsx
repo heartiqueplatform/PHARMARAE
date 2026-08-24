@@ -39,7 +39,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'home' as NavTab, label: 'Dashboard', icon: Home },
     { id: 'sell' as NavTab, label: 'POS Terminal', icon: ShoppingBag, isPrimary: true, badge: cartCount },
     { id: 'stock' as NavTab, label: 'Stock Manager', icon: Package },
-    { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
+    { id: 'reports' as NavTab, label: 'Sale Analytics', icon: BarChart3 },
 
   ];
 
@@ -177,12 +177,30 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pb-4">
-              <div>
-                <h3 className="text-xl font-bold">More Options</h3>
-                <p className={`text-xs mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                  Explore additional features
-                </p>
+            {/* Header with Pharmienta Branding */}
+            <div className="flex items-center justify-between px-6 pb-4 border-b border-[#30363d]/30">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/pwa-192x192.png"
+                  alt="Pharmienta Kenya"
+                  className="w-12 h-12 rounded-xl flex-shrink-0 object-cover border-2 border-[#2ea043]/30"
+                />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xl font-extrabold tracking-tight">
+                      <span style={{ color: '#003366' }}>Pharm</span>
+                      <span style={{ color: '#B30000' }}>ienta</span>
+                    </h3>
+                    <span className="text-[#2ea043]">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.915-3.435 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.435 2.25 1.512 0 2.818-.916 3.435-2.25.415.163.865.25 1.336.25 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.59 4.59c-.353.353-.93.353-1.283 0l-2.14-2.14c-.353-.353-.353-.93 0-1.283.353-.353.93-.353 1.283 0l1.488 1.487 3.94-3.94c.354-.353.93-.353 1.283 0 .354.353.354.93 0 1.283z" />
+                      </svg>
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                    Oriented To Care • v2.0.1
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowMoreOverlay(false)}
@@ -194,7 +212,6 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <X className="w-6 h-6" />
               </button>
             </div>
-
             {/* More Tabs */}
             <div className="space-y-1.5 px-4 pb-4">
               {moreOverlayTabs.map(tab => {
@@ -280,6 +297,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
 
             {/* PROFESSIONAL SMART FOOTER */}
+            {/* PROFESSIONAL SMART FOOTER */}
             <div className={`px-6 py-4 ${isDark
               ? 'bg-[#161b22] border-t border-[#30363d]'
               : 'bg-[#f6f8fa] border-t border-[#d0d7de]'
@@ -324,7 +342,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   </div>
                 </div>
                 <div className={`text-right ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                  <p className="text-[10px] font-medium">v2.0.1</p>
+                  <p className="text-[10px] font-medium">v1.0.1</p>
                   <p className="text-[9px]">© 2024 Pharmienta</p>
                 </div>
               </div>

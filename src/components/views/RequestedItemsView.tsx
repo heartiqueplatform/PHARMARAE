@@ -233,7 +233,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                 pharmacy_name: pharmacyName,
                 ...formData,
                 item_name: formData.item_name.trim(),
-                request_count: 1,
+                request_count: formData.request_count || 1,  // <-- FIX: Use form value
                 last_requested_at: new Date().toISOString(),
             });
             setShowAddModal(false);
@@ -309,6 +309,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
             category: item.category || '',
             form: item.form || '',
             strength: item.strength || '',
+            request_count: item.request_count || 1,  // <-- ADD THIS
             status: item.status,
             priority: item.priority,
             notes: item.notes || '',
@@ -422,6 +423,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
     );
 
     // Render form fields (shared between add and edit)
+    // Render form fields (shared between add and edit)
     const renderFormFields = (isEdit: boolean) => (
         <div className="space-y-3 text-sm">
             <div>
@@ -482,7 +484,18 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                 </div>
             </div>
 
+            {/* Request Count + Priority */}
             <div className="grid grid-cols-2 gap-3">
+                <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Initial Request Count</label>
+                    <input
+                        type="number"
+                        min="1"
+                        value={formData.request_count || 1}
+                        onChange={(e) => setFormData({ ...formData, request_count: Number(e.target.value) })}
+                        className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
+                </div>
                 <div>
                     <label className={`block mb-1.5 font-bold ${textMuted}`}>Priority</label>
                     <select
@@ -496,6 +509,10 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                         <option value="urgent">Urgent</option>
                     </select>
                 </div>
+            </div>
+
+            {/* Status + Estimated Demand */}
+            <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className={`block mb-1.5 font-bold ${textMuted}`}>Status</label>
                     <select
@@ -508,6 +525,16 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                         <option value="added_to_inventory">Added to Inventory</option>
                         <option value="discontinued">Discontinued</option>
                     </select>
+                </div>
+                <div>
+                    <label className={`block mb-1.5 font-bold ${textMuted}`}>Estimated Monthly Demand</label>
+                    <input
+                        type="number"
+                        min="1"
+                        value={formData.estimated_demand || 1}
+                        onChange={(e) => setFormData({ ...formData, estimated_demand: Number(e.target.value) })}
+                        className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                    />
                 </div>
             </div>
 
@@ -543,17 +570,6 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                         className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
                     />
                 </div>
-            </div>
-
-            <div>
-                <label className={`block mb-1.5 font-bold ${textMuted}`}>Estimated Monthly Demand</label>
-                <input
-                    type="number"
-                    min="1"
-                    value={formData.estimated_demand || 1}
-                    onChange={(e) => setFormData({ ...formData, estimated_demand: Number(e.target.value) })}
-                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none ${inputBg} ${touchTargetSmall}`}
-                />
             </div>
 
             <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
@@ -629,7 +645,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
 
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+                        className={`px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm min-h-[44px]`}
                     >
                         <Plus className="w-5 h-5 stroke-[3]" />
                         <span>Add Request</span>
@@ -763,16 +779,16 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                                                 </span>
                                             </td>
                                             <td className="p-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
+                                                <div className="flex items-center justify-center gap-3">
                                                     <span className={`font-bold text-lg ${item.request_count > 5 ? 'text-[#2ea043]' : textTitle}`}>
                                                         {item.request_count}
                                                     </span>
                                                     <button
                                                         onClick={() => incrementRequest(item)}
-                                                        className={`p-1 rounded-lg transition-colors ${touchTargetSmall} ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'}`}
+                                                        className={`p-2.5 rounded-xl transition-colors ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]'} min-w-[44px] min-h-[44px] flex items-center justify-center`}
                                                         title="Increment request count"
                                                     >
-                                                        <Plus className="w-3 h-3 text-[#2ea043]" />
+                                                        <Plus className="w-5 h-5 text-[#2ea043]" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -815,17 +831,17 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
                                                         onClick={() => openEditModal(item)}
-                                                        className={`p-2 text-blue-400 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'}`}
+                                                        className={`p-2.5 text-blue-400 rounded-xl font-bold transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'}`}
                                                         title="Edit Item"
                                                     >
-                                                        <Edit2 className="w-4 h-4" />
+                                                        <Edit2 className="w-5 h-5" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteItem(item.id)}
-                                                        className={`p-2 text-rose-400 rounded-xl text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'}`}
+                                                        className={`p-2.5 text-rose-400 rounded-xl font-bold transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${isDark ? 'bg-[#21262d] hover:bg-[#30363d]' : 'bg-[#f6f8fa] hover:bg-slate-200'}`}
                                                         title="Delete Item"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="w-5 h-5" />
                                                     </button>
                                                 </div>
                                             </td>

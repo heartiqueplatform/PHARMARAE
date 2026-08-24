@@ -7,7 +7,7 @@ import {
   Image, FileCheck, Info, Download, X, UserPlus,
   Truck as TruckIcon, UserCog, Cloud, CloudOff,
   Clock, AlertTriangle, Edit, Trash2, ChevronRight,
-  Calendar
+  Calendar, Lock
 } from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
@@ -298,7 +298,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
       const nameChanged = pharmName !== profile.pharmacy_name;
 
       const updates: Partial<Profile> = {
-        pharmacy_name: pharmName.trim(),
+
         pharmacy_trading_name: pharmTradingName,
         pharmacy_phone: pharmPhone,
         pharmacy_address: pharmAddress,
@@ -661,26 +661,47 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={`block mb-1.5 font-bold ${textMuted}`}>Pharmacy Name *</label>
-              <input
-                type="text"
-                required
-                value={pharmName}
-                onChange={(e) => setPharmName(e.target.value)}
-                onBlur={() => {
-                  if (pharmName !== profile?.pharmacy_name) {
-                    handlePharmacyNameChange(pharmName);
-                  }
-                }}
-                disabled={!canManage}
-                className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none font-semibold ${inputBg} ${touchTarget} ${!canManage ? 'opacity-60 cursor-not-allowed' : ''}`}
-              />
-              {nameError && (
-                <div className="mt-1 text-[11px] text-amber-500 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>{nameError}</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={`font-bold ${textMuted}`}>Pharmacy Name</label>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/15 text-amber-700'}`}>
+                  <Lock className="w-3 h-3 inline mr-0.5" />
+                  Read Only
+                </span>
+              </div>
+              <div className={`w-full rounded-xl px-4 py-3.5 text-sm font-semibold ${inputBg} flex items-center justify-between`}>
+                <span className="text-[#2ea043]">{profile?.pharmacy_name || 'N/A'}</span>
+                <Lock className="w-4 h-4 opacity-40" />
+              </div>
+
+              {/* Info Box */}
+              <div className={`mt-3 p-3 rounded-xl ${isDark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200'}`}>
+                <div className="flex items-start gap-2">
+                  <Info className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                  <div className="text-[11px] leading-relaxed">
+                    <p className={`font-medium ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                      Pharmacy name cannot be changed directly
+                    </p>
+                    <p className={`mt-1 ${isDark ? 'text-blue-300/70' : 'text-blue-600/80'}`}>
+                      This is your pharmacy's unique identifier used for security and data integrity.
+                      To request a name change, contact our support team:
+                    </p>
+                    <div className={`mt-2 flex items-center gap-2 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                      <span className="font-bold">WhatsApp:</span>
+                      <a
+                        href="https://wa.me/254717517371"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`font-bold underline underline-offset-2 hover:opacity-80 transition-opacity ${isDark ? 'text-blue-400' : 'text-blue-600'}`}
+                      >
+                        +254 717 517 371
+                      </a>
+                    </div>
+                    <p className={`mt-1 text-[10px] ${isDark ? 'text-blue-300/50' : 'text-blue-600/50'}`}>
+                      Changes require verification for security purposes
+                    </p>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
             <div>
               <label className={`block mb-1.5 font-bold ${textMuted}`}>Trading Name</label>

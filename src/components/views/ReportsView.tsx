@@ -1354,15 +1354,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 Showing {filteredHistorySales.length} of {sales.length} sales
               </span>
             </div>
-
-            <button
-              onClick={handleRefresh}
-              disabled={isSyncing}
-              className={`px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'}`}
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
           </div>
 
           {showFilterPanel && (

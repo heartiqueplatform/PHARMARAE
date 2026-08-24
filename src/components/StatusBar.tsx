@@ -1,29 +1,16 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-    AlertCircle,
-    CheckCircle,
-    Info,
-    Loader2,
-    XCircle,
-    ChevronDown,
-    ChevronUp,
-} from 'lucide-react';
+// components/StatusBar.tsx
+import React, { useEffect, useState, useRef } from 'react';
 import { useTheme } from '../hooks/useTheme';
-
-interface StatusItem {
-    id: string;
-    label: string;
-    status: 'pending' | 'loading' | 'success' | 'error';
-    details?: string;
-}
 
 interface StatusBarProps {
     message: string | null;
     type: 'loading' | 'success' | 'error' | 'info' | null;
     show: boolean;
     onClose?: () => void;
-    items?: StatusItem[];
-    onItemClick?: (id: string) => void;
+    syncPendingCount?: number;
+    isOnline?: boolean;
+    isSyncing?: boolean;
+    isRefreshing?: boolean; // New prop to track refresh state
 }
 
 export const StatusBar: React.FC<StatusBarProps> = ({
@@ -31,39 +18,25 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     type,
     show,
     onClose,
-    items = [],
-    onItemClick,
+    syncPendingCount = 0,
+    isOnline = true,
+    isSyncing = false,
+    isRefreshing = false,
 }) => {
     const { isDark } = useTheme();
-    const [isVisible, setIsVisible] = useState(false);
-    const [isLeaving, setIsLeaving] = useState(false);
-    const [shouldRender, setShouldRender] = useState(false);
-    const [expanded, setExpanded] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [currentStep, setCurrentStep] = useState(0);
+    const [showSuccessFlash, setShowSuccessFlash] = useState(false);
+    const [currentColor, setCurrentColor] = useState<string>('');
+    const animationRef = useRef<number | null>(null);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Animated progress through verification steps
+    // Handle refresh animation
     useEffect(() => {
-        if (type === 'loading' && show && items.length > 0) {
-            const totalSteps = items.length;
-            const interval = setInterval(() => {
-                setCurrentStep((prev) => {
-                    const next = prev + 1;
-                    if (next >= totalSteps) {
-                        clearInterval(interval);
-                        return totalSteps - 1;
-                    }
-                    return next;
-                });
-            }, 400);
+        if (isRefreshing) {
+            // Start loading animation
+            setProgress(0);
+            setShowSuccessFlash(false);
 
-            return () => clearInterval(interval);
-        }
-    }, [type, show, items.length]);
-
-    // Progress bar animation
-    useEffect(() => {
-        if (type === 'loading' && show) {
             let startTime = Date.now();
             const duration = 2000;
 
@@ -73,319 +46,153 @@ export const StatusBar: React.FC<StatusBarProps> = ({
                 setProgress(newProgress);
 
                 if (newProgress < 90) {
-                    requestAnimationFrame(animateProgress);
+                    animationRef.current = requestAnimationFrame(animateProgress);
                 }
             };
 
-            const animFrame = requestAnimationFrame(animateProgress);
-            return () => cancelAnimationFrame(animFrame);
-        } else if (type === 'success') {
+            animationRef.current = requestAnimationFrame(animateProgress);
+        } else {
+            // Animation stopped - show success flash
+            if (progress > 0) {
+                setProgress(100);
+                setShowSuccessFlash(true);
+
+                // Reset after flash
+                if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current);
+                }
+                timeoutRef.current = setTimeout(() => {
+                    setProgress(0);
+                    setShowSuccessFlash(false);
+                }, 1500);
+            }
+        }
+
+        return () => {
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+            }
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, [isRefreshing, progress]);
+
+    // Handle status type changes
+    useEffect(() => {
+        if (type === 'success' && show) {
+            setShowSuccessFlash(true);
             setProgress(100);
-        } else if (type === 'error') {
+
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+            timeoutRef.current = setTimeout(() => {
+                setProgress(0);
+                setShowSuccessFlash(false);
+            }, 2000);
+        }
+
+        if (type === 'error' && show) {
             setProgress(0);
+            setShowSuccessFlash(false);
         }
     }, [type, show]);
 
-    // Show/hide animation
-    useEffect(() => {
-        if (show && message) {
-            setShouldRender(true);
-            requestAnimationFrame(() => {
-                setIsVisible(true);
-                setIsLeaving(false);
-            });
-        } else if (shouldRender) {
-            setIsLeaving(true);
-            setIsVisible(false);
-            const timer = setTimeout(() => {
-                setShouldRender(false);
-                setProgress(0);
-                setCurrentStep(0);
-            }, 400);
-            return () => clearTimeout(timer);
-        }
-    }, [show, message, shouldRender]);
-
     // Auto-close for non-loading states
     useEffect(() => {
-        if (type && type !== 'loading' && show && message && onClose) {
+        if (type && type !== 'loading' && show && onClose) {
             const timer = setTimeout(() => {
                 onClose();
             }, 3000);
             return () => clearTimeout(timer);
         }
-    }, [type, show, message, onClose]);
+    }, [type, show, onClose]);
 
-    if (!shouldRender || !message) return null;
-
-    const getIcon = () => {
-        switch (type) {
-            case 'loading':
-                return null;
-            case 'success':
-                return (
-                    <div className="relative flex-shrink-0">
-                        <div className={`absolute inset-0 rounded-full animate-ping ${isDark ? 'bg-emerald-300/30' : 'bg-emerald-700/20'
-                            }`} />
-                        <CheckCircle className={`h-5 w-5 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`} />
-                    </div>
-                );
-            case 'error':
-                return (
-                    <div className="relative flex-shrink-0">
-                        <div className={`absolute inset-0 rounded-full animate-ping ${isDark ? 'bg-rose-300/30' : 'bg-rose-700/20'
-                            }`} />
-                        <XCircle className={`h-5 w-5 ${isDark ? 'text-rose-300' : 'text-rose-700'}`} />
-                    </div>
-                );
-            case 'info':
-            default:
-                return <Info className={`h-5 w-5 flex-shrink-0 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`} />;
+    // Determine the base color based on status
+    const getBaseColor = () => {
+        // If refreshing, show loading color
+        if (isRefreshing || type === 'loading') {
+            return isDark ? 'bg-teal-500' : 'bg-teal-600';
         }
+
+        // Success flash
+        if (showSuccessFlash || type === 'success') {
+            return isDark ? 'bg-emerald-500' : 'bg-emerald-600';
+        }
+
+        // Error state
+        if (type === 'error') {
+            return isDark ? 'bg-rose-500' : 'bg-rose-600';
+        }
+
+        // Default status based on sync/online state
+        if (!isOnline) {
+            return isDark ? 'bg-rose-500' : 'bg-rose-600'; // Red - offline
+        }
+        if (isSyncing) {
+            return isDark ? 'bg-amber-500' : 'bg-amber-600'; // Amber - syncing
+        }
+        if (syncPendingCount > 0) {
+            return isDark ? 'bg-amber-500' : 'bg-amber-600'; // Amber - pending
+        }
+        // All good - green
+        return isDark ? 'bg-emerald-500' : 'bg-emerald-600';
     };
 
-    const getBackgroundColor = () => {
-        if (isDark) {
-            switch (type) {
-                case 'loading': return 'bg-slate-900/95 backdrop-blur-xl';
-                case 'success': return 'bg-emerald-950/95 backdrop-blur-xl';
-                case 'error': return 'bg-rose-950/95 backdrop-blur-xl';
-                case 'info': return 'bg-cyan-950/95 backdrop-blur-xl';
-                default: return 'bg-slate-900/95 backdrop-blur-xl';
-            }
-        }
-
-        switch (type) {
-            case 'loading': return 'bg-white/95 backdrop-blur-xl';
-            case 'success': return 'bg-emerald-50/95 backdrop-blur-xl';
-            case 'error': return 'bg-rose-50/95 backdrop-blur-xl';
-            case 'info': return 'bg-cyan-50/95 backdrop-blur-xl';
-            default: return 'bg-white/95 backdrop-blur-xl';
-        }
-    };
-
-    const getBorderColor = () => {
-        if (isDark) {
-            switch (type) {
-                case 'loading': return 'border-slate-700/50';
-                case 'success': return 'border-emerald-500/30';
-                case 'error': return 'border-rose-500/30';
-                case 'info': return 'border-cyan-500/30';
-                default: return 'border-slate-700/50';
-            }
-        }
-
-        switch (type) {
-            case 'loading': return 'border-slate-200';
-            case 'success': return 'border-emerald-200';
-            case 'error': return 'border-rose-200';
-            case 'info': return 'border-cyan-200';
-            default: return 'border-slate-200';
-        }
-    };
-
-    const getAnimationClasses = () => {
-        if (isLeaving) {
-            return 'opacity-0 -translate-y-4 scale-95';
-        }
-        if (isVisible) {
-            return 'opacity-100 translate-y-0 scale-100';
-        }
-        return 'opacity-0 -translate-y-4 scale-95';
-    };
-
-    // Verification-style loader
-    const VerificationLoader = () => {
-        const totalSteps = items.length || 5;
-        const completedSteps = items.filter(item => item.status === 'success').length;
-        const failedSteps = items.filter(item => item.status === 'error').length;
-
-        return (
-            <div className="w-full max-w-sm space-y-3">
-                {/* Header with status */}
-                <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <svg className="h-8 w-8" viewBox="0 0 40 40">
-                                {/* Background circle */}
-                                <circle
-                                    cx="20"
-                                    cy="20"
-                                    r="16"
-                                    fill="none"
-                                    stroke={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}
-                                    strokeWidth="3"
-                                />
-                                {/* Progress circle */}
-                                <circle
-                                    cx="20"
-                                    cy="20"
-                                    r="16"
-                                    fill="none"
-                                    stroke={isDark ? '#5eead4' : '#0f766e'}
-                                    strokeWidth="3"
-                                    strokeLinecap="round"
-                                    strokeDasharray="100.48"
-                                    strokeDashoffset={100.48 - (progress / 100) * 100.48}
-                                    className={`transition-all duration-300 ${type === 'loading' ? 'animate-[spin_1.5s_linear_infinite]' : ''
-                                        }`}
-                                    style={{
-                                        transformOrigin: 'center',
-                                        transform: 'rotate(-90deg)',
-                                    }}
-                                />
-                                {/* Inner icon */}
-                                <foreignObject x="8" y="8" width="24" height="24">
-                                    <div className="flex h-full w-full items-center justify-center">
-                                        {type === 'loading' ? (
-                                            <Loader2 className={`h-5 w-5 animate-spin ${isDark ? 'text-teal-300' : 'text-teal-700'}`} />
-                                        ) : type === 'success' ? (
-                                            <CheckCircle className={`h-5 w-5 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`} />
-                                        ) : type === 'error' ? (
-                                            <XCircle className={`h-5 w-5 ${isDark ? 'text-rose-300' : 'text-rose-700'}`} />
-                                        ) : null}
-                                    </div>
-                                </foreignObject>
-                            </svg>
-                        </div>
-
-                        <div>
-                            <div className={`text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                                {message}
-                            </div>
-                            {type === 'loading' && (
-                                <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {Math.round(progress)}% • {completedSteps}/{totalSteps} complete
-                                </div>
-                            )}
-                            {type === 'success' && (
-                                <div className={`text-[10px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                                    ✓ All checks passed
-                                </div>
-                            )}
-                            {type === 'error' && (
-                                <div className={`text-[10px] ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
-                                    ✗ {failedSteps} check{failedSteps > 1 ? 's' : ''} failed
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Expand/collapse button */}
-                    {items.length > 0 && type === 'loading' && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setExpanded(!expanded);
-                            }}
-                            className={`rounded-full p-1 transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'
-                                }`}
-                        >
-                            {expanded ? (
-                                <ChevronUp className={`h-4 w-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
-                            ) : (
-                                <ChevronDown className={`h-4 w-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
-                            )}
-                        </button>
-                    )}
-                </div>
-
-                {/* Verification steps */}
-                {expanded && items.length > 0 && (
-                    <div className={`space-y-1.5 border-t pt-2.5 ${isDark ? 'border-slate-700/50' : 'border-slate-200'
-                        }`}>
-                        {items.map((item, index) => {
-                            const isActive = index === currentStep && type === 'loading';
-                            const isCompleted = item.status === 'success';
-                            const isFailed = item.status === 'error';
-                            const isPending = item.status === 'pending';
-
-                            return (
-                                <div
-                                    key={item.id}
-                                    onClick={() => onItemClick?.(item.id)}
-                                    className={`flex items-center gap-2 rounded-lg px-2 py-1.5 transition-all ${isActive ? `${isDark ? 'bg-white/5' : 'bg-black/5'} scale-[1.02]` : ''
-                                        } ${onItemClick ? 'cursor-pointer' : ''}`}
-                                >
-                                    {/* Status indicator */}
-                                    <div className="relative flex-shrink-0">
-                                        <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${isCompleted
-                                                ? `${isDark ? 'border-emerald-400 bg-emerald-400/20' : 'border-emerald-600 bg-emerald-100'}`
-                                                : isFailed
-                                                    ? `${isDark ? 'border-rose-400 bg-rose-400/20' : 'border-rose-600 bg-rose-100'}`
-                                                    : isActive
-                                                        ? `${isDark ? 'border-teal-400' : 'border-teal-600'} animate-pulse`
-                                                        : `${isDark ? 'border-slate-600' : 'border-slate-300'}`
-                                            }`}>
-                                            {isCompleted && (
-                                                <CheckCircle className={`h-3 w-3 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                            )}
-                                            {isFailed && (
-                                                <XCircle className={`h-3 w-3 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
-                                            )}
-                                            {isActive && !isCompleted && !isFailed && (
-                                                <Loader2 className={`h-3 w-3 animate-spin ${isDark ? 'text-teal-400' : 'text-teal-600'}`} />
-                                            )}
-                                            {isPending && !isActive && (
-                                                <div className={`h-1.5 w-1.5 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Label */}
-                                    <span className={`flex-1 text-xs font-medium ${isCompleted
-                                            ? `${isDark ? 'text-emerald-300' : 'text-emerald-700'}`
-                                            : isFailed
-                                                ? `${isDark ? 'text-rose-300' : 'text-rose-700'}`
-                                                : isActive
-                                                    ? `${isDark ? 'text-slate-200' : 'text-slate-800'}`
-                                                    : `${isDark ? 'text-slate-500' : 'text-slate-500'}`
-                                        }`}>
-                                        {item.label}
-                                    </span>
-
-                                    {/* Details */}
-                                    {item.details && (
-                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                            {item.details}
-                                        </span>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        );
-    };
+    const color = getBaseColor();
 
     return (
-        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 pointer-events-none">
-            <div className={`
-                flex w-fit max-w-[92vw] items-center justify-center
-                rounded-2xl border px-4 py-3
-                shadow-[0_20px_60px_rgba(15,23,42,0.2)]
-                transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-                ${getBackgroundColor()}
-                ${getBorderColor()}
-                ${getAnimationClasses()}
-                pointer-events-auto
-                min-w-[200px]
-            `}>
-                {type === 'loading' ? (
-                    <VerificationLoader />
-                ) : (
-                    <div className="flex items-center gap-2.5">
-                        {getIcon()}
-                        <span className={`
-                            text-sm font-medium leading-relaxed
-                            ${isDark ? 'text-slate-200' : 'text-slate-800'}
-                        `}>
-                            {message}
-                        </span>
-                    </div>
+        <div className="w-full h-[3px] overflow-hidden relative">
+            {/* Base line */}
+            <div
+                className={`w-full h-full transition-colors duration-700 ease-out ${color}`}
+            >
+                {/* Progress animation for loading/refreshing */}
+                {(isRefreshing || type === 'loading') && progress > 0 && progress < 100 && (
+                    <div
+                        className="absolute top-0 left-0 h-full bg-white/40 transition-all duration-300 ease-out"
+                        style={{ width: `${progress}%` }}
+                    />
+                )}
+
+                {/* Success flash animation */}
+                {showSuccessFlash && (
+                    <div
+                        className="absolute top-0 left-0 h-full bg-white/50 transition-all duration-1000 ease-out"
+                        style={{
+                            width: `${progress}%`,
+                            animation: 'successPulse 0.8s ease-out 1'
+                        }}
+                    />
                 )}
             </div>
+
+            {/* Status dot indicator - subtle pulse when something is happening */}
+            {(isRefreshing || type === 'loading' || isSyncing || (!isOnline)) && !showSuccessFlash && (
+                <div className="absolute top-1/2 right-2 -translate-y-1/2">
+                    <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${color}`} />
+                </div>
+            )}
+
+            {/* Success checkmark indicator */}
+            {showSuccessFlash && !isRefreshing && (
+                <div className="absolute top-1/2 right-2 -translate-y-1/2 transition-all duration-500">
+                    <svg
+                        className={`h-3 w-3 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                        />
+                    </svg>
+                </div>
+            )}
         </div>
     );
 };
