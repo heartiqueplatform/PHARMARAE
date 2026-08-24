@@ -115,7 +115,8 @@ export interface AppState {
 export const useApp = (): AppState => {
     // Network
     const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
-
+    const [isInternetReachable, setIsInternetReachable] = useState<boolean>(true);
+    const internetCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
     // Data
     const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
     const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -178,7 +179,83 @@ export const useApp = (): AppState => {
     const networkSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const checkInternetConnectivity = useCallback(async () => {
+        try {
+            // Try multiple endpoints with timeout
+            const endpoints = [
+                'https://www.google.com/generate_204',
+                'https://www.cloudflare.com/cdn-cgi/trace',
+                'https://www.google.com',
+            ];
 
+            let isConnected = false;
+
+            for (const url of endpoints) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+                    const response = await fetch(url, {
+                        method: 'HEAD',
+                        signal: controller.signal,
+                        cache: 'no-store',
+                        mode: 'no-cors', // This helps with CORS issues
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    // For no-cors mode, response type is 'opaque' and status is 0
+                    // We consider it connected if we get any response
+                    if (response.status === 0 || response.ok || response.status === 204) {
+                        isConnected = true;
+                        break;
+                    }
+                } catch (e) {
+                    // Try next endpoint
+                    console.log(`Failed to reach ${url}, trying next...`);
+                }
+            }
+
+            // If all endpoints failed, try a simple fetch with no-cors
+            if (!isConnected) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+                    await fetch('https://www.google.com', {
+                        mode: 'no-cors',
+                        signal: controller.signal,
+                        cache: 'no-store',
+                    });
+
+                    clearTimeout(timeoutId);
+                    isConnected = true;
+                } catch (e) {
+                    // Still not connected
+                }
+            }
+
+            setIsInternetReachable(isConnected);
+
+            // Update online status based on real connectivity
+            if (navigator.onLine && isConnected) {
+                setIsOnline(true);
+            } else if (!isConnected) {
+                setIsOnline(false);
+            } else {
+                setIsOnline(navigator.onLine);
+            }
+
+            return isConnected;
+        } catch (error) {
+            console.warn('Internet check failed:', error);
+            setIsInternetReachable(false);
+            if (navigator.onLine) {
+                setIsOnline(false);
+            }
+            return false;
+        }
+    }, []);
     const clearStatus = useCallback(() => {
         setShowStatusBar(false);
         setStatusMessage(null);
@@ -268,15 +345,14 @@ export const useApp = (): AppState => {
             console.warn('Unable to refresh changed pharmacy data:', err);
         }
     }, []);
-
     const triggerSyncQueue = useCallback(async () => {
         if (syncInProgressRef.current) {
             console.info('Sync already in progress. Skipping duplicate request.');
             return;
         }
 
-        if (!isOnline || !currentProfile) {
-            console.info('Sync skipped because the app is offline or no profile is active.');
+        if (!isOnline || !isInternetReachable || !currentProfile) {
+            console.info('Sync skipped because the app is offline, no internet, or no profile is active.');
             return;
         }
 
@@ -454,10 +530,8 @@ export const useApp = (): AppState => {
             setAuditLogs(pharmacyAuditLogs);
             setRequestedItems(pharmacyRequestedItems);
             setSalesReturns(pharmacySalesReturns);
-
-            if (isOnline && isSupabaseConfigured() && !syncInProgressRef.current) {
+            if (isOnline && isInternetReachable && isSupabaseConfigured() && !syncInProgressRef.current) {
                 const lastProfileSyncTime = getLastProfileSyncTime(pharmacyName);
-
                 if (shouldPullProfileData(lastProfileSyncTime)) {
                     try {
                         const success = await smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined);
@@ -548,7 +622,38 @@ export const useApp = (): AppState => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [showToast]);
+    // Periodic internet connectivity check
+    // Periodic internet connectivity check
+    useEffect(() => {
+        // Initial check - but don't let it block the UI
+        const initialCheck = async () => {
+            const result = await checkInternetConnectivity();
+            // If we got false but navigator says online, assume we're connected
+            if (!result && navigator.onLine) {
+                console.log('Internet check failed but navigator says online - assuming connected');
+                setIsOnline(true);
+                setIsInternetReachable(true);
+            }
+        };
+        initialCheck();
 
+        // Check every 30 seconds (less frequent to avoid issues)
+        internetCheckIntervalRef.current = setInterval(() => {
+            checkInternetConnectivity().then(result => {
+                if (!result && navigator.onLine) {
+                    setIsOnline(true);
+                    setIsInternetReachable(true);
+                }
+            });
+        }, 30000);
+
+        return () => {
+            if (internetCheckIntervalRef.current) {
+                clearInterval(internetCheckIntervalRef.current);
+                internetCheckIntervalRef.current = null;
+            }
+        };
+    }, [checkInternetConnectivity]);
     useEffect(() => {
         return () => {
             if (statusTimeoutRef.current) {
@@ -565,31 +670,23 @@ export const useApp = (): AppState => {
 
     useEffect(() => {
         const handleOnline = () => {
-            console.info('Network online.');
-            setIsOnline(true);
-
-            if (networkSyncTimeoutRef.current) {
-                clearTimeout(networkSyncTimeoutRef.current);
-                networkSyncTimeoutRef.current = null;
-            }
-
-            networkSyncTimeoutRef.current = setTimeout(() => {
-                if (currentProfile && !syncInProgressRef.current) {
-                    triggerSyncQueue();
+            console.info('Device reported online. Checking internet connectivity...');
+            // Don't immediately set online - verify internet first
+            checkInternetConnectivity().then(isConnected => {
+                if (isConnected) {
+                    setIsOnline(true);
+                    // Trigger sync if we have internet
+                    if (currentProfile && !syncInProgressRef.current) {
+                        setTimeout(() => triggerSyncQueue(), 1000);
+                    }
                 }
-                networkSyncTimeoutRef.current = null;
-            }, 1000);
+            });
         };
 
         const handleOffline = () => {
-            console.info('Network offline.');
+            console.info('Device reported offline.');
             setIsOnline(false);
-
-            if (networkSyncTimeoutRef.current) {
-                clearTimeout(networkSyncTimeoutRef.current);
-                networkSyncTimeoutRef.current = null;
-            }
-
+            setIsInternetReachable(false);
             showStatus('Offline mode. Changes will sync when connected', 'info');
         };
 
@@ -604,7 +701,7 @@ export const useApp = (): AppState => {
                 networkSyncTimeoutRef.current = null;
             }
         };
-    }, [currentProfile, triggerSyncQueue, showStatus]);
+    }, [currentProfile, triggerSyncQueue, showStatus, checkInternetConnectivity]);
 
     useEffect(() => {
         if (syncIntervalRef.current) {
@@ -633,7 +730,7 @@ export const useApp = (): AppState => {
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                if (isOnline && currentProfile && !syncInProgressRef.current) {
+                if (isOnline && isInternetReachable && currentProfile && !syncInProgressRef.current) {
                     loadDatabaseData(false);
                     triggerSyncQueue();
                 }
