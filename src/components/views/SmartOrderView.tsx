@@ -987,8 +987,19 @@ export function SmartOrderView({
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
                                 </div>
-                                <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>No Partnership Requests Yet</p>
-                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>Check "Available Suppliers" to find and request partners</p>
+                                <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>No Partnership Requests</p>
+                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    You don't have any partnership requests yet.
+                                </p>
+                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    Go to the <span className="font-bold text-emerald-500">Available</span> tab to find suppliers and send partnership requests.
+                                </p>
+                                <button
+                                    onClick={() => setActiveTab('available')}
+                                    className={`mt-4 px-6 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-semibold rounded-xl transition`}
+                                >
+                                    Browse Available Suppliers
+                                </button>
                             </div>
                         )}
 
@@ -1128,7 +1139,26 @@ export function SmartOrderView({
                                     </svg>
                                 </div>
                                 <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>No Suppliers Available</p>
-                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>Pull down to refresh or check your connection</p>
+                                <p className={`text-sm mt-2 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    No registered suppliers are available right now.
+                                </p>
+                                <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    This could be because:
+                                </p>
+                                <ul className={`text-sm mt-2 text-left max-w-md mx-auto ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">•</span>
+                                        <span>There are no suppliers on the platform yet</span>
+                                    </li>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">•</span>
+                                        <span>Your internet connection may be offline</span>
+                                    </li>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">•</span>
+                                        <span>Suppliers are being added regularly - check back soon</span>
+                                    </li>
+                                </ul>
                                 <button
                                     onClick={handleRefresh}
                                     className={`mt-4 px-6 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-semibold rounded-xl transition`}
@@ -1136,6 +1166,7 @@ export function SmartOrderView({
                                     Refresh Suppliers
                                 </button>
                             </div>
+
                         ) : (
                             <div>
                                 <div className={`p-4 rounded-2xl mb-6 ${isDark ? 'bg-[#161b22]' : 'bg-white'} shadow-sm`}>
@@ -1298,7 +1329,32 @@ export function SmartOrderView({
                                     </svg>
                                 </div>
                                 <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>All Products Have Healthy Stock</p>
-                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>No reorder recommendations at this time</p>
+                                <p className={`text-sm mt-2 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    Great news! All your products are well-stocked.
+                                </p>
+                                <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    No reorder recommendations at this time.
+                                </p>
+                                <ul className={`text-sm mt-3 text-left max-w-md mx-auto ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">✓</span>
+                                        <span>Your inventory is at optimal levels</span>
+                                    </li>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">✓</span>
+                                        <span>Monitor stock levels and check back when items are low</span>
+                                    </li>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">✓</span>
+                                        <span>You can still manually create orders from the "Orders" tab</span>
+                                    </li>
+                                </ul>
+                                <button
+                                    onClick={() => setActiveTab('orders')}
+                                    className={`mt-4 px-6 py-2.5 bg-[#1f6feb] hover:bg-[#388bfd] text-white font-semibold rounded-xl transition`}
+                                >
+                                    View My Orders
+                                </button>
                             </div>
                         ) : (
                             <>
@@ -1473,7 +1529,40 @@ export function SmartOrderView({
                                     </svg>
                                 </div>
                                 <p className={`text-lg font-semibold ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>No Orders Yet</p>
-                                <p className={`text-sm mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>Create your first order from the "Reorder" tab</p>
+                                <p className={`text-sm mt-2 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    You haven't placed any orders with suppliers yet.
+                                </p>
+                                <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    Here's how to get started:
+                                </p>
+                                <ul className={`text-sm mt-3 text-left max-w-md mx-auto ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">1.</span>
+                                        <span>Go to the <span className="font-bold text-emerald-500">Available</span> tab and send partnership requests</span>
+                                    </li>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">2.</span>
+                                        <span>Wait for suppliers to accept your partnership</span>
+                                    </li>
+                                    <li className="flex items-start gap-2 py-1">
+                                        <span className="text-[#238636] mt-1">3.</span>
+                                        <span>Once accepted, go to the <span className="font-bold text-emerald-500">Reorder</span> tab to create orders</span>
+                                    </li>
+                                </ul>
+                                <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+                                    <button
+                                        onClick={() => setActiveTab('available')}
+                                        className={`px-6 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-semibold rounded-xl transition`}
+                                    >
+                                        Find Suppliers
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('reorder')}
+                                        className={`px-6 py-2.5 ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f0f2f5] text-[#1a1a2e] hover:bg-[#e4e6eb]'} font-semibold rounded-xl transition`}
+                                    >
+                                        Check Reorder Needs
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="space-y-4">
