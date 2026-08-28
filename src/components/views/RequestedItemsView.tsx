@@ -621,9 +621,7 @@ export const RequestedItemsView: React.FC<RequestedItemsViewProps> = ({
                             </span>
                         )}
                     </h2>
-                    <p className={`text-xs mt-0.5 ${textMuted}`}>
-                        Track items customers frequently ask for but aren't in your inventory.
-                    </p>
+
                 </div>
                 <div className="flex items-center gap-2">
                     <button

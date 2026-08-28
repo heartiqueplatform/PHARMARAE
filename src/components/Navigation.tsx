@@ -149,8 +149,8 @@ export const Navigation: React.FC<NavigationProps> = ({
               : isDark ? 'text-[#8b949e] hover:text-[#f0f6fc]' : 'text-[#656d76] hover:text-[#1f2328]'
               }`}
           >
-            <MoreHorizontal className="w-5 h-5 stroke-2" />
-            <span className="text-[10px] font-medium mt-0.5">More</span>
+            <Settings className="w-5 h-5 stroke-2" />
+            <span className="text-[10px] font-medium mt-0.5">More Options</span>
           </button>
         </div>
       </nav>

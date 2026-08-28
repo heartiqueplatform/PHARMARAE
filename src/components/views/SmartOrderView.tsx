@@ -905,9 +905,7 @@ export function SmartOrderView({
                         <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
                             Smart Orders
                         </h1>
-                        <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
-                            Manage partnerships and orders
-                        </p>
+
                     </div>
 
                 </div>

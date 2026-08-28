@@ -1045,9 +1045,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <BarChart3 className="w-5 h-5 text-[#2ea043]" />
             <span>Pharmacy Reports & Business Audits</span>
           </h2>
-          <p className={`text-xs mt-0.5 ${textMuted}`}>
-            Export daily reports, monthly audit statements, and inspect transactions.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

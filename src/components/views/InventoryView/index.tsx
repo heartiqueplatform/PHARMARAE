@@ -399,9 +399,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         <Package className="w-5 h-5 text-[#2ea043]" />
                         <span>Pharmacy Stock & Batch Inventory</span>
                     </h2>
-                    <p className={`text-xs mt-0.5 ${textMuted}`}>
-                        FEFO batch management, low-stock reorder insights & movement audit trails.
-                    </p>
                 </div>
                 <button
                     onClick={() => setShowAddProductModal(true)}

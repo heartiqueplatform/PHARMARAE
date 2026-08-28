@@ -655,7 +655,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
               theme={theme}
             />
             <p className={`text-[11px] mt-2 ${textMuted}`}>
-              Upload a pharmacy logo or avatar
+              Upload a pharmacy logo or Your personal avatar
             </p>
           </div>
 

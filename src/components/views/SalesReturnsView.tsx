@@ -222,9 +222,7 @@ export const SalesReturnsView: React.FC<SalesReturnsViewProps> = ({
                             </span>
                         )}
                     </h2>
-                    <p className={`text-xs mt-0.5 ${textMuted}`}>
-                        Process customer returns, damaged items, and restore inventory automatically.
-                    </p>
+
                 </div>
                 <div className="flex items-center gap-2">
                     <button

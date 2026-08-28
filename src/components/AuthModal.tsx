@@ -989,7 +989,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           <ShieldCheck className="w-3 h-3 text-emerald-500" />
           <span>Pharmienta Auth • Offline First</span>
           <span className={`w-0.5 h-0.5 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></span>
-          <span className="text-[9px]">v2.0</span>
+          <span className="text-[9px]">v1.0.0</span>
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-const APP_VERSION = '1.0.68898885566884446669988888992222232367673537878';
+const APP_VERSION = '11.0.6889888556686868658585856884446669988888992222232367673537878';
 const APP_NAME = 'Pharmienta Kenya';
 const VERSION_KEY = 'Pharmienta_app_version';
 const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';

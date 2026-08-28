@@ -800,9 +800,6 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                             {pharmacy?.name || 'Pharmacy'}
                         </span>
                     </h2>
-                    <p className={`text-xs mt-0.5 ${textMuted}`}>
-                        Real-time analytics with interactive charts
-                    </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
