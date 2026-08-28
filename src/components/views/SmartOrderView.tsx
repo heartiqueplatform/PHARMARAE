@@ -975,7 +975,7 @@ export function SmartOrderView({
 
             {/* Content */}
             <div className="px-4 py-4 max-w-7xl mx-auto pb-32">
-                {/* Partnerships Tab */}
+
                 {/* Partnerships Tab */}
                 {activeTab === 'partnerships' && (
                     <div>

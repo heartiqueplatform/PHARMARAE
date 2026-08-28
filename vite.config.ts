@@ -50,7 +50,7 @@ export default defineConfig(() => {
           ]
         },
         workbox: {
-          // ✅ ADD THIS LINE - increases limit from 2 MB to 3 MB
+          // ADD THIS LINE - increases limit from 2 MB to 3 MB
           maximumFileSizeToCacheInBytes: 3000000,
 
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
