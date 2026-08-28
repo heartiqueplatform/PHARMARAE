@@ -211,7 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
           <img
             src={profile.avatar_url}
             alt={profile.full_name || 'Profile'}
-            className={`${sizes[size]} rounded-full object-cover ring-4 ${isDark ? 'ring-emerald-400/30' : 'ring-emerald-500/30'
+            className={`${sizes[size]} rounded-full object-cover ring-0 ${isDark ? 'ring-emerald-400/30' : 'ring-emerald-500/30'
               }`}
           />
         ) : (
@@ -255,7 +255,7 @@ export const Header: React.FC<HeaderProps> = ({
               <img
                 src="/pwa-192x192.png"
                 alt="Pharmienta"
-                className="h-10 w-10 rounded-full object-cover shadow-sm ring-2 sm:h-11 sm:w-11 ring-emerald-400/20"
+                className="h-10 w-10 rounded-full object-cover shadow-sm  sm:h-11 sm:w-11"
               />
               {/* Online status dot */}
               <span

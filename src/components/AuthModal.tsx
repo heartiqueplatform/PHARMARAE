@@ -550,11 +550,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
         {/* Brand & Header */}
         <div className="text-center space-y-1.5">
-          <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-emerald-500/20`}>
-            P
+          <div className={`w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-emerald-500/20`}>
+            <img
+              src="/pwa-192x192.png"
+              alt="Pharmienta Kenya"
+              className="w-12 h-12 rounded-full flex-shrink-0 object-cover border-0"
+            />
           </div>
           <h2 className={`text-lg font-black tracking-tight ${textPrimary}`}>
-            Pharmienta Kenya POS
+            Pharmienta 4P Kenya POS
           </h2>
           <p className={`text-[11px] ${textSecondary} flex items-center justify-center gap-1.5 flex-wrap`}>
             {showSupabaseConfig
@@ -575,22 +579,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
         </div>
 
         {/* Supabase Config Toggle */}
-        <button
-          type="button"
-          onClick={() => setShowSupabaseConfig(!showSupabaseConfig)}
-          className={`w-full py-2 px-3 ${isDark ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80' : 'bg-slate-100 hover:bg-slate-200 border-slate-300'} border rounded-xl text-[11px] font-semibold ${textSecondary} flex items-center justify-between transition-colors`}
+        <div
+          className={`w-full py-2 px-3 ${isDark ? 'bg-slate-800/80 hover:bg-slate-800 border-0' : 'bg-slate-100 hover:bg-slate-200 border-0'} border rounded-xl text-[11px] font-semibold ${textSecondary} flex items-center justify-between transition-colors`}
         >
           <div className="flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5 text-emerald-500" />
             <span>Pharmienta Cloud</span>
           </div>
           <span className={`text-[9px] px-2 py-0.5 rounded-full border ${creds.url && !creds.url.includes('your-supabase-project')
-            ? isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/80' : 'text-emerald-700 bg-emerald-100 border-emerald-200'
+            ? isDark ? 'text-emerald-400 bg-emerald-950/80 border-0' : 'text-emerald-700 bg-emerald-100 border-0'
             : isDark ? 'text-amber-400 bg-amber-950/80 border-amber-800/80' : 'text-amber-700 bg-amber-100 border-amber-200'
             }`}>
             {creds.url && !creds.url.includes('your-supabase-project') ? 'Configured' : 'Not Configured'}
           </span>
-        </button>
+        </div>
 
         {showSupabaseConfig ? (
           <form onSubmit={handleSaveSupabase} className={`space-y-2.5 text-[11px] ${isDark ? 'bg-slate-950/60' : 'bg-slate-50'} p-3 rounded-xl ${borderColor} border`}>

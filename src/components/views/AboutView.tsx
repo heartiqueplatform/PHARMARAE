@@ -58,7 +58,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                 <img
                     src="/pwa-192x192.png"
                     alt="Pharmienta Kenya"
-                    className="w-16 h-16 rounded-xl object-cover border-2 border-[#2ea043]/30 shadow-lg"
+                    className="w-16 h-16 rounded-full object-cover border-0 border-[#2ea043]/30 shadow-lg"
                 />
                 <div>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -86,14 +86,12 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                                 Premium
                             </span>
                         </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#58a6ff]/10 text-[#58a6ff] border border-[#58a6ff]/20">
-                            v2.0.0
-                        </span>
+
                     </div>
                     <p className={`text-sm font-medium ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-2 mt-1`}>
                         <span>Revolutionizing Pharmacy Management in Kenya</span>
                         <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
-                        <span className="text-[#2ea043]">Since 2024</span>
+                        <span className="text-[#2ea043]">Since 2026</span>
                         <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
                         <span className="text-[#f0883e] text-[10px] font-bold">🇰🇪 Made in Kenya</span>
                     </p>
@@ -101,7 +99,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
             </div>
 
             {/* Company Overview */}
-            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'}`}>
+            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-0' : 'bg-[#f6f8fa] border-0'}`}>
                 <div className="flex items-center gap-2 mb-2">
                     <Building2 className="w-5 h-5 text-[#2ea043]" />
                     <h2 className="text-lg font-semibold">Company Overview</h2>
@@ -250,7 +248,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                             <span className={`${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
                                 Export reports in PDF format with interactive charts
                             </span>
-                            <span className="text-[#2ea043] font-bold">📊 BI Powered</span>
+                            <span className="text-[#2ea043] font-bold">BI Powered</span>
                         </div>
                     </div>
                 </section>
@@ -358,7 +356,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                             </div>
                         </div>
                         <div className={`mt-3 pt-3 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} flex items-center justify-between text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                            <span>© 2024 Pharmienta Kenya. All rights reserved.</span>
+                            <span>© 2026 Pharmienta Kenya. All rights reserved.</span>
                             <span className="flex items-center gap-1">
                                 <Lock className="w-3 h-3" />
                                 <span>Secure Connection</span>

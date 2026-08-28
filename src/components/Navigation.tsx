@@ -183,7 +183,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <img
                   src="/pwa-192x192.png"
                   alt="Pharmienta Kenya"
-                  className="w-12 h-12 rounded-xl flex-shrink-0 object-cover border-2 border-[#2ea043]/30"
+                  className="w-12 h-12 rounded-full flex-shrink-0 object-cover border-0 border-[#2ea043]/30"
                 />
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -197,8 +197,8 @@ export const Navigation: React.FC<NavigationProps> = ({
                       </svg>
                     </span>
                   </div>
-                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                    Oriented To Care • v2.0.1
+                  <p className={`text-[10px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                    Oriented To Care
                   </p>
                 </div>
               </div>
@@ -343,7 +343,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 </div>
                 <div className={`text-right ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
                   <p className="text-[10px] font-medium">v1.0.1</p>
-                  <p className="text-[9px]">© 2024 Pharmienta</p>
+                  <p className="text-[9px]">© 2026 Pharmienta</p>
                 </div>
               </div>
             </div>

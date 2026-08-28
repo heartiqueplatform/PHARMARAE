@@ -1043,8 +1043,6 @@ export const BusinessIntelligenceView: React.FC<BusinessIntelligenceViewProps> =
                     </div>
                 ) : null}
             </div>
-
-            {/* TEXTUAL SUMMARY - Full details with copy to clipboard */}
             {/* TEXTUAL SUMMARY - Full details with copy to clipboard */}
             {filteredSales.length > 0 && (
                 <div className={`p-4 mx-2 rounded-2xl ${cardBg}`}>

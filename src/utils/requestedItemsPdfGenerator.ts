@@ -70,8 +70,8 @@ export function generateMostRequestedReportPdf(
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
 
-    const pTitle = 'PHARM';
-    const rTitle = 'IENTA';
+    const pTitle = 'Pharm';
+    const rTitle = 'ienta';
     const pTitleWidth = doc.getTextWidth(pTitle);
     const rTitleWidth = doc.getTextWidth(rTitle);
     const startXTitle = 105 - ((pTitleWidth + rTitleWidth) / 2);

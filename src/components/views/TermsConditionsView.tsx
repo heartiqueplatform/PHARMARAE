@@ -189,12 +189,8 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-3">
                         Terms & Conditions
-                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#58a6ff]/10 text-[#58a6ff] border border-[#58a6ff]/20">
-                            v2.0
-                        </span>
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
-                            🇰🇪 Kenya
-                        </span>
+
+
                     </h1>
                     <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-2`}>
                         <Calendar className="w-4 h-4" />
@@ -208,7 +204,7 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme 
             </div>
 
             {/* Quick Overview */}
-            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de]'}`}>
+            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-0' : 'bg-[#f6f8fa] border-0'}`}>
                 <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-5 h-5 text-[#2ea043]" />
                     <h2 className="text-lg font-semibold">Terms at a Glance</h2>
