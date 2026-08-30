@@ -42,6 +42,7 @@ interface MoreViewProps {
   onNavigateToTab?: (tab: 'about' | 'privacy' | 'terms') => void;
   onNavigateToSecurity?: () => void;
   onNavigateToHardReset?: () => void;
+  onNavigateToSmartOrder?: () => void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -61,6 +62,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onNavigateToTab,
   onNavigateToSecurity,
   onNavigateToHardReset,
+  onNavigateToSmartOrder,
 }) => {
   const isDark = theme === 'dark';
 
@@ -558,18 +560,18 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveSection('suppliers')}
-          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'suppliers'
-            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
-            : `${cardBg}`
-            }`}
+          onClick={() => {
+            if (onNavigateToSmartOrder) {
+              onNavigateToSmartOrder();
+            }
+          }}
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${cardBg}`}
         >
-          <Truck className={`w-6 h-6 mb-1 ${canView ? 'text-[#2ea043]' : 'text-slate-500'}`} />
-          <span className={`text-sm font-bold ${canView ? '' : 'text-slate-500'}`}>
-            Suppliers {!canView && 'Locked'}
+          <Truck className="w-6 h-6 mb-1 text-[#2ea043]" />
+          <span className="text-sm font-bold">
+            Suppliers
           </span>
         </button>
-
         <button
           onClick={() => setActiveSection('sync')}
           className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'sync'
@@ -943,38 +945,6 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       )}
 
-      {/* Suppliers Management */}
-      {activeSection === 'suppliers' && (
-        <div className={`rounded-2xl p-4 space-y-4 ${cardBg}`}>
-          <div className={`flex items-center justify-between pb-3 ${borderLine}`}>
-            <h3 className={`font-bold text-base ${textTitle}`}>Suppliers</h3>
-            {canManage && (
-              <button
-                onClick={() => setShowAddSupplierModal(true)}
-                className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-bold text-sm rounded-xl shadow-sm flex items-center gap-2 ${touchTargetSmall}`}
-              >
-                <TruckIcon className="w-4 h-4" />
-                <span>Add Supplier</span>
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            {suppliers.map(s => (
-              <div key={s.id} className={`p-4 rounded-xl flex items-center justify-between text-sm ${isDark ? 'bg-[#0d1117]/60' : 'bg-[#f6f8fa]'
-                }`}>
-                <div>
-                  <div className={`font-bold ${textTitle}`}>{s.name}</div>
-                  <div className={`text-[11px] ${textMuted}`}>Tel: {s.phone}</div>
-                </div>
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded bg-[#2ea043]/20 text-[#2ea043]">
-                  {s.active ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Offline Sync */}
       {activeSection === 'sync' && (

@@ -4,7 +4,8 @@ import {
     Shield, Lock, Key, User, Trash2,
     AlertCircle, CheckCircle2, Loader2,
     ArrowLeft, Mail, Phone, UserCheck,
-    Eye, EyeOff, Save, X, Crown, UserMinus
+    Eye, EyeOff, Save, X, Crown, UserMinus,
+    Users
 } from 'lucide-react';
 import { Profile } from '../../types';
 
@@ -62,9 +63,11 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
 
     // State for Delete Account
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [deleteTarget, setDeleteTarget] = useState<'self' | 'staff' | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<'self' | null>(null);
     const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deletePin, setDeletePin] = useState('');
+    const [pinError, setPinError] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
 
     // State for showing/hiding passwords
@@ -154,33 +157,35 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
 
     const handleDeleteAccount = async () => {
         if (isDeleting) return;
+
+        setPinError('');
+
         if (deleteConfirmText !== 'DELETE') {
             alert('Please type "DELETE" to confirm.');
             return;
         }
 
+        if (!deletePin || deletePin.length !== 4) {
+            setPinError('Please enter your 4-digit PIN.');
+            return;
+        }
+
+        if (deletePin !== profile?.pin_code) {
+            setPinError('Incorrect PIN. Please try again.');
+            return;
+        }
+
         setIsDeleting(true);
         try {
-            const profileId = deleteTarget === 'self'
-                ? profile!.id
-                : selectedStaffId!;
-
-            const result = await onDeleteAccount(profileId);
+            const result = await onDeleteAccount(profile!.id);
 
             if (result.isSelf) {
-                // Self-delete - sign out
                 localStorage.removeItem('medp_authenticated');
                 localStorage.removeItem('medp_current_user_id');
                 if (onSignOut) {
                     onSignOut();
                 }
                 window.location.reload();
-            } else {
-                // Staff deleted
-                setShowDeleteModal(false);
-                setDeleteConfirmText('');
-                setSelectedStaffId(null);
-                alert('Staff member removed successfully!');
             }
         } catch (err: any) {
             alert('Error: ' + (err.message || 'Failed to delete account'));
@@ -189,14 +194,14 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
         }
     };
 
-    const openDeleteModal = (target: 'self' | 'staff', staffId?: string) => {
-        setDeleteTarget(target);
-        if (staffId) setSelectedStaffId(staffId);
+    const openDeleteModal = () => {
+        setDeleteTarget('self');
         setDeleteConfirmText('');
+        setDeletePin('');
+        setPinError('');
         setShowDeleteModal(true);
     };
 
-    // Get staff name by ID
     const getStaffName = (id: string) => {
         const staff = profiles.find(p => p.id === id);
         return staff?.full_name || 'Unknown Staff';
@@ -325,9 +330,9 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Delete Self */}
+                    {/* Delete Self - Only option available */}
                     <button
-                        onClick={() => openDeleteModal('self')}
+                        onClick={openDeleteModal}
                         className={`p-4 rounded-xl text-left transition-colors border border-rose-500/30 ${isDark ? 'bg-rose-950/20 hover:bg-rose-950/40' : 'bg-rose-50 hover:bg-rose-100'}`}
                     >
                         <div className="flex items-center gap-3">
@@ -342,59 +347,54 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                         </div>
                     </button>
 
-                    {/* Delete Staff - Owner Only */}
-                    {isOwner && staffList.length > 0 && (
-                        <button
-                            onClick={() => {
-                                if (staffList.length === 1) {
-                                    openDeleteModal('staff', staffList[0].id);
-                                } else {
-                                    // Show staff selection modal
-                                    // For simplicity, we'll use the first one or add a select
-                                    // You can add a staff selection dropdown here
-                                }
-                            }}
-                            className={`p-4 rounded-xl text-left transition-colors border border-rose-500/30 ${isDark ? 'bg-rose-950/20 hover:bg-rose-950/40' : 'bg-rose-50 hover:bg-rose-100'}`}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center flex-shrink-0">
-                                    <UserMinus className="w-6 h-6 text-rose-500" />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-sm text-rose-500">Remove Staff</p>
-                                    <p className={`text-[11px] ${textMuted}`}>Remove a staff member ({staffList.length})</p>
-                                    <p className={`text-[10px] mt-0.5 text-rose-400`}>Owner only</p>
-                                </div>
+                    {/* Staff information - Read only */}
+                    <div className={`p-4 rounded-xl border ${isDark ? 'border-[#30363d] bg-[#0d1117]' : 'border-[#d0d7de] bg-[#f6f8fa]'}`}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                <Users className="w-6 h-6 text-blue-400" />
                             </div>
-                        </button>
-                    )}
+                            <div>
+                                <p className="font-bold text-sm">Staff Records</p>
+                                <p className={`text-[11px] ${textMuted}`}>
+                                    {staffList.length} staff member{staffList.length !== 1 ? 's' : ''} on record
+                                </p>
+                                <p className={`text-[10px] mt-0.5 ${textMuted}`}>
+                                    Staff cannot be deleted for audit purposes
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Staff list for deletion - Owner Only */}
-                {isOwner && staffList.length > 1 && (
+                {/* Staff list - Read only display */}
+                {staffList.length > 0 && (
                     <div className={`mt-3 p-3 rounded-xl ${isDark ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'}`}>
-                        <p className={`text-xs font-bold mb-2 ${textMuted}`}>Select staff to remove:</p>
+                        <p className={`text-xs font-bold mb-2 ${textMuted}`}>Staff Members (Cannot be removed):</p>
                         <div className="flex flex-wrap gap-2">
                             {staffList.map(staff => (
-                                <button
+                                <div
                                     key={staff.id}
-                                    onClick={() => openDeleteModal('staff', staff.id)}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${isDark ? 'bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9]' : 'bg-slate-200 hover:bg-slate-300 text-[#1f2328]'
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-slate-200 text-[#1f2328]'
                                         }`}
                                 >
+                                    <UserCheck className="w-3 h-3 text-emerald-400" />
                                     {staff.full_name}
-                                </button>
+                                    <span className={`text-[9px] ${textMuted}`}>
+                                        ({staff.role})
+                                    </span>
+                                </div>
                             ))}
                         </div>
+                        <p className={`text-[9px] mt-2 ${textMuted}`}>
+                            Records are kept permanently for audit trail and compliance.
+                        </p>
                     </div>
                 )}
             </div>
 
-            {/* =============================================
-          CHANGE PIN MODAL
-          ============================================ */}
+            {/* CHANGE PIN MODAL */}
             {showPinModal && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-md w-full p-4 shadow-2xl ${cardBg}`}>
                         <h3 className={`font-bold text-base pb-3 mb-3 ${borderLine} ${textTitle}`}>
                             <Key className="w-5 h-5 inline-block mr-2 text-blue-400" />
@@ -412,7 +412,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                         value={pinData.currentPin}
                                         onChange={(e) => setPinData({ ...pinData, currentPin: e.target.value.replace(/\D/g, '') })}
                                         className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
-                                        placeholder="••••"
+                                        placeholder="****"
                                     />
                                     <button
                                         type="button"
@@ -434,7 +434,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                         value={pinData.newPin}
                                         onChange={(e) => setPinData({ ...pinData, newPin: e.target.value.replace(/\D/g, '') })}
                                         className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
-                                        placeholder="••••"
+                                        placeholder="****"
                                     />
                                     <button
                                         type="button"
@@ -456,7 +456,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                         value={pinData.confirmPin}
                                         onChange={(e) => setPinData({ ...pinData, confirmPin: e.target.value.replace(/\D/g, '') })}
                                         className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
-                                        placeholder="••••"
+                                        placeholder="****"
                                     />
                                     <button
                                         type="button"
@@ -502,11 +502,9 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                 </div>
             )}
 
-            {/* =============================================
-          CHANGE PASSWORD MODAL
-          ============================================ */}
+            {/* CHANGE PASSWORD MODAL */}
             {showPasswordModal && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-md w-full p-4 shadow-2xl ${cardBg}`}>
                         <h3 className={`font-bold text-base pb-3 mb-3 ${borderLine} ${textTitle}`}>
                             <Lock className="w-5 h-5 inline-block mr-2 text-purple-400" />
@@ -523,7 +521,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                         value={passwordData.currentPassword}
                                         onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                                         className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
-                                        placeholder="••••••••"
+                                        placeholder="********"
                                     />
                                     <button
                                         type="button"
@@ -565,7 +563,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                         value={passwordData.confirmPassword}
                                         onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                                         className={`w-full rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2ea043]/50 ${inputBg}`}
-                                        placeholder="••••••••"
+                                        placeholder="********"
                                     />
                                     <button
                                         type="button"
@@ -611,11 +609,9 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                 </div>
             )}
 
-            {/* =============================================
-          DELETE ACCOUNT MODAL
-          ============================================ */}
+            {/* DELETE ACCOUNT MODAL - With PIN Verification */}
             {showDeleteModal && (
-                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+                <div className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
                     <div className={`rounded-2xl max-w-md w-full p-4 shadow-2xl ${cardBg}`}>
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center flex-shrink-0">
@@ -623,13 +619,10 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                             </div>
                             <div>
                                 <h3 className={`font-bold text-base text-rose-500`}>
-                                    {deleteTarget === 'self' ? 'Delete My Account' : 'Remove Staff Member'}
+                                    Delete My Account
                                 </h3>
                                 <p className={`text-xs ${textMuted}`}>
-                                    {deleteTarget === 'self'
-                                        ? 'This action is permanent and cannot be undone.'
-                                        : `Remove ${selectedStaffId ? getStaffName(selectedStaffId) : 'staff member'} from the system.`
-                                    }
+                                    This action is permanent and cannot be undone.
                                 </p>
                             </div>
                         </div>
@@ -637,14 +630,17 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                         <div className={`p-3 rounded-xl mb-4 ${isDark ? 'bg-rose-950/20 border border-rose-500/20' : 'bg-rose-50 border border-rose-200'}`}>
                             <p className={`text-xs ${textMuted}`}>
                                 <span className="font-bold text-rose-500">Warning:</span>
-                                {deleteTarget === 'self'
-                                    ? ' All your data, including sales, stock movements, and audit logs will be permanently removed.'
-                                    : ` All data associated with ${selectedStaffId ? getStaffName(selectedStaffId) : 'this staff member'} will be removed.`
-                                }
+                                All your data, including sales, stock movements, and audit logs will be permanently removed.
                             </p>
+                            {isOwner && (
+                                <p className={`text-xs mt-2 text-amber-400`}>
+                                    <span className="font-bold">Note:</span> As the pharmacy owner, deleting your account will also remove the entire pharmacy and all associated data.
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-3 text-sm">
+                            {/* DELETE Confirmation */}
                             <div>
                                 <label className={`block mb-1.5 font-bold ${textMuted}`}>
                                     Type <span className="text-rose-500 font-bold">DELETE</span> to confirm
@@ -658,12 +654,56 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                 />
                             </div>
 
+                            {/* PIN Verification - NEW */}
+                            <div>
+                                <label className={`block mb-1.5 font-bold ${textMuted}`}>
+                                    Enter your <span className="text-emerald-500 font-bold">4-digit PIN</span> to verify
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        id="delete-pin-input"
+                                        type="password"
+                                        maxLength={4}
+                                        value={deletePin}
+                                        onChange={(e) => {
+                                            setDeletePin(e.target.value.replace(/\D/g, ''));
+                                            setPinError('');
+                                        }}
+                                        className={`w-full rounded-xl px-4 py-3.5 text-sm font-mono text-center tracking-[0.3em] focus:outline-none focus:ring-2 ${pinError ? 'focus:ring-rose-500/50 border-rose-500' : 'focus:ring-emerald-500/50'} ${inputBg}`}
+                                        placeholder="****"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const input = document.getElementById('delete-pin-input') as HTMLInputElement;
+                                            if (input) {
+                                                input.type = input.type === 'password' ? 'text' : 'password';
+                                            }
+                                        }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                {pinError && (
+                                    <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3" />
+                                        {pinError}
+                                    </p>
+                                )}
+                                <p className={`text-[10px] mt-1.5 ${textMuted}`}>
+                                    Your current 4-digit PIN is required to delete your account.
+                                </p>
+                            </div>
+
                             <div className={`flex justify-end gap-3 pt-4 ${borderLine}`}>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setShowDeleteModal(false);
                                         setDeleteConfirmText('');
+                                        setDeletePin('');
+                                        setPinError('');
                                         setSelectedStaffId(null);
                                     }}
                                     className={`px-5 py-3 rounded-xl font-bold text-sm ${touchTargetSmall} ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'}`}
@@ -672,7 +712,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                 </button>
                                 <button
                                     onClick={handleDeleteAccount}
-                                    disabled={isDeleting || deleteConfirmText !== 'DELETE'}
+                                    disabled={isDeleting || deleteConfirmText !== 'DELETE' || deletePin.length !== 4}
                                     className="px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-extrabold text-sm shadow-sm flex items-center gap-2 disabled:opacity-50 touchTargetSmall"
                                 >
                                     {isDeleting ? (
@@ -683,7 +723,7 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
                                     ) : (
                                         <>
                                             <Trash2 className="w-4 h-4" />
-                                            <span>{deleteTarget === 'self' ? 'Delete Account' : 'Remove Staff'}</span>
+                                            <span>Delete Account</span>
                                         </>
                                     )}
                                 </button>

@@ -7,7 +7,8 @@ import {
   Brain, BarChart3, PieChart, LineChart, Sparkles, // Added for BI
   ShoppingCart
 } from 'lucide-react';
-
+import PharmientaPro from '../PharmientaPro';
+import { PwaInstallPrompt } from '../PwaInstallPrompt';
 interface DashboardViewProps {
   pharmacy: Pharmacy | null;
   profile: Profile | null;
@@ -456,7 +457,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       </div>
-
+      <PharmientaPro theme={theme} />
       {/* Smart Stock Alerts & Recent Sales Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 px-0 md:px-0">
 
@@ -590,7 +591,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
       </div>
-
+      <PwaInstallPrompt theme={theme} />
     </div>
+
   );
+
 };

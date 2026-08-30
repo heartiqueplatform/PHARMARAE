@@ -477,6 +477,7 @@ export default function App() {
                       onNavigateToTab={(tab) => setActiveTab(tab)}
                       onNavigateToSecurity={() => setShowSecurityView(true)}
                       onNavigateToHardReset={() => setShowHardResetView(true)}
+                      onNavigateToSmartOrder={() => setActiveTab('orders')}
                     />
                   )}
 

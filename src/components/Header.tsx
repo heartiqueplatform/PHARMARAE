@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Download,
   GitBranch,
   Info,
   Key,
@@ -26,6 +27,8 @@ import {
 } from 'lucide-react';
 import { Pharmacy, Profile, UserRole } from '../types';
 import { NotificationPermissionPrompt } from './NotificationPermissionPrompt';
+import { db } from '../lib/db';
+import { getSupabaseClient } from '../lib/supabase';
 
 const APP_VERSION = '1.0.0';
 
@@ -63,8 +66,12 @@ export const Header: React.FC<HeaderProps> = ({
   const [showVersionInfo, setShowVersionInfo] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [signOutConfirmText, setSignOutConfirmText] = useState('');
-  const isDark = theme === 'dark';
+  const [backupAcknowledged, setBackupAcknowledged] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupSuccess, setBackupSuccess] = useState<string | null>(null);
 
+  const isDark = theme === 'dark';
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const versionInfoRef = useRef<HTMLDivElement>(null);
   const signOutModalRef = useRef<HTMLDivElement>(null);
@@ -103,16 +110,157 @@ export const Header: React.FC<HeaderProps> = ({
     setShowProfileMenu(false);
     setShowSignOutModal(true);
     setSignOutConfirmText('');
+    setBackupAcknowledged(false);
+    setBackupError(null);
+    setBackupSuccess(null);
   };
 
   const handleConfirmSignOut = () => {
-    if (signOutConfirmText !== 'LOGOUT') {
+    if (signOutConfirmText !== 'LOGOUT' || !backupAcknowledged) {
       return;
+    }
+
+    // Clear all local storage data
+    if (typeof window !== 'undefined') {
+      // Clear all localStorage
+      localStorage.clear();
+
+      // Clear all sessionStorage
+      sessionStorage.clear();
+
+      // Clear IndexedDB if used
+      if ('indexedDB' in window) {
+        indexedDB.databases().then((dbs) => {
+          dbs.forEach((db) => {
+            if (db.name) indexedDB.deleteDatabase(db.name);
+          });
+        }).catch(() => {
+          // Fallback: try to delete known databases
+          const dbNames = ['PharmientaDB', 'pharmienta_cache', 'offline_data'];
+          dbNames.forEach((name) => {
+            try {
+              indexedDB.deleteDatabase(name);
+            } catch (e) {
+              // Ignore errors
+            }
+          });
+        });
+      }
+
+      // Clear Cache Storage
+      if ('caches' in window) {
+        caches.keys().then((names) => {
+          names.forEach((name) => {
+            caches.delete(name);
+          });
+        }).catch(() => {
+          // Ignore errors
+        });
+      }
+
+      // Clear service worker registrations
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            registration.unregister();
+          });
+        }).catch(() => {
+          // Ignore errors
+        });
+      }
     }
 
     setShowSignOutModal(false);
     setSignOutConfirmText('');
+    setBackupAcknowledged(false);
     onSignOut?.();
+  };
+
+  const handleBackupData = async () => {
+    if (isBackingUp) return;
+
+    setIsBackingUp(true);
+    setBackupError(null);
+    setBackupSuccess(null);
+
+    try {
+      const client = getSupabaseClient();
+
+      if (!client) {
+        setBackupError('Cannot backup: Supabase not configured');
+        setIsBackingUp(false);
+        return;
+      }
+
+      if (!isOnline) {
+        setBackupError('Cannot backup: You are offline. Please connect to internet.');
+        setIsBackingUp(false);
+        return;
+      }
+
+      const currentUser = currentProfile;
+      if (!currentUser) {
+        setBackupError('No user profile found to backup');
+        setIsBackingUp(false);
+        return;
+      }
+
+      // Step 1: Sync pending mutations
+      const pendingMutations = await db.pendingMutations?.toArray() || [];
+
+      if (pendingMutations.length > 0) {
+        for (const mutation of pendingMutations) {
+          try {
+            const { error } = await client
+              .from(mutation.table)
+            [mutation.type](mutation.data);
+
+            if (!error) {
+              await db.pendingMutations.delete(mutation.id);
+            }
+          } catch (err) {
+            console.warn('Failed to sync mutation:', err);
+          }
+        }
+      }
+
+      // Step 2: Sync all local tables
+      const tables = ['profiles', 'products', 'sales', 'customers', 'inventory'];
+
+      for (const table of tables) {
+        try {
+          const localData = await db[table]?.toArray() || [];
+
+          if (localData.length > 0) {
+            for (const record of localData) {
+              await client
+                .from(table)
+                .upsert(record, { onConflict: 'id' });
+            }
+          }
+        } catch (err) {
+          console.warn(`Failed to sync table ${table}:`, err);
+        }
+      }
+
+      // Step 3: Update last backup timestamp
+      await db.profiles.update(currentUser.id, {
+        last_backup_at: new Date().toISOString()
+      });
+
+      // Step 4: Save backup confirmation
+      localStorage.setItem('last_backup_date', new Date().toISOString());
+
+      // Step 5: Show success
+      setBackupAcknowledged(true);
+      setBackupSuccess('All data backed up to cloud successfully!');
+
+    } catch (error) {
+      console.error('Backup failed:', error);
+      setBackupError('Backup failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsBackingUp(false);
+    }
   };
 
   useEffect(() => {
@@ -134,6 +282,7 @@ export const Header: React.FC<HeaderProps> = ({
       ) {
         setShowSignOutModal(false);
         setSignOutConfirmText('');
+        setBackupAcknowledged(false);
       }
     };
 
@@ -160,6 +309,7 @@ export const Header: React.FC<HeaderProps> = ({
       setShowVersionInfo(false);
       setShowSignOutModal(false);
       setSignOutConfirmText('');
+      setBackupAcknowledged(false);
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -172,13 +322,6 @@ export const Header: React.FC<HeaderProps> = ({
       : currentRole === 'admin'
         ? 'Manager'
         : 'Staff';
-
-  const roleDescription =
-    currentRole === 'owner'
-      ? 'Pharmacy owner'
-      : currentRole === 'admin'
-        ? 'Pharmacy manager'
-        : 'Pharmacy staff';
 
   const Avatar = ({
     profile,
@@ -236,10 +379,6 @@ export const Header: React.FC<HeaderProps> = ({
     ? 'bg-[#0d1117]/90 text-[#f0f6fc] border-white/[0.07]'
     : 'bg-white/90 text-[#1f2328] border-slate-200/80';
 
-  const control = isDark
-    ? 'border-white/[0.07] bg-white/[0.045] hover:bg-white/[0.075]'
-    : 'border-slate-200 bg-slate-50/90 hover:bg-slate-100';
-
   const muted = isDark ? 'text-slate-400' : 'text-slate-500';
 
   return (
@@ -250,14 +389,12 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="mx-auto flex h-[68px] max-w-[1600px] items-center gap-2 px-3 sm:h-[72px] sm:px-5 lg:px-7">
           {/* Brand / pharmacy identity */}
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
-            {/* App Icon - Now using your PWA icon */}
             <div className="relative shrink-0">
               <img
                 src="/pwa-192x192.png"
                 alt="Pharmienta"
-                className="h-10 w-10 rounded-full object-cover shadow-sm  sm:h-11 sm:w-11"
+                className="h-10 w-10 rounded-full object-cover shadow-sm sm:h-11 sm:w-11"
               />
-              {/* Online status dot */}
               <span
                 className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 ${isDark ? 'border-[#0d1117]' : 'border-white'
                   } bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.12)]`}
@@ -293,7 +430,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Desktop status */}
+          {/* Sync button */}
           <button
             type="button"
             onClick={onTriggerSync}
@@ -687,7 +824,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </header>
 
-      {/* Sign out confirmation */}
+      {/* Sign out confirmation modal */}
       {showSignOutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-md sm:p-5">
           <div
@@ -704,19 +841,19 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-11 w-11 items-center justify-center rounded-2xl ${isDark
-                    ? 'bg-amber-400/10 text-amber-400'
-                    : 'bg-amber-50 text-amber-600'
+                    ? 'bg-rose-400/10 text-rose-400'
+                    : 'bg-rose-50 text-rose-600'
                     }`}
                 >
-                  <Key className="h-5 w-5" />
+                  <Shield className="h-5 w-5" />
                 </div>
 
                 <div>
                   <h2 id="signout-title" className="text-base font-extrabold">
-                    Sign out?
+                    Sign out & Clear Data?
                   </h2>
                   <p className={`mt-0.5 text-[10px] ${muted}`}>
-                    Your account will be safely signed out.
+                    This will erase all local data from this device.
                   </p>
                 </div>
               </div>
@@ -727,6 +864,9 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => {
                   setShowSignOutModal(false);
                   setSignOutConfirmText('');
+                  setBackupAcknowledged(false);
+                  setBackupError(null);
+                  setBackupSuccess(null);
                 }}
                 className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${isDark
                   ? 'text-slate-400 hover:bg-white/[0.06]'
@@ -738,29 +878,109 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="space-y-3 px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+              {/* Backup status */}
               <div
-                className={`rounded-2xl border p-4 ${isDark
-                  ? 'border-amber-400/15 bg-amber-400/[0.06]'
-                  : 'border-amber-200 bg-amber-50'
+                className={`rounded-2xl border-2 p-4 transition-all duration-300 ${backupAcknowledged
+                  ? isDark
+                    ? 'border-emerald-400/40 bg-emerald-400/[0.08]'
+                    : 'border-emerald-400 bg-emerald-50'
+                  : isDark
+                    ? 'border-rose-400/30 bg-rose-400/[0.08] animate-pulse'
+                    : 'border-rose-400 bg-rose-50 animate-pulse'
                   }`}
               >
                 <div className="flex gap-3">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <div>
-                    <p className="text-[10px] font-extrabold text-amber-500">
-                      Keep your PIN ready
-                    </p>
+                  <div className="mt-0.5 shrink-0">
+                    {backupAcknowledged ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-rose-500" />
+                    )}
+                  </div>
+                  <div className="flex-1">
                     <p
-                      className={`mt-1 text-[9px] leading-relaxed ${isDark ? 'text-amber-200/70' : 'text-amber-700'
+                      className={`text-[11px] font-extrabold ${backupAcknowledged ? 'text-emerald-500' : 'text-rose-500'
                         }`}
                     >
-                      You will need your 4-digit PIN to sign back in. If you
-                      forget it, contact the pharmacy owner.
+                      {backupAcknowledged
+                        ? 'Backup Confirmed'
+                        : 'BACKUP REQUIRED'}
                     </p>
+                    <p
+                      className={`mt-1 text-[9px] leading-relaxed ${backupAcknowledged
+                        ? isDark
+                          ? 'text-emerald-200/80'
+                          : 'text-emerald-700'
+                        : isDark
+                          ? 'text-rose-200/80'
+                          : 'text-rose-700'
+                        }`}
+                    >
+                      {backupAcknowledged
+                        ? 'Your data is backed up. You can safely clear local storage.'
+                        : 'All local data (sales, inventory, customers) will be PERMANENTLY deleted. You must backup your data before signing out.'}
+                    </p>
+
+                    {/* Progress bar */}
+                    <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-slate-200/30">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${backupAcknowledged ? 'bg-emerald-500 w-full' : 'bg-rose-500 w-0'
+                          }`}
+                      />
+                    </div>
+
+                    <p className="mt-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-400">
+                      {backupAcknowledged ? 'READY TO CLEAR' : 'NOT BACKED UP'}
+                    </p>
+
+                    {/* Success/Error messages */}
+                    {backupSuccess && (
+                      <p className="mt-2 text-[9px] font-bold text-emerald-500">
+                        {backupSuccess}
+                      </p>
+                    )}
+                    {backupError && (
+                      <p className="mt-2 text-[9px] font-bold text-rose-500">
+                        {backupError}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
 
+              {/* Backup button */}
+              <button
+                type="button"
+                onClick={handleBackupData}
+                disabled={isBackingUp || backupAcknowledged}
+                className={`w-full rounded-2xl border-2 px-4 py-3 text-[10px] font-bold transition-all ${backupAcknowledged
+                  ? isDark
+                    ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400 cursor-default'
+                    : 'border-emerald-400 bg-emerald-50 text-emerald-700 cursor-default'
+                  : isDark
+                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 animate-pulse'
+                    : 'border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 animate-pulse'
+                  }`}
+              >
+                {isBackingUp ? (
+                  <>
+                    <RefreshCw className="mr-2 inline h-3.5 w-3.5 animate-spin" />
+                    Backing up...
+                  </>
+                ) : backupAcknowledged ? (
+                  <>
+                    <Check className="mr-2 inline h-3.5 w-3.5" />
+                    Backup Complete
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 inline h-3.5 w-3.5" />
+                    Backup Data Now (Required)
+                  </>
+                )}
+              </button>
+
+              {/* Confirmation input */}
               <div>
                 <label
                   htmlFor="logout-confirm"
@@ -779,7 +999,8 @@ export const Header: React.FC<HeaderProps> = ({
                   onKeyDown={(event) => {
                     if (
                       event.key === 'Enter' &&
-                      signOutConfirmText === 'LOGOUT'
+                      signOutConfirmText === 'LOGOUT' &&
+                      backupAcknowledged
                     ) {
                       handleConfirmSignOut();
                     }
@@ -788,19 +1009,34 @@ export const Header: React.FC<HeaderProps> = ({
                   autoComplete="off"
                   spellCheck={false}
                   placeholder="LOGOUT"
-                  className={`w-full rounded-2xl border px-4 py-3.5 text-center font-mono text-sm font-bold tracking-[0.22em] outline-none transition-all ${isDark
-                    ? 'border-white/[0.08] bg-white/[0.035] text-white placeholder:text-slate-600 focus:border-rose-400/40 focus:ring-4 focus:ring-rose-400/10'
-                    : 'border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-rose-300 focus:ring-4 focus:ring-rose-100'
+                  className={`w-full rounded-2xl border px-4 py-3.5 text-center font-mono text-sm font-bold tracking-[0.22em] outline-none transition-all ${!backupAcknowledged && signOutConfirmText === 'LOGOUT'
+                    ? isDark
+                      ? 'border-rose-400/60 bg-rose-400/10 text-rose-400 placeholder:text-rose-400/40 focus:border-rose-400 focus:ring-4 focus:ring-rose-400/20'
+                      : 'border-rose-400 bg-rose-50 text-rose-600 placeholder:text-rose-400 focus:border-rose-400 focus:ring-4 focus:ring-rose-200'
+                    : isDark
+                      ? 'border-white/[0.08] bg-white/[0.035] text-white placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-4 focus:ring-emerald-400/10'
+                      : 'border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100'
                     }`}
                 />
+
+                {signOutConfirmText === 'LOGOUT' && !backupAcknowledged && (
+                  <p className="mt-2 flex items-center gap-1.5 text-[9px] font-bold text-rose-500">
+                    <AlertCircle className="h-3 w-3" />
+                    You must backup your data before signing out
+                  </p>
+                )}
               </div>
 
+              {/* Action buttons */}
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setShowSignOutModal(false);
                     setSignOutConfirmText('');
+                    setBackupAcknowledged(false);
+                    setBackupError(null);
+                    setBackupSuccess(null);
                   }}
                   className={`flex-1 rounded-2xl border px-4 py-3 text-[10px] font-bold transition-colors ${isDark
                     ? 'border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]'
@@ -813,11 +1049,14 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmSignOut}
-                  disabled={signOutConfirmText !== 'LOGOUT'}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-[10px] font-extrabold text-white shadow-lg shadow-rose-500/15 transition-all hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={signOutConfirmText !== 'LOGOUT' || !backupAcknowledged}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-extrabold text-white shadow-lg transition-all ${signOutConfirmText === 'LOGOUT' && backupAcknowledged
+                    ? 'bg-rose-500 shadow-rose-500/15 hover:bg-rose-600'
+                    : 'bg-slate-400 cursor-not-allowed opacity-40'
+                    }`}
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  Sign out
+                  Sign out & Clear
                 </button>
               </div>
             </div>

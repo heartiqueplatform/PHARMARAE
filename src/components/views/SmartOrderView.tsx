@@ -384,6 +384,12 @@ export function SmartOrderView({
             return;
         }
 
+        // Check if there's already a rejected request for this supplier
+        const existingRejected = partnerships.find(
+            p => p.supplier_id === supplierId && p.status === 'rejected'
+        );
+
+        const action = existingRejected ? 'resend' : 'send';
         if (!confirm(`Send partnership request to ${supplier.business_name}?`)) return;
 
         setSendingRequest(supplierId);
@@ -395,49 +401,79 @@ export function SmartOrderView({
             }
 
             const now = new Date().toISOString();
-            const requestId = genUUID();
-
-            const requestData = {
-                id: requestId,
-                supplier_id: supplierId,
-                supplier_name: supplier.business_name,
-                supplier_license_number: supplier.license_number || null,
-                pharmacy_id: pharmacyId,
-                pharmacy_name: normalizePharmacyName(pharmacyName),
-                pharmacy_email: pharmacyEmail,
-                pharmacy_phone: pharmacyPhone,
-                pharmacy_town: pharmacyTown,
-                pharmacy_county: pharmacyCounty,
-                proposed_credit_limit: null,
-                proposed_payment_terms: 'Net 30 Days',
-                discount_offered_percent: null,
-                categories_offered: [],
-                message: requestMessage || `Partnership request from ${profileName}`,
-                status: 'pending',
-                pharmacy_response_note: null,
-                responded_at: null,
-                created_at: now,
-                updated_at: now,
-            };
-
-            const { error } = await client
-                .from('suppliers_partnership_requests')
-                .insert(requestData);
-
-            if (error) throw error;
-
-            await db.suppliers_partnership_requests.put(requestData);
-
             const normalized = normalizePharmacyName(pharmacyName);
+
+            if (existingRejected) {
+                // UPDATE EXISTING REJECTED REQUEST back to pending
+                const updatedData = {
+                    status: 'pending',
+                    message: requestMessage || `New request from ${profileName}`,
+                    pharmacy_response_note: null,
+                    responded_at: null,
+                    updated_at: now,
+                };
+
+                // Update in Supabase
+                const { error } = await client
+                    .from('suppliers_partnership_requests')
+                    .update(updatedData)
+                    .eq('id', existingRejected.id);
+
+                if (error) throw error;
+
+                // Update in IndexedDB
+                await db.suppliers_partnership_requests.update(existingRejected.id, updatedData);
+
+                alert(`New request sent to ${supplier.business_name} successfully!`);
+            } else {
+                // CREATE NEW REQUEST (no existing rejected)
+                const requestId = genUUID();
+
+                const requestData = {
+                    id: requestId,
+                    supplier_id: supplierId,
+                    supplier_name: supplier.business_name,
+                    supplier_license_number: supplier.license_number || null,
+                    pharmacy_id: pharmacyId,
+                    pharmacy_name: normalized,
+                    pharmacy_email: pharmacyEmail,
+                    pharmacy_phone: pharmacyPhone,
+                    pharmacy_town: pharmacyTown,
+                    pharmacy_county: pharmacyCounty,
+                    proposed_credit_limit: null,
+                    proposed_payment_terms: 'Net 30 Days',
+                    discount_offered_percent: null,
+                    categories_offered: [],
+                    message: requestMessage || `Partnership request from ${profileName}`,
+                    status: 'pending',
+                    pharmacy_response_note: null,
+                    responded_at: null,
+                    created_at: now,
+                    updated_at: now,
+                };
+
+                const { error } = await client
+                    .from('suppliers_partnership_requests')
+                    .insert(requestData);
+
+                if (error) throw error;
+
+                await db.suppliers_partnership_requests.put(requestData);
+
+                alert(`Partnership request sent to ${supplier.business_name} successfully!`);
+            }
+
+            // Refresh data
             const updated = await db.suppliers_partnership_requests
                 .where('pharmacy_name')
                 .equals(normalized)
                 .toArray();
             setPartnerships(updated);
+            setAcceptedSuppliers(updated.filter(p => p.status === 'accepted'));
 
             setRequestMessage('');
             setSelectedSupplierForRequest(null);
-            alert(`Partnership request sent to ${supplier.business_name} successfully!`);
+
         } catch (error: any) {
             alert('Failed to send request: ' + (error.message || 'Unknown error'));
         } finally {
@@ -977,9 +1013,10 @@ export function SmartOrderView({
             <div className="px-4 py-4 max-w-7xl mx-auto pb-32">
 
                 {/* Partnerships Tab */}
+                {/* Partnerships Tab */}
                 {activeTab === 'partnerships' && (
                     <div>
-                        {/* Show empty state when NO partnerships exist at all (no pending, no accepted) */}
+                        {/* Show empty state when NO partnerships exist at all (no pending, no accepted, no rejected) */}
                         {partnerships.length === 0 && (
                             <div className={`text-center py-16 rounded-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'}`}>
                                 <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
@@ -1014,91 +1051,116 @@ export function SmartOrderView({
                                     </span>
                                 </h2>
                                 <div className="grid gap-4">
-                                    {partnerships.filter(p => p.status === 'pending').map((p) => (
-                                        <div key={p.id} className={`p-5 rounded-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'} shadow-sm`}>
-                                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        <h3 className="text-lg font-bold">{p.supplier_name}</h3>
-                                                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full bg-[#f02849] text-white`}>
-                                                            Pending
-                                                        </span>
-                                                        <span className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
-                                                            {new Date(p.created_at).toLocaleDateString()}
-                                                        </span>
-                                                    </div>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2">
-                                                        <p className={`text-sm ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>
-                                                            <span className="font-medium">License:</span> {p.supplier_license_number || 'N/A'}
-                                                        </p>
-                                                        <p className={`text-sm ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>
-                                                            <span className="font-medium">Credit Limit:</span> {currency}{p.proposed_credit_limit?.toLocaleString() || 'N/A'}
-                                                        </p>
-                                                    </div>
-                                                    {p.categories_offered && p.categories_offered.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1.5 mt-2">
-                                                            {p.categories_offered.slice(0, 4).map((cat, i) => (
-                                                                <span key={i} className={`px-2.5 py-0.5 text-xs rounded-full ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-[#f0f2f5] text-[#1a1a2e]'}`}>
-                                                                    {cat}
-                                                                </span>
-                                                            ))}
-                                                            {p.categories_offered.length > 4 && (
-                                                                <span className={`px-2.5 py-0.5 text-xs rounded-full ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-[#f0f2f5] text-[#1a1a2e]'}`}>
-                                                                    +{p.categories_offered.length - 4} more
+                                    {partnerships.filter(p => p.status === 'pending').map((p) => {
+                                        const isSentByPharmacy = p.pharmacy_id === pharmacyId ||
+                                            (p.message && p.message.includes(`Partnership request from ${profileName}`)) ||
+                                            !p.supplier_license_number;
+
+                                        return (
+                                            <div key={p.id} className={`p-5 rounded-2xl ${isDark ? 'bg-[#161b22]' : 'bg-white'} shadow-sm`}>
+                                                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <div className="flex flex-wrap items-center gap-3">
+                                                            <h3 className="text-lg font-bold">{p.supplier_name}</h3>
+                                                            <span className={`px-2.5 py-1 text-xs font-medium rounded-full bg-[#f02849] text-white`}>
+                                                                Pending
+                                                            </span>
+                                                            <span className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                                                {new Date(p.created_at).toLocaleDateString()}
+                                                            </span>
+                                                            {isSentByPharmacy && (
+                                                                <span className={`px-2.5 py-1 text-xs font-medium rounded-full bg-[#d29922] text-white`}>
+                                                                    Request Sent by You
                                                                 </span>
                                                             )}
                                                         </div>
-                                                    )}
-                                                    {p.message && (
-                                                        <p className={`text-sm italic mt-2 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
-                                                            "{p.message}"
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-4 space-y-3">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Add a response note (optional)"
-                                                    value={responseNote}
-                                                    onChange={(e) => setResponseNote(e.target.value)}
-                                                    className={`w-full px-4 py-2.5 rounded-xl text-sm ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f0f2f5] text-[#1a1a2e]'
-                                                        } focus:outline-none focus:ring-2 focus:ring-emerald-500 transition`}
-                                                />
-                                                <div className="flex gap-3">
-                                                    <button
-                                                        onClick={() => handleAcceptPartnership(p.id)}
-                                                        disabled={responding === p.id}
-                                                        className="flex-1 px-6 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-semibold rounded-xl transition disabled:opacity-50"
-                                                    >
-                                                        {responding === p.id ? (
-                                                            <span className="flex items-center justify-center gap-2">
-                                                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                                                Processing...
-                                                            </span>
-                                                        ) : (
-                                                            'Accept Partnership'
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2">
+                                                            <p className={`text-sm ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>
+                                                                <span className="font-medium">License:</span> {p.supplier_license_number || 'N/A'}
+                                                            </p>
+                                                            <p className={`text-sm ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>
+                                                                <span className="font-medium">Credit Limit:</span> {currency}{p.proposed_credit_limit?.toLocaleString() || 'N/A'}
+                                                            </p>
+                                                        </div>
+                                                        {p.categories_offered && p.categories_offered.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                                                {p.categories_offered.slice(0, 4).map((cat, i) => (
+                                                                    <span key={i} className={`px-2.5 py-0.5 text-xs rounded-full ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-[#f0f2f5] text-[#1a1a2e]'}`}>
+                                                                        {cat}
+                                                                    </span>
+                                                                ))}
+                                                                {p.categories_offered.length > 4 && (
+                                                                    <span className={`px-2.5 py-0.5 text-xs rounded-full ${isDark ? 'bg-[#21262d] text-[#c9d1d9]' : 'bg-[#f0f2f5] text-[#1a1a2e]'}`}>
+                                                                        +{p.categories_offered.length - 4} more
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         )}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRejectPartnership(p.id)}
-                                                        disabled={responding === p.id}
-                                                        className="flex-1 px-6 py-2.5 bg-[#da3633] hover:bg-[#f85149] text-white font-semibold rounded-xl transition disabled:opacity-50"
-                                                    >
-                                                        {responding === p.id ? 'Processing...' : 'Decline'}
-                                                    </button>
+                                                        {p.message && (
+                                                            <p className={`text-sm italic mt-2 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                                                "{p.message}"
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 space-y-3">
+                                                    {isSentByPharmacy ? (
+                                                        <div className={`p-3 rounded-xl ${isDark ? 'bg-[#d29922]/10 border border-[#d29922]/30' : 'bg-[#fef3c7] border border-[#f59e0b]/30'}`}>
+                                                            <p className={`text-sm font-medium ${isDark ? 'text-[#d29922]' : 'text-[#92400e]'} flex items-center gap-2`}>
+                                                                <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+                                                                Waiting for supplier to respond...
+                                                            </p>
+                                                            <p className={`text-xs mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                                                You sent this request. The supplier will accept or decline it.
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Add a response note (optional)"
+                                                                value={responseNote}
+                                                                onChange={(e) => setResponseNote(e.target.value)}
+                                                                className={`w-full px-4 py-2.5 rounded-xl text-sm ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f0f2f5] text-[#1a1a2e]'
+                                                                    } focus:outline-none focus:ring-2 focus:ring-emerald-500 transition`}
+                                                            />
+                                                            <div className="flex gap-3">
+                                                                <button
+                                                                    onClick={() => handleAcceptPartnership(p.id)}
+                                                                    disabled={responding === p.id}
+                                                                    className="flex-1 px-6 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-semibold rounded-xl transition disabled:opacity-50"
+                                                                >
+                                                                    {responding === p.id ? (
+                                                                        <span className="flex items-center justify-center gap-2">
+                                                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                                            Processing...
+                                                                        </span>
+                                                                    ) : (
+                                                                        'Accept Partnership'
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectPartnership(p.id)}
+                                                                    disabled={responding === p.id}
+                                                                    className="flex-1 px-6 py-2.5 bg-[#da3633] hover:bg-[#f85149] text-white font-semibold rounded-xl transition disabled:opacity-50"
+                                                                >
+                                                                    {responding === p.id ? 'Processing...' : 'Decline'}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
 
                         {/* Accepted Partners */}
                         {acceptedSuppliers.length > 0 && (
-                            <div>
+                            <div className="mb-8">
                                 <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>
                                     <span className="w-1.5 h-6 bg-[#238636] rounded-full"></span>
                                     Active Partners
@@ -1122,6 +1184,80 @@ export function SmartOrderView({
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ====== NEW: Declined/Rejected Requests ====== */}
+                        {/* This shows when there are NO pending and NO accepted - prevents blank screen */}
+                        {partnerships.filter(p => p.status === 'rejected').length > 0 && (
+                            <div>
+                                <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1a1a2e]'}`}>
+                                    <span className="w-1.5 h-6 bg-[#da3633] rounded-full"></span>
+                                    Declined Requests
+                                    <span className={`ml-2 px-2.5 py-0.5 text-xs rounded-full bg-[#da3633] text-white`}>
+                                        {partnerships.filter(p => p.status === 'rejected').length}
+                                    </span>
+                                </h2>
+                                <div className="grid gap-3">
+                                    {partnerships.filter(p => p.status === 'rejected').map((p) => (
+                                        <div key={p.id} className={`p-4 rounded-2xl ${isDark ? 'bg-[#161b22] border border-[#da3633]/30' : 'bg-white border border-[#da3633]/30'} shadow-sm`}>
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <h3 className="font-bold">{p.supplier_name}</h3>
+                                                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full bg-[#da3633] text-white`}>
+                                                            {p.responded_at ? 'Declined by Supplier' : 'Declined by You'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-3 mt-1">
+                                                        <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                                            Requested: {new Date(p.created_at).toLocaleDateString()}
+                                                        </p>
+                                                        {p.responded_at && (
+                                                            <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                                                Responded: {new Date(p.responded_at).toLocaleDateString()}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    {p.pharmacy_response_note && (
+                                                        <p className={`text-sm italic mt-1 ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                                            "{p.pharmacy_response_note}"
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedSupplierForRequest(p.supplier_id);
+                                                        setRequestMessage(`New request after previous decline (${new Date().toLocaleDateString()})`);
+                                                        handleSendPartnershipRequest(p.supplier_id);
+                                                    }}
+                                                    disabled={sendingRequest === p.supplier_id}
+                                                    className={`px-4 py-2 bg-[#238636] hover:bg-[#2ea043] text-white text-sm font-semibold rounded-xl transition disabled:opacity-50`}
+                                                >
+                                                    {sendingRequest === p.supplier_id ? (
+                                                        <span className="flex items-center gap-2">
+                                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                            Sending...
+                                                        </span>
+                                                    ) : (
+                                                        'Try Again'
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className={`mt-4 p-4 rounded-xl ${isDark ? 'bg-[#161b22]' : 'bg-white'} shadow-sm text-center`}>
+                                    <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#65676b]'}`}>
+                                        You can send a new request to a declined supplier at any time, or
+                                    </p>
+                                    <button
+                                        onClick={() => setActiveTab('available')}
+                                        className={`mt-2 px-6 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-semibold rounded-xl transition`}
+                                    >
+                                        Browse Other Available Suppliers
+                                    </button>
                                 </div>
                             </div>
                         )}

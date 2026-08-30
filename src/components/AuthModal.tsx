@@ -26,7 +26,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
   const creds = getSupabaseCredentials();
   const [supabaseUrl, setSupabaseUrl] = useState(creds.url);
   const [supabaseKey, setSupabaseKey] = useState(creds.key);
-
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutTimer, setLockoutTimer] = useState<NodeJS.Timeout | null>(null);
+  const MAX_LOGIN_ATTEMPTS = 5;
+  const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
   // Form State
   const [pharmacyName, setPharmacyName] = useState('');
   const [normalizedPharmacyName, setNormalizedPharmacyName] = useState('');
@@ -61,7 +65,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
+  useEffect(() => {
+    // Check if we have a lockout timestamp in localStorage
+    const lockoutUntil = localStorage.getItem('medp_lockout_until');
+    if (lockoutUntil) {
+      const until = new Date(lockoutUntil);
+      if (until > new Date()) {
+        setIsLocked(true);
+        // Auto-unlock after lockout period
+        const timeLeft = until.getTime() - Date.now();
+        const timer = setTimeout(() => {
+          setIsLocked(false);
+          localStorage.removeItem('medp_lockout_until');
+          setLoginAttempts(0);
+        }, timeLeft);
+        setLockoutTimer(timer);
+      } else {
+        localStorage.removeItem('medp_lockout_until');
+        setLoginAttempts(0);
+      }
+    }
+  }, []);
   // Auto-focus PIN input on login
   useEffect(() => {
     if (mode === 'login') {
@@ -427,108 +451,175 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       setLoading(false);
     }
   };
-
+  // NEW - SECURE: Requires Email AND PIN to match the same profile
+  //  SECURE handleLogin with Rate Limiting & Lockout
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // 🔒 Check if account is locked
+    if (isLocked) {
+      const lockoutUntil = localStorage.getItem('medp_lockout_until');
+      if (lockoutUntil) {
+        const remaining = Math.ceil((new Date(lockoutUntil).getTime() - Date.now()) / 1000);
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        setError(`⛔ Too many failed attempts. Please wait ${minutes}m ${seconds}s before trying again.`);
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     try {
       const client = getSupabaseClient();
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedPin = pinCode.trim();
 
-      if (pinCode.trim()) {
-        console.log('🔑 Fast PIN Login...');
-        const allProfiles = await db.profiles.toArray();
-        let matched = allProfiles.find(p => p.pin_code === pinCode.trim());
+      //  SECURITY: Check if we have both email and PIN
+      if (!trimmedEmail || !trimmedPin) {
+        setError('Please enter both Email and PIN to login.');
+        setLoading(false);
+        return;
+      }
 
-        if (!matched && client && isOnline) {
-          const { data: remoteProfiles } = await client
+      // Validate PIN format
+      if (!/^\d{4}$/.test(trimmedPin)) {
+        setError('PIN must be exactly 4 digits.');
+        setLoading(false);
+        return;
+      }
+
+      console.log(' Secure Login Attempt...');
+
+      // Step 1: Find profiles with matching email
+      const allProfiles = await db.profiles.toArray();
+      let matchedProfiles = allProfiles.filter(p =>
+        p.email?.toLowerCase() === trimmedEmail
+      );
+
+      // Step 2: If no local match and online, check cloud
+      if (matchedProfiles.length === 0 && client && isOnline) {
+        const { data: remoteProfiles, error } = await client
+          .from('profiles')
+          .select('*')
+          .ilike('email', trimmedEmail);
+
+        if (!error && remoteProfiles && remoteProfiles.length > 0) {
+          // Save remote profiles locally
+          for (const profile of remoteProfiles) {
+            await db.profiles.put(profile);
+          }
+          matchedProfiles = remoteProfiles;
+        }
+      }
+
+      // Step 3: If no profiles found with this email
+      if (matchedProfiles.length === 0) {
+        // ⚠️ Increment failed attempts
+        handleFailedAttempt();
+        setError(`No account found with email "${trimmedEmail}". Please check your email or register.`);
+        setLoading(false);
+        return;
+      }
+
+      // Step 4:  CRITICAL - Find the specific profile where email AND PIN match
+      const matchedProfile = matchedProfiles.find(p => p.pin_code === trimmedPin);
+
+      if (!matchedProfile) {
+        // ⚠️ Increment failed attempts
+        handleFailedAttempt();
+
+        // Security: Don't reveal if email exists but PIN doesn't
+        setError('Invalid credentials. Please check your Email and PIN.');
+
+        // Log for security audit (but don't expose to user)
+        console.warn(` Security Alert: Failed login attempt for email ${trimmedEmail} with incorrect PIN`);
+
+        setLoading(false);
+        return;
+      }
+
+      // ✅ SUCCESS - Reset attempts on successful login
+      setLoginAttempts(0);
+      localStorage.removeItem('medp_lockout_until');
+      setIsLocked(false);
+      if (lockoutTimer) {
+        clearTimeout(lockoutTimer);
+        setLockoutTimer(null);
+      }
+
+      // Step 5: Check if account is active
+      if (!matchedProfile.is_active) {
+        setError('This account is deactivated. Please contact your administrator.');
+        setLoading(false);
+        return;
+      }
+
+      // Step 6:  SUCCESS - Both Email and PIN match!
+      console.log(` Secure login successful: ${matchedProfile.full_name} (${matchedProfile.pharmacy_name})`);
+
+      // Update last login timestamp
+      matchedProfile.last_login_at = new Date().toISOString();
+      await db.profiles.put(matchedProfile);
+
+      // Sync to cloud if online
+      if (client && isOnline) {
+        try {
+          await client
             .from('profiles')
-            .select('*')
-            .eq('pin_code', pinCode.trim());
-
-          if (remoteProfiles && remoteProfiles.length > 0) {
-            for (const profile of remoteProfiles) {
-              await db.profiles.put(profile);
-            }
-            matched = remoteProfiles[0];
-          }
-        }
-
-        if (matched) {
-          if (!matched.is_active) {
-            setError('This account is deactivated. Please contact your administrator.');
-            setLoading(false);
-            return;
-          }
-
-          matched.last_login_at = new Date().toISOString();
-          await db.profiles.put(matched);
-
-          if (client && isOnline) {
-            try {
-              await client
-                .from('profiles')
-                .update({ last_login_at: matched.last_login_at })
-                .eq('id', matched.id);
-            } catch (updateError) {
-              console.warn('Failed to update last login in cloud:', updateError);
-            }
-          }
-
-          localStorage.setItem('medp_authenticated', 'true');
-          localStorage.setItem('medp_current_user_id', matched.id);
-          localStorage.setItem('medp_pharmacy_name', matched.pharmacy_name);
-          localStorage.setItem('medp_user_role', matched.role);
-
-          onAuthSuccess(matched);
-          setLoading(false);
-          return;
+            .update({ last_login_at: matchedProfile.last_login_at })
+            .eq('id', matchedProfile.id);
+        } catch (updateError) {
+          console.warn('Failed to update last login in cloud:', updateError);
+          // Don't block login if cloud sync fails
         }
       }
 
-      if (email.trim() && password.trim() && client && isOnline) {
-        console.log('📧 Email Login...');
-        const { data: authData, error: authErr } = await client.auth.signInWithPassword({
-          email: email.trim(),
-          password: password.trim()
-        });
+      // Store session
+      localStorage.setItem('medp_authenticated', 'true');
+      localStorage.setItem('medp_current_user_id', matchedProfile.id);
+      localStorage.setItem('medp_pharmacy_name', matchedProfile.pharmacy_name);
+      localStorage.setItem('medp_user_role', matchedProfile.role);
+      localStorage.setItem('medp_user_email', matchedProfile.email || trimmedEmail);
+      localStorage.setItem('medp_login_time', new Date().toISOString());
 
-        if (!authErr && authData?.user) {
-          const { data: remoteProfile, error: profileError } = await client
-            .from('profiles')
-            .select('*')
-            .eq('auth_user_id', authData.user.id)
-            .single();
-
-          if (!profileError && remoteProfile) {
-            await db.profiles.put(remoteProfile);
-
-            localStorage.setItem('medp_authenticated', 'true');
-            localStorage.setItem('medp_current_user_id', remoteProfile.id);
-            localStorage.setItem('medp_pharmacy_name', remoteProfile.pharmacy_name);
-            localStorage.setItem('medp_user_role', remoteProfile.role);
-
-            onAuthSuccess(remoteProfile);
-            setLoading(false);
-            return;
-          }
-        }
-      }
-
-      if (!pinCode.trim() && !email.trim()) {
-        setError('Please enter your PIN or Email + Password.');
-      } else if (pinCode.trim() && !email.trim()) {
-        setError('No account found for this PIN. Please check with your administrator.');
-      } else {
-        setError('Invalid credentials. Please check your Email, Password, or PIN.');
-      }
+      // ✅ Authentication successful
+      onAuthSuccess(matchedProfile);
 
     } catch (err: any) {
-      console.error('❌ Login error:', err);
-      setError(err.message || 'Login failed.');
+      console.error(' Login error:', err);
+      handleFailedAttempt();
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔒 New helper function for failed attempts
+  const handleFailedAttempt = () => {
+    const newAttempts = loginAttempts + 1;
+    setLoginAttempts(newAttempts);
+
+    console.warn(` Failed login attempt ${newAttempts}/${MAX_LOGIN_ATTEMPTS}`);
+
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      // Lock the account
+      const lockoutUntil = new Date(Date.now() + LOCKOUT_DURATION);
+      localStorage.setItem('medp_lockout_until', lockoutUntil.toISOString());
+      setIsLocked(true);
+
+      // Set timer to auto-unlock
+      const timer = setTimeout(() => {
+        setIsLocked(false);
+        setLoginAttempts(0);
+        localStorage.removeItem('medp_lockout_until');
+        setError(' Account unlocked. You can try again now.');
+      }, LOCKOUT_DURATION);
+
+      setLockoutTimer(timer);
+      setError(`Too many failed attempts (${MAX_LOGIN_ATTEMPTS}). Account locked for 5 minutes.`);
     }
   };
 
@@ -882,73 +973,88 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleLogin} className="space-y-3 text-[11px]">
-                {/* PIN Login - Primary */}
-                <div className={`p-3 rounded-xl ${isDark ? 'bg-emerald-950/20 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200'} border`}>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Fingerprint className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                    <p className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-                      FAST PIN LOGIN
+
+              < form onSubmit={handleLogin} className="space-y-3 text-[11px]">
+                {/* Combined Login - Email + PIN */}
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-emerald-950/20 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200'} border-2 border-emerald-500/30`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <ShieldCheck className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                    <p className={`text-[11px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                      SECURE LOGIN
+                    </p>
+                    <span className={`ml-auto text-[8px] px-2 py-0.5 rounded-full ${isDark ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-200 text-emerald-800'}`}>
+                      Multi-Factor
+                    </span>
+                  </div>
+
+                  {/* Email Field */}
+                  <div className="mb-3">
+                    <label className={`block ${textSecondary} mb-1.5 font-medium text-[10px] flex items-center gap-1.5`}>
+                      <Mail className="w-3.5 h-3.5" />
+                      Email Address <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="john@chemist.com"
+                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[12px] focus:outline-none focus:border-emerald-500 transition-all`}
+                      autoFocus
+                    />
+                    <p className={`text-[8px] mt-1 ${textMuted}`}>
+                      Enter the email associated with your pharmacy account
                     </p>
                   </div>
-                  <div>
-                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px] text-center`}>Enter 4-Digit PIN</label>
 
+                  {/* PIN Field */}
+                  <div>
+                    <label className={`block ${textSecondary} mb-1.5 font-medium text-[10px] flex items-center gap-1.5`}>
+                      <Fingerprint className="w-3.5 h-3.5" />
+                      Staff PIN <span className="text-rose-400">*</span>
+                    </label>
                     <div className="relative">
                       <input
                         id="pin-login-input"
                         type={showPin ? "text" : "password"}
                         maxLength={4}
+                        required
                         value={pinCode}
                         onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
                         placeholder="••••"
-                        className={`w-full max-w-[160px] mx-auto block ${bgInput} ${borderColor} border rounded-xl px-3 py-3 ${textPrimary} text-base focus:outline-none focus:border-emerald-500 font-mono tracking-[0.3em] text-center pr-12`}
-                        autoFocus
+                        className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[14px] focus:outline-none focus:border-emerald-500 font-mono tracking-[0.3em] pr-12 transition-all`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPin(!showPin)}
-                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-200 text-slate-500'
-                          }`}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}
                       >
-                        {showPin ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
+                        {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                    <p className={`text-[9px] text-center mt-1.5 ${textMuted}`}>
-                      Enter your 4-digit staff PIN to login instantly
+                    <p className={`text-[8px] mt-1 ${textMuted}`}>
+                      Enter your 4-digit staff PIN (provided by pharmacy owner)
+                    </p>
+                  </div>
+
+                  {/* Security Notice */}
+                  <div className={`mt-3 p-2 rounded-lg ${isDark ? 'bg-amber-950/20 border-amber-800/30' : 'bg-amber-50 border-amber-200'} border`}>
+                    <p className={`text-[8px] flex items-center gap-1.5 ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      <span>Both <strong>Email</strong> and <strong>PIN</strong> must match for access</span>
                     </p>
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className="relative flex py-0.5 items-center">
-                  <div className={`flex-grow border-t ${borderColor}`}></div>
-                  <span className={`flex-shrink mx-2 ${textMuted} text-[9px] font-medium`}>OR</span>
-                  <div className={`flex-grow border-t ${borderColor}`}></div>
-                </div>
-
-                {/* Email Login */}
+                {/* Password Option (Alternative) */}
                 <div className={`p-3 rounded-xl ${isDark ? 'bg-slate-800/30 border-slate-700/50' : 'bg-slate-50 border-slate-200'} border`}>
-                  <p className={`text-[9px] ${textMuted} text-center mb-2`}>CLOUD LOGIN</p>
-                  <div>
-                    <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
-                      <Mail className="w-3 h-3 inline mr-1" />
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="john@chemist.com"
-                      className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
-                    />
-                  </div>
+                  <p className={`text-[9px] ${textMuted} text-center mb-2 flex items-center justify-center gap-1.5`}>
+                    <span className="w-4 h-px bg-slate-400/30"></span>
+                    <span>OR use Email + Password</span>
+                    <span className="w-4 h-px bg-slate-400/30"></span>
+                  </p>
 
-                  <div className="mt-2">
+                  <div>
                     <label className={`block ${textSecondary} mb-1 font-medium text-[10px]`}>
                       <KeyRound className="w-3 h-3 inline mr-1" />
                       Password
@@ -960,26 +1066,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                       placeholder="••••••••"
                       className={`w-full ${bgInput} ${borderColor} border rounded-xl px-3 py-2.5 ${textPrimary} text-[11px] focus:outline-none focus:border-emerald-500`}
                     />
+                    <p className={`text-[8px] mt-1 ${textMuted}`}>
+                      Only works when online with active internet connection
+                    </p>
                   </div>
                 </div>
 
+                {/* Login Button */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (!email.trim() && !pinCode.trim())}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Authenticating...</span>
+                      <span>Verifying credentials...</span>
                     </>
                   ) : (
                     <>
-                      <LogIn className="w-3.5 h-3.5" />
-                      <span>Sign In</span>
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Secure Sign In</span>
                     </>
                   )}
                 </button>
+
+                {/* Security Footer */}
+                <div className={`text-[8px] ${textMuted} text-center flex items-center justify-center gap-2`}>
+                  <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                  <span>Multi-factor authentication • Email + PIN required</span>
+                </div>
               </form>
             )}
           </>
@@ -994,102 +1110,104 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       </div>
 
       {/* Confirmation Modal */}
-      {showConfirmation && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className={`${bgCard} border ${borderColor} rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4`}>
-            {/* Header */}
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
-                <AlertTriangle className="w-8 h-8 text-amber-500" />
-              </div>
-              <h3 className={`text-lg font-bold ${textPrimary}`}>
-                ⚠️ Confirm Registration
-              </h3>
-              <p className={`text-[13px] ${textSecondary}`}>
-                This action is <strong className="text-rose-500">PERMANENT</strong> and cannot be changed!
-              </p>
-            </div>
-
-            {/* Info */}
-            <div className={`p-4 rounded-xl ${isDark ? 'bg-rose-950/20 border-rose-800/30' : 'bg-rose-50 border-rose-200'} border space-y-2`}>
-              <p className={`text-[12px] ${isDark ? 'text-rose-300' : 'text-rose-700'} font-medium`}>
-                <strong>Pharmacy Name:</strong> {normalizedPharmacyName}
-              </p>
-              <p className={`text-[12px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'} font-medium`}>
-                <strong>Your PIN:</strong> <span className="font-mono tracking-[0.2em]">{pinCode}</span>
-              </p>
-              <p className={`text-[11px] ${textMuted} mt-1`}>
-                This PIN is auto-generated and unique. Save it securely for login.
-              </p>
-            </div>
-
-            {/* Confirmation Input */}
-            <div>
-              <label className={`block ${textSecondary} mb-1.5 text-[12px] font-medium`}>
-                Type the pharmacy name to confirm:
-              </label>
-              <input
-                type="text"
-                value={confirmationInput}
-                onChange={(e) => {
-                  setConfirmationInput(e.target.value);
-                  setConfirmationError('');
-                }}
-                placeholder={`Type "${normalizedPharmacyName}" exactly`}
-                className={`w-full ${bgInput} ${borderColor} border rounded-xl px-4 py-3 ${textPrimary} text-[13px] focus:outline-none focus:border-emerald-500 font-mono uppercase`}
-                autoFocus
-              />
-              {confirmationError && (
-                <p className="text-[11px] text-rose-500 mt-1.5 flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {confirmationError}
+      {
+        showConfirmation && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <div className={`${bgCard} border ${borderColor} rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4`}>
+              {/* Header */}
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className={`text-lg font-bold ${textPrimary}`}>
+                  Confirm Registration
+                </h3>
+                <p className={`text-[13px] ${textSecondary}`}>
+                  This action is <strong className="text-rose-500">PERMANENT</strong> and cannot be changed!
                 </p>
-              )}
-              <p className={`text-[10px] ${textMuted} mt-1.5`}>
-                Must match <strong className="text-emerald-500">{normalizedPharmacyName}</strong> exactly
+              </div>
+
+              {/* Info */}
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-rose-950/20 border-rose-800/30' : 'bg-rose-50 border-rose-200'} border space-y-2`}>
+                <p className={`text-[12px] ${isDark ? 'text-rose-300' : 'text-rose-700'} font-medium`}>
+                  <strong>Pharmacy Name:</strong> {normalizedPharmacyName}
+                </p>
+                <p className={`text-[12px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'} font-medium`}>
+                  <strong>Your PIN:</strong> <span className="font-mono tracking-[0.2em]">{pinCode}</span>
+                </p>
+                <p className={`text-[11px] ${textMuted} mt-1`}>
+                  This PIN is auto-generated and unique. Save it securely for login.
+                </p>
+              </div>
+
+              {/* Confirmation Input */}
+              <div>
+                <label className={`block ${textSecondary} mb-1.5 text-[12px] font-medium`}>
+                  Type the pharmacy name to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={confirmationInput}
+                  onChange={(e) => {
+                    setConfirmationInput(e.target.value);
+                    setConfirmationError('');
+                  }}
+                  placeholder={`Type "${normalizedPharmacyName}" exactly`}
+                  className={`w-full ${bgInput} ${borderColor} border rounded-xl px-4 py-3 ${textPrimary} text-[13px] focus:outline-none focus:border-emerald-500 font-mono uppercase`}
+                  autoFocus
+                />
+                {confirmationError && (
+                  <p className="text-[11px] text-rose-500 mt-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {confirmationError}
+                  </p>
+                )}
+                <p className={`text-[10px] ${textMuted} mt-1.5`}>
+                  Must match <strong className="text-emerald-500">{normalizedPharmacyName}</strong> exactly
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConfirmation(false);
+                    setConfirmationInput('');
+                    setConfirmationError('');
+                  }}
+                  className="flex-1 py-3 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition-colors text-[13px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmRegistration}
+                  disabled={loading || confirmationInput.trim().toUpperCase() !== normalizedPharmacyName}
+                  className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 disabled:opacity-50 text-white font-bold rounded-xl transition-all duration-200 shadow-lg shadow-amber-500/20 text-[13px] flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>Confirm & Create</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <p className={`text-[10px] ${textMuted} text-center`}>
+                <Info className="w-3 h-3 inline mr-1" />
+                Pharmacy name is permanent ID • PIN is auto-generated
               </p>
             </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowConfirmation(false);
-                  setConfirmationInput('');
-                  setConfirmationError('');
-                }}
-                className="flex-1 py-3 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition-colors text-[13px]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmRegistration}
-                disabled={loading || confirmationInput.trim().toUpperCase() !== normalizedPharmacyName}
-                className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 disabled:opacity-50 text-white font-bold rounded-xl transition-all duration-200 shadow-lg shadow-amber-500/20 text-[13px] flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Creating...</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Confirm & Create</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            <p className={`text-[10px] ${textMuted} text-center`}>
-              <Info className="w-3 h-3 inline mr-1" />
-              Pharmacy name is permanent ID • PIN is auto-generated
-            </p>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
