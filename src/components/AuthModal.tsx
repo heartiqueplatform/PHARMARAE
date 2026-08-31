@@ -637,7 +637,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
   return (
     <div className={`fixed inset-0 z-80 flex items-center justify-center p-3 overflow-y-auto no-scrollbar ${isDark ? 'bg-slate-950/95' : 'bg-white/95'
       } backdrop-blur-sm`}>
-      <div className={`${bgCard} ${borderColor} border rounded-2xl w-full max-w-md p-4 shadow-xl space-y-3 my-auto max-h-[96vh] overflow-y-auto no-scrollbar`}>
+      <div className={`${bgCard} ${borderColor} border rounded-2xl w-full max-w-md p-4 shadow-none space-y-3 my-auto max-h-[96vh] overflow-y-auto no-scrollbar`}>
 
         {/* Brand & Header */}
         <div className="text-center space-y-1.5">
@@ -659,8 +659,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                 : 'Sign in with PIN or Email'}
             {!showSupabaseConfig && (
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium ${isOnline
-                ? isDark ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/80' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                : isDark ? 'bg-rose-950/80 text-rose-400 border border-rose-800/80' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                ? isDark ? 'bg-emerald-950/80 text-emerald-400 border border-0' : 'bg-emerald-100 text-emerald-700 border border-0'
+                : isDark ? 'bg-rose-950/80 text-rose-400 border border-0' : 'bg-rose-100 text-rose-700 border border-0'
                 }`}>
                 {isOnline ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />}
                 {isOnline ? 'Online' : 'Offline'}
@@ -821,7 +821,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                       This name is already taken. Please choose another.
                     </p>
                   )}
-                  <div className={`mt-1.5 p-2 rounded-lg ${isDark ? 'bg-amber-950/30 border-amber-800/30' : 'bg-amber-50 border-amber-200'} border flex items-start gap-1.5`}>
+                  <div className={`mt-1.5 p-2 rounded-lg ${isDark ? 'bg-amber-950/30 border-0' : 'bg-amber-50 border-0'} border flex items-start gap-1.5`}>
                     <Info className={`w-3 h-3 flex-shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
                     <p className={`text-[9px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
                       <strong>Important:</strong> Pharmacy name is permanent, unique ID. Will be auto-converted to <strong>UPPERCASE</strong>.
@@ -912,7 +912,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                 </div>
 
                 {/* Auto-generated PIN Section */}
-                <div className={`p-3 rounded-xl ${isDark ? 'bg-emerald-950/20 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200'} border`}>
+                <div className={`p-3 rounded-xl ${isDark ? 'bg-emerald-950/20 border-0' : 'bg-emerald-50 border-0'} border`}>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className={`block ${textSecondary} font-medium text-[10px] flex items-center gap-1.5`}>
                       <Fingerprint className="w-3 h-3 text-emerald-500" />
@@ -947,9 +947,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                   <p className={`text-[9px] text-center ${textMuted} mt-1`}>
                     Use this 4-digit PIN for quick login • Save it securely
                   </p>
-                  <div className={`mt-1.5 p-1.5 rounded-lg ${isDark ? 'bg-amber-950/20 border-amber-800/30' : 'bg-amber-50 border-amber-200'} border`}>
+                  <div className={`mt-1.5 p-1.5 rounded-lg ${isDark ? 'bg-amber-950/20 border-0' : 'bg-amber-50 border-0'} border`}>
                     <p className={`text-[8px] text-center ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                      ⚠️ Auto-generated unique PIN • Cannot be changed manually
+                      Auto-generated unique PIN • Cannot be changed manually
                     </p>
                   </div>
                 </div>
@@ -976,7 +976,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
 
               < form onSubmit={handleLogin} className="space-y-3 text-[11px]">
                 {/* Combined Login - Email + PIN */}
-                <div className={`p-4 rounded-xl ${isDark ? 'bg-emerald-950/20 border-emerald-800/30' : 'bg-emerald-50 border-emerald-200'} border-2 border-emerald-500/30`}>
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-emerald-950/20 border-0' : 'bg-emerald-50 border-0'} `}>
                   <div className="flex items-center gap-2 mb-3">
                     <ShieldCheck className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                     <p className={`text-[11px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
@@ -1038,7 +1038,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
                   </div>
 
                   {/* Security Notice */}
-                  <div className={`mt-3 p-2 rounded-lg ${isDark ? 'bg-amber-950/20 border-amber-800/30' : 'bg-amber-50 border-amber-200'} border`}>
+                  <div className={`mt-3 p-2 rounded-lg ${isDark ? 'bg-amber-950/20 border-0' : 'bg-amber-50 border-0'} border`}>
                     <p className={`text-[8px] flex items-center gap-1.5 ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
                       <Info className="w-3 h-3 flex-shrink-0" />
                       <span>Both <strong>Email</strong> and <strong>PIN</strong> must match for access</span>

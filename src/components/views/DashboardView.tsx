@@ -47,12 +47,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const currency = pharmacyCurrency;
   const isDark = theme === 'dark';
 
-  // Card & Theme variables - REMOVED ALL border-* classes
+  // Card & Theme variables - NO border classes
   const cardBg = isDark ? 'bg-[#161b22] text-[#c9d1d9]' : 'bg-white text-[#1f2328] shadow-sm';
   const cardHover = isDark ? 'hover:bg-[#21262d]' : 'hover:bg-[#f6f8fa]';
   const textMuted = isDark ? 'text-[#8b949e]' : 'text-[#656d76]';
   const textTitle = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
-  const borderLine = isDark ? 'border-[#30363d]' : 'border-[#d0d7de]';
   const itemBg = isDark ? 'bg-[#21262d]/50' : 'bg-[#f6f8fa]';
 
   // Theme-aware skeleton colors
@@ -160,7 +159,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             }}
           />
 
-
           {/* Gradient Overlay - from left to right for readability */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/20" />
 
@@ -196,8 +194,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {isLoading ? (
           // Show 7 skeleton metrics
           <>
-
-            <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
             <SkeletonMetric />
@@ -315,7 +311,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <p className={`text-lg sm:text-xl font-extrabold ${textTitle}`}>
                     Insights
                   </p>
-                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30 animate-pulse">
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043]">
                     NEW
                   </span>
                 </div>
@@ -332,6 +328,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </p>
               </div>
             </button>
+
             {/* Orders Metric - Shows items needing reorder */}
             <button
               onClick={() => onNavigate('orders')}
@@ -362,7 +359,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
           <button
             onClick={() => onNavigate('sell')}
-            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#2ea043]/15 hover:bg-[#2ea043]/25 border border-[#2ea043]/30 text-[#2ea043] font-bold text-xs transition-colors"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#2ea043]/15 hover:bg-[#2ea043]/25 text-[#2ea043] font-bold text-xs transition-colors"
           >
             <ShoppingBag className="w-5 h-5 shrink-0" />
             <div className="text-left">
@@ -373,7 +370,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={onOpenAddStockModal}
-            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#58a6ff]/15 hover:bg-[#58a6ff]/25 border border-[#58a6ff]/30 text-[#58a6ff] font-bold text-xs transition-colors"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#58a6ff]/15 hover:bg-[#58a6ff]/25 text-[#58a6ff] font-bold text-xs transition-colors"
           >
             <PlusCircle className="w-5 h-5 shrink-0" />
             <div className="text-left">
@@ -384,7 +381,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={() => onNavigate('stock')}
-            className={`flex items-center gap-2.5 p-3 rounded-xl border font-bold text-xs transition-colors ${isDark ? 'bg-[#21262d] border-[#30363d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] border-[#d0d7de] text-[#1f2328] hover:bg-slate-200'
+            className={`flex items-center gap-2.5 p-3 rounded-xl font-bold text-xs transition-colors ${isDark ? 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]' : 'bg-[#f6f8fa] text-[#1f2328] hover:bg-slate-200'
               }`}
           >
             <Package className="w-5 h-5 shrink-0" />
@@ -396,7 +393,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={() => onNavigate('requests')}
-            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#d2a8ff]/15 hover:bg-[#d2a8ff]/25 border border-[#d2a8ff]/30 text-[#d2a8ff] font-bold text-xs transition-colors"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#d2a8ff]/15 hover:bg-[#d2a8ff]/25 text-[#d2a8ff] font-bold text-xs transition-colors"
           >
             <List className="w-5 h-5 shrink-0" />
             <div className="text-left">
@@ -409,7 +406,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={() => onNavigate('returns')}
-            className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-500 font-bold text-xs transition-colors"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 font-bold text-xs transition-colors"
           >
             <Undo2 className="w-5 h-5 shrink-0" />
             <div className="text-left">
@@ -419,16 +416,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
           </button>
+
           {/* 🆕 Smart Orders Quick Action */}
           <button
             onClick={() => onNavigate('orders')}
-            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#f0883e]/15 hover:bg-[#f0883e]/25 border border-[#f0883e]/30 text-[#f0883e] font-bold text-xs transition-colors"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-[#f0883e]/15 hover:bg-[#f0883e]/25 text-[#f0883e] font-bold text-xs transition-colors"
           >
             <FileText className="w-5 h-5 shrink-0" />
             <div className="text-left">
               <div className="font-extrabold flex items-center gap-1.5">
                 ORDERS
-                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#f0883e]/20 text-[#f0883e] border border-[#f0883e]/30">
+                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#f0883e]/20 text-[#f0883e]">
                   SMART
                 </span>
               </div>
@@ -437,16 +435,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
           </button>
+
           {/* 🆕 Business Intelligence Quick Action */}
           <button
             onClick={() => onNavigate('intelligence')}
-            className="flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-[#2ea043]/15 to-[#58a6ff]/15 hover:from-[#2ea043]/25 hover:to-[#58a6ff]/25 border border-[#2ea043]/30 text-[#2ea043] font-bold text-xs transition-colors group"
+            className="flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-[#2ea043]/15 to-[#58a6ff]/15 hover:from-[#2ea043]/25 hover:to-[#58a6ff]/25 text-[#2ea043] font-bold text-xs transition-colors group"
           >
             <Brain className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
             <div className="text-left">
               <div className="font-extrabold flex items-center gap-1.5">
                 INSIGHTS
-                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
+                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043]">
                   NEW
                 </span>
               </div>
@@ -463,7 +462,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Recent Transactions List */}
         <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
-          <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
+          <div className={`flex items-center justify-between pb-3 mb-3 ${isDark ? 'border-b border-[#30363d]' : 'border-b border-[#d0d7de]'}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
               Today's Recent Sales
             </h3>
@@ -515,7 +514,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div className="font-extrabold text-[#2ea043]">
                         {canViewFinancials ? `${currency} ${sale.total.toFixed(2)}` : 'Completed'}
                       </div>
-                      <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded border font-semibold ${isDark ? 'bg-[#30363d] text-[#c9d1d9] border-[#484f58]' : 'bg-slate-200 text-slate-800 border-slate-300'
+                      <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-semibold ${isDark ? 'bg-[#30363d] text-[#c9d1d9]' : 'bg-slate-200 text-slate-800'
                         }`}>
                         {sale.payment_method || 'cash'}
                       </span>
@@ -529,7 +528,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Low Stock & Expiry Warnings */}
         <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
-          <div className={`flex items-center justify-between pb-3 border-b mb-3 ${borderLine}`}>
+          <div className={`flex items-center justify-between pb-3 mb-3 ${isDark ? 'border-b border-[#30363d]' : 'border-b border-[#d0d7de]'}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
               Stock Warnings & FEFO Alerts
             </h3>
@@ -556,7 +555,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ) : (
             <div className="space-y-2.5 overflow-y-auto max-h-64 pr-1">
               {lowStockProducts.map(prod => (
-                <div key={prod.id} className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs flex items-center justify-between">
+                <div key={prod.id} className="p-2.5 bg-amber-500/10 rounded-xl text-xs flex items-center justify-between">
                   <div>
                     <div className="font-bold text-amber-600 dark:text-amber-300">{prod.name}</div>
                     <div className="text-[10px] text-amber-600/80 dark:text-amber-300/70">
@@ -564,7 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">
                       Stock: {prod.quantity || 0} (Reorder: {prod.reorder_level})
                     </span>
                   </div>
@@ -572,7 +571,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ))}
 
               {expiringBatches.map(batch => (
-                <div key={batch.id} className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs flex items-center justify-between">
+                <div key={batch.id} className="p-2.5 bg-rose-500/10 rounded-xl text-xs flex items-center justify-between">
                   <div>
                     <div className="font-bold text-rose-600 dark:text-rose-300">{batch.product_name || 'Drug Batch'}</div>
                     <div className="text-[10px] text-rose-600/80 dark:text-rose-300/70">
@@ -580,7 +579,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300">
                       Expires: {batch.expiry_date}
                     </span>
                   </div>
