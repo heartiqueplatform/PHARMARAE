@@ -239,7 +239,7 @@ export const PwaInstallPrompt: React.FC<PwaInstallPromptProps> = ({
 
                     {/* Title */}
                     <h3 className="text-xl font-extrabold text-center flex items-center justify-center gap-2">
-                        <span>Install Pharmienta</span>
+                        <span>Install Pharmienta 4P</span>
                         <BellRing className="w-4 h-4 text-emerald-400 animate-pulse" />
                     </h3>
 

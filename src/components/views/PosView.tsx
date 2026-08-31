@@ -285,7 +285,7 @@ export const PosView: React.FC<PosViewProps> = ({
     setProcessingStatus('saving');
     setProcessingMessage('Saving sale locally...');
     try {
-      // ✅ Ensure pharmacy_name is not null or undefined
+      //  Ensure pharmacy_name is not null or undefined
       const safePharmacyName = pharmacyName || 'Unknown Pharmacy';
 
       // Calculate totals
@@ -293,7 +293,7 @@ export const PosView: React.FC<PosViewProps> = ({
       const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
       const finalTotal = Math.max(0, subtotalTotal - discountAmount);
 
-      // ✅ Prepare sale data with pharmacy_name and selected sale date
+      //  Prepare sale data with pharmacy_name and selected sale date
       const saleData: Partial<Sale> = {
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || 'Cash Customer',
@@ -315,7 +315,7 @@ export const PosView: React.FC<PosViewProps> = ({
             return new Date().toISOString();
           }
           return dateObj.toISOString();
-        })(),// ✅ Use selected date instead of current date
+        })(),//  Use selected date instead of current date
         pharmacy_name: safePharmacyName,
         pharmacy_id: currentProfile?.pharmacy_id || null,
       };
@@ -323,7 +323,7 @@ export const PosView: React.FC<PosViewProps> = ({
       setProcessingStatus('syncing');
       setProcessingMessage('Syncing to cloud...');
 
-      // ✅ Pass ALL cart items with pharmacy_name in each item
+      //  Pass ALL cart items with pharmacy_name in each item
       const result = await onCompleteSale(saleData, cart);
 
       // If discount was applied, save to discounts table

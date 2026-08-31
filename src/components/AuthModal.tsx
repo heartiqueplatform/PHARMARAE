@@ -392,11 +392,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
           setSuccessMsg(`⚠️ Account created locally but cloud sync failed. Your PIN: ${finalPin}`);
         } else {
           await db.profiles.put(newProfile);
-          setSuccessMsg(`✅ Account created and synced to cloud! Your PIN: ${finalPin}`);
+          setSuccessMsg(` Account created and synced to cloud! Your PIN: ${finalPin}`);
         }
       } else {
         await db.profiles.put(newProfile);
-        setSuccessMsg(`✅ Account created and synced to cloud! Your PIN: ${finalPin}`);
+        setSuccessMsg(` Account created and synced to cloud! Your PIN: ${finalPin}`);
       }
 
       localStorage.setItem('medp_authenticated', 'true');
@@ -440,13 +440,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       }
 
       saveSupabaseCredentials(supabaseUrl, supabaseKey);
-      setSuccessMsg('✅ Supabase credentials saved successfully!');
+      setSuccessMsg(' Supabase credentials saved successfully!');
       setTimeout(() => {
         setSuccessMsg('');
         setShowSupabaseConfig(false);
       }, 2000);
     } catch (err: any) {
-      setError('❌ ' + (err.message || 'Failed to save credentials'));
+      setError(' ' + (err.message || 'Failed to save credentials'));
     } finally {
       setLoading(false);
     }
@@ -541,7 +541,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
         return;
       }
 
-      // ✅ SUCCESS - Reset attempts on successful login
+      //  SUCCESS - Reset attempts on successful login
       setLoginAttempts(0);
       localStorage.removeItem('medp_lockout_until');
       setIsLocked(false);
@@ -585,7 +585,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess, theme = 'li
       localStorage.setItem('medp_user_email', matchedProfile.email || trimmedEmail);
       localStorage.setItem('medp_login_time', new Date().toISOString());
 
-      // ✅ Authentication successful
+      //  Authentication successful
       onAuthSuccess(matchedProfile);
 
     } catch (err: any) {

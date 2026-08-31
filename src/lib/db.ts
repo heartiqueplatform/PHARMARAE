@@ -25,8 +25,8 @@ import {
   Discount,
   Notification,
   SalesReturn,
-  SupplierPartnershipRequest,  // ✅ ADD
-  SupplierOrder,               // ✅ ADD
+  SupplierPartnershipRequest,  //  ADD
+  SupplierOrder,               //  ADD
   SupplierOrderItem,
 } from '../types';
 
@@ -71,7 +71,7 @@ export class MedPDatabase extends Dexie {
   sync_queue!: Table<OfflineSyncItem, number>;
   push_subscriptions!: Table<PushSubscription, string>;
 
-  // ✅ ADD THESE
+  //  ADD THESE
   suppliers_partnership_requests!: Table<SupplierPartnershipRequest, string>;
   suppliers_orders!: Table<SupplierOrder, string>;
   suppliers_order_items!: Table<SupplierOrderItem, string>;
@@ -559,7 +559,7 @@ export class MedPDatabase extends Dexie {
       audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id]',  // ✅ ADDED the missing index
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id]',  //  ADDED the missing index
       push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]',
       suppliers_partnership_requests: 'id, pharmacy_name, supplier_id, status, [pharmacy_name+status], [pharmacy_name+supplier_id]',
       suppliers_orders: 'id, pharmacy_name, supplier_id, order_number, status, order_date, [pharmacy_name+status], [pharmacy_name+supplier_id], [pharmacy_name+order_date]',
@@ -567,7 +567,7 @@ export class MedPDatabase extends Dexie {
     }).upgrade(async (tx) => {
       // The existing upgrade code from version 10 stays the same
       try {
-        // ✅ ADD: Migrate existing sales to include sale_id
+        //  ADD: Migrate existing sales to include sale_id
         const sales = await tx.table('sales').toArray();
 
         for (const sale of sales) {
@@ -590,7 +590,7 @@ export class MedPDatabase extends Dexie {
           }
         }
 
-        // ✅ ADD: Clean up any sales without pharmacy_name
+        //  ADD: Clean up any sales without pharmacy_name
         const invalidSales = await tx.table('sales')
           .where('pharmacy_name')
           .equals('')

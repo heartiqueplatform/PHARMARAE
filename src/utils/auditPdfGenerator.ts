@@ -435,7 +435,7 @@ export function generateAuditReportPdf(
         `This audit report covers ${totalLogs} events across ${uniqueUsers} users.`,
         `The most active user was "${mostActiveUser}" with ${maxActivity} actions.`,
         `The most common action was "${mostCommonAction}" occurring ${maxActionCount} times.`,
-        `${suspiciousLogs.length > 0 ? `⚠️ ${suspiciousLogs.length} suspicious activities detected.` : '✅ No suspicious activities detected.'}`,
+        `${suspiciousLogs.length > 0 ? `⚠️ ${suspiciousLogs.length} suspicious activities detected.` : ' No suspicious activities detected.'}`,
         `Review this report regularly for security compliance.`
     ];
 

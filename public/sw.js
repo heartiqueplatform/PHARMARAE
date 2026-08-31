@@ -25,7 +25,7 @@ self.addEventListener('install', (event) => {
         return cache.addAll(STATIC_ASSETS);
       })
       .then(() => self.skipWaiting())
-      .catch((error) => console.error('❌ Installation failed:', error))
+      .catch((error) => console.error(' Installation failed:', error))
   );
 });
 
@@ -33,7 +33,7 @@ self.addEventListener('install', (event) => {
 // ACTIVATE EVENT
 // ============================================
 self.addEventListener('activate', (event) => {
-  console.log(`✅ SW v${APP_VERSION}: Activating...`);
+  console.log(` SW v${APP_VERSION}: Activating...`);
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
@@ -141,7 +141,7 @@ self.addEventListener('push', (event) => {
     vibrate: [200, 100, 200],
     actions: [
       { action: 'open', title: '📱 Open App' },
-      { action: 'dismiss', title: '❌ Dismiss' }
+      { action: 'dismiss', title: ' Dismiss' }
     ],
     data: {
       url: '/',
@@ -158,7 +158,7 @@ self.addEventListener('push', (event) => {
         payload.tag = `sale-${parsed.data.saleId || Date.now()}`;
         payload.actions = [
           { action: 'view-sale', title: '💰 View Sale' },
-          { action: 'dismiss', title: '❌ Dismiss' }
+          { action: 'dismiss', title: ' Dismiss' }
         ];
         payload.requireInteraction = true;
         payload.vibrate = [300, 150, 300, 150, 300];
@@ -168,7 +168,7 @@ self.addEventListener('push', (event) => {
         payload.tag = `stock-${parsed.data.productId || Date.now()}`;
         payload.actions = [
           { action: 'view-stock', title: '📦 Check Stock' },
-          { action: 'dismiss', title: '❌ Dismiss' }
+          { action: 'dismiss', title: ' Dismiss' }
         ];
         payload.vibrate = [200, 100, 200];
       }
@@ -271,12 +271,12 @@ self.addEventListener('message', async (event) => {
           data: payload.data || {},
           actions: payload.actions || [
             { action: 'open', title: '📱 Open App' },
-            { action: 'dismiss', title: '❌ Dismiss' }
+            { action: 'dismiss', title: ' Dismiss' }
           ]
         });
-        console.log('✅ Notification shown successfully');
+        console.log(' Notification shown successfully');
       } catch (error) {
-        console.error('❌ Error showing notification:', error);
+        console.error(' Error showing notification:', error);
       }
       break;
     }

@@ -229,12 +229,12 @@ async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
             return 0;
         }
 
-        // ✅ CRITICAL: Preserve local product_id when pulling from Supabase
+        //  CRITICAL: Preserve local product_id when pulling from Supabase
         for (const item of data) {
             // Check if we already have this item locally
             const localItem = await db.suppliers_order_items.get(item.id);
             if (localItem && localItem.product_id) {
-                // ✅ Keep the pharmacy's product_id
+                //  Keep the pharmacy's product_id
                 item.product_id = localItem.product_id;
             }
         }
@@ -255,7 +255,7 @@ async function pullAvailableSuppliers(): Promise<number> {
     if (!client) return 0;
 
     try {
-        // ✅ Pull all active suppliers from supplier app
+        //  Pull all active suppliers from supplier app
         const { data, error } = await client
             .from('suppliers_accounts')
             .select('*')
@@ -266,7 +266,7 @@ async function pullAvailableSuppliers(): Promise<number> {
             return 0;
         }
 
-        // ✅ Store in a local table or cache
+        //  Store in a local table or cache
         // Since we don't have a local table for suppliers_accounts,
         // we store them in localStorage as a cache
         localStorage.setItem('medp_available_suppliers', JSON.stringify(data));
@@ -310,7 +310,7 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
             pullTable('profiles', normalizedName, db.profiles),
             pullTable('requested_items', normalizedName, db.requested_items, { limit: 500 }),
             pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }),
-            // ✅ ADD SUPPLIER TABLES
+            //  ADD SUPPLIER TABLES
             pullSupplierPartnerships(normalizedName),
             pullSupplierOrders(normalizedName),
             pullSupplierOrderItems(normalizedName),
@@ -338,7 +338,7 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        // ✅ Filter TABLE_CONFIGS to exclude tables that don't have pharmacy_name
+        //  Filter TABLE_CONFIGS to exclude tables that don't have pharmacy_name
         const filteredConfigs = TABLE_CONFIGS.filter(config => {
             // suppliers_order_items doesn't have pharmacy_name - handled separately
             if (config.table === 'suppliers_order_items') return false;
@@ -384,13 +384,13 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
 
         const results = await Promise.allSettled(pullPromises);
 
-        // ✅ Pull partnerships separately
+        //  Pull partnerships separately
         await pullSupplierPartnerships(normalizedName);
 
-        // ✅ Pull orders
+        //  Pull orders
         await pullSupplierOrders(normalizedName);
 
-        // ✅ Pull order items (uses order_id, not pharmacy_name)
+        //  Pull order items (uses order_id, not pharmacy_name)
         await pullSupplierOrderItems(normalizedName);
         await pullAvailableSuppliers();
         return true;
@@ -459,15 +459,15 @@ export async function incrementalPullFromSupabase(
             return sum;
         }, 0);
 
-        // ✅ Also pull partnerships
+        //  Also pull partnerships
         const partnershipCount = await pullSupplierPartnerships(normalizedName);
         totalUpdated += partnershipCount;
 
-        // ✅ Pull orders
+        //  Pull orders
         const orderCount = await pullSupplierOrders(normalizedName);
         totalUpdated += orderCount;
 
-        // ✅ Pull order items
+        //  Pull order items
         const itemCount = await pullSupplierOrderItems(normalizedName);
         totalUpdated += itemCount;
 

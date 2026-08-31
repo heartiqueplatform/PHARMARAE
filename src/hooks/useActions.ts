@@ -57,7 +57,7 @@ export const useActions = (props: UseActionsProps) => {
         return {
             id: product.id,
             pharmacy_name: product.pharmacy_name,
-            name: product.name, // ✅ CRITICAL: Always include name
+            name: product.name, //  CRITICAL: Always include name
             generic_name: product.generic_name,
             brand: product.brand,
             description: product.description,
@@ -190,16 +190,16 @@ export const useActions = (props: UseActionsProps) => {
                     unit: item.product.base_unit_name || null,
                 },
                 notes: `Sale of ${item.product.name} x${item.quantity}`,
-                sale_date: saleData.sale_date || nowISO,  // ✅ FIXED: Use selected date
+                sale_date: saleData.sale_date || nowISO,  //  FIXED: Use selected date
                 created_at: nowISO,
                 updated_at: nowISO,
                 offline_id: null
             };
 
-            // ✅ Save locally
+            //  Save locally
             await db.sales.put(newSale);
 
-            // ✅ Queue for Supabase sync
+            //  Queue for Supabase sync
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'INSERT', newSale);
             createdSales.push(newSale);
 
@@ -223,7 +223,7 @@ export const useActions = (props: UseActionsProps) => {
                     updated_at: nowISO
                 });
 
-                // ✅ Queue batch update for Supabase
+                //  Queue batch update for Supabase
                 await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
                     id: batch.id,
                     quantity_base: newBatchQty,
@@ -234,7 +234,7 @@ export const useActions = (props: UseActionsProps) => {
                 remainingToDeduct -= deductFromBatch;
             }
 
-            // Update product quantity - ✅ FIXED with FULL payload
+            // Update product quantity -  FIXED with FULL payload
             const product = await db.products.get(item.product.id);
             if (product) {
                 const newQuantity = Math.max(0, (product.quantity || 0) - quantitySold);
@@ -247,7 +247,7 @@ export const useActions = (props: UseActionsProps) => {
                 };
                 await db.products.put(updatedProduct);
 
-                // ✅ Queue product update for Supabase - FULL PAYLOAD with name
+                //  Queue product update for Supabase - FULL PAYLOAD with name
                 const fullPayload = buildProductUpdatePayload(updatedProduct);
                 await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
             }
@@ -324,7 +324,7 @@ export const useActions = (props: UseActionsProps) => {
         await db.audit_logs.put(auditLog);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
-        // ✅ Process sync queue immediately if online
+        //  Process sync queue immediately if online
         if (navigator.onLine && isSupabaseConfigured()) {
             try {
                 await processOfflineSyncQueue();
@@ -418,7 +418,7 @@ export const useActions = (props: UseActionsProps) => {
 
         await db.products.put(newProd);
 
-        // ✅ Use full payload with name
+        //  Use full payload with name
         const fullPayload = buildProductUpdatePayload(newProd);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'INSERT', fullPayload);
 
@@ -469,7 +469,7 @@ export const useActions = (props: UseActionsProps) => {
 
         await db.products.put(updatedProduct);
 
-        // ✅ Use full payload with name
+        //  Use full payload with name
         const fullPayload = buildProductUpdatePayload(updatedProduct);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
 
@@ -539,7 +539,7 @@ export const useActions = (props: UseActionsProps) => {
 
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'INSERT', newBatch);
 
-        // ✅ Use full payload with name
+        //  Use full payload with name
         const fullPayload = buildProductUpdatePayload(updatedProduct);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
 
@@ -601,7 +601,7 @@ export const useActions = (props: UseActionsProps) => {
             updated_at: now
         });
 
-        // ✅ Use full payload with name
+        //  Use full payload with name
         const fullPayload = buildProductUpdatePayload(updatedProduct);
         await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
 
@@ -735,7 +735,7 @@ export const useActions = (props: UseActionsProps) => {
                 };
                 await db.products.put(updatedProduct);
 
-                // ✅ Use full payload with name
+                //  Use full payload with name
                 const fullPayload = buildProductUpdatePayload(updatedProduct);
                 await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
             }
@@ -812,7 +812,7 @@ export const useActions = (props: UseActionsProps) => {
         const pharmacyName = getPharmacyName();
         if (!pharmacyName) return;
 
-        // ✅ FIRST: Get the product BEFORE deleting (to capture name and full data)
+        //  FIRST: Get the product BEFORE deleting (to capture name and full data)
         const product = await db.products.get(productId);
         if (!product) {
             throw new Error('Product not found');
@@ -838,16 +838,16 @@ export const useActions = (props: UseActionsProps) => {
                 await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'DELETE', {
                     id: batch.id,
                     pharmacy_name: pharmacyName,
-                    product_name: productName,  // ✅ Include product name
+                    product_name: productName,  //  Include product name
                     batch_number: batch.batch_number
                 });
             }
 
-            // ✅ Queue product deletion with FULL product data
+            //  Queue product deletion with FULL product data
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'DELETE', {
                 id: productId,
                 pharmacy_name: pharmacyName,
-                name: productName,  // ✅ CRITICAL: Include the product name
+                name: productName,  //  CRITICAL: Include the product name
                 barcode: product.barcode,
                 sku: product.sku,
                 generic_name: product.generic_name,

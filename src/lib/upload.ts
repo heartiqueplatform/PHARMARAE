@@ -20,7 +20,7 @@ export const uploadToCloudinary = async (
 ): Promise<UploadResult> => {
     // Validate configuration
     if (!CLOUDINARY_UPLOAD_CONFIG?.cloudName || !CLOUDINARY_UPLOAD_CONFIG?.uploadPreset) {
-        console.error('❌ Cloudinary configuration missing:', CLOUDINARY_UPLOAD_CONFIG);
+        console.error(' Cloudinary configuration missing:', CLOUDINARY_UPLOAD_CONFIG);
         return {
             success: false,
             error: 'Cloudinary configuration is missing. Please check your environment variables.',
@@ -105,7 +105,7 @@ export const uploadToCloudinary = async (
                     } else {
                         try {
                             const error = JSON.parse(xhr.responseText);
-                            console.error('❌ Cloudinary upload error:', error);
+                            console.error(' Cloudinary upload error:', error);
                             resolve({
                                 success: false,
                                 error: error.error?.message || `Upload failed with status ${xhr.status}`,
@@ -120,7 +120,7 @@ export const uploadToCloudinary = async (
                 };
 
                 xhr.onerror = () => {
-                    console.error('❌ Cloudinary upload network error');
+                    console.error(' Cloudinary upload network error');
                     resolve({
                         success: false,
                         error: 'Network error. Please check your connection.',
@@ -128,7 +128,7 @@ export const uploadToCloudinary = async (
                 };
 
                 xhr.ontimeout = () => {
-                    console.error('❌ Cloudinary upload timeout');
+                    console.error(' Cloudinary upload timeout');
                     resolve({
                         success: false,
                         error: 'Upload timed out. Please try again.',
@@ -148,7 +148,7 @@ export const uploadToCloudinary = async (
 
         if (!response.ok) {
             const error = await response.json();
-            console.error('❌ Cloudinary upload error:', error);
+            console.error(' Cloudinary upload error:', error);
             throw new Error(error.error?.message || `Upload failed with status ${response.status}`);
         }
 
@@ -163,7 +163,7 @@ export const uploadToCloudinary = async (
             height: data.height,
         };
     } catch (error: any) {
-        console.error('❌ Upload error:', error);
+        console.error(' Upload error:', error);
         return {
             success: false,
             error: error.message || 'Failed to upload image',
@@ -273,7 +273,7 @@ export const deleteFromCloudinary = async (publicId: string): Promise<{ success:
 
         return { success: true };
     } catch (error: any) {
-        console.error('❌ Delete error:', error);
+        console.error(' Delete error:', error);
         return { success: false, error: error.message || 'Failed to delete image' };
     }
 };

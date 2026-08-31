@@ -47,7 +47,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   // Tabs shown in the More overlay
   const moreOverlayTabs = [
     { id: 'intelligence' as NavTab, label: ' Business Intelligence (BI)', icon: Brain }, // New tab
-    { id: 'orders' as NavTab, label: 'Orders', icon: Package }, // ✅ ADD THIS
+    { id: 'orders' as NavTab, label: 'Orders', icon: Package }, //  ADD THIS
     { id: 'requests' as NavTab, label: 'Requests', icon: TrendingUp }, // Moved from main to here
     { id: 'returns' as NavTab, label: 'Returns', icon: Undo2 },
     { id: 'more' as NavTab, label: 'Settings & Hub', icon: Settings },
@@ -95,7 +95,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     <>
       {/* MOBILE EDGE-TO-EDGE BOTTOM NAVIGATION */}
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 px-1 py-1 border-t backdrop-blur-md shadow-2xl transition-colors ${isDark
-        ? 'bg-[#161b22]/95 border-[#30363d] text-[#c9d1d9]'
+        ? 'bg-[#0d1117] border-[#30363d] text-[#c9d1d9]'
         : 'bg-white/95 border-[#d0d7de] text-[#1f2328]'
         }`}>
         <div className="flex items-center justify-around max-w-md mx-auto">
@@ -176,7 +176,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               <div className={`w-12 h-1 rounded-full ${isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]'}`} />
             </div>
 
-            {/* Header */}
+
             {/* Header with Pharmienta Branding */}
             <div className="flex items-center justify-between px-6 pb-4 border-b border-[#30363d]/30">
               <div className="flex items-center gap-3">
@@ -352,13 +352,13 @@ export const Navigation: React.FC<NavigationProps> = ({
       )}
 
       {/* DESKTOP SIDEBAR */}
-      <aside className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-60 transition-all duration-300 ease-in-out border-r w-16 hover:w-60 group shadow-2xl overflow-hidden select-none ${isDark
-        ? 'bg-[#161b22] border-[#30363d] text-[#c9d1d9]'
+      <aside className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-60 transition-all duration-300 ease-in-out border-0 w-16 hover:w-60 group shadow-2xl overflow-hidden select-none ${isDark
+        ? 'bg-[#0d1117] border-0 text-[#c9d1d9]'
         : 'bg-white border-[#d0d7de] text-[#1f2328]'
         }`}>
 
         {/* Sidebar Header */}
-        <div className={`p-3.5 border-b flex items-center gap-3 min-w-[240px] ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'
+        <div className={`p-3.5 border-0 flex items-center gap-3 min-w-[240px] ${isDark ? 'border-0' : 'border-0'
           }`}>
           <img
             src="/pwa-192x192.png"

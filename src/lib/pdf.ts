@@ -95,12 +95,12 @@ export function generateReceiptPdf(
   }
 
   // =============================================
-  // ✅ FIXED: Calculate ALL totals from items array ONLY
+  //  FIXED: Calculate ALL totals from items array ONLY
   // =============================================
   const subtotalTotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-  // ✅ Discount: sum from all items OR use sale.discount
+  //  Discount: sum from all items OR use sale.discount
   // For multi-item sales, discount might be stored on each item or on the sale
   let discountAmount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
 
@@ -109,10 +109,10 @@ export function generateReceiptPdf(
     discountAmount = sale.discount;
   }
 
-  // ✅ Final total = subtotal - discount (calculated from items, NOT sale.total)
+  //  Final total = subtotal - discount (calculated from items, NOT sale.total)
   const finalTotal = Math.max(0, subtotalTotal - discountAmount);
 
-  // ✅ Get sale info from the first item or sale object
+  //  Get sale info from the first item or sale object
   const saleNumber = sale.sale_number || `INV-${Date.now()}`;
   const customerName = sale.customer_name || 'Cash Customer';
   const soldByName = sale.sold_by_name || 'Cashier';
@@ -221,7 +221,7 @@ export function generateReceiptPdf(
   doc.line(5, finalY, 75, finalY);
 
   // =============================================
-  // ✅ FIXED: Display totals using calculated values from items
+  //  FIXED: Display totals using calculated values from items
   // =============================================
   let ty = finalY + 4;
   doc.setFontSize(7);
@@ -345,7 +345,7 @@ export function generateDailyReportPdf(
   doc.setLineWidth(0.5);
   doc.line(14, 51, 196, 51);
 
-  // ✅ Group sales by sale_number for accurate totals
+  //  Group sales by sale_number for accurate totals
   const groupedSales = groupSalesBySaleNumber(sales);
   const uniqueSales = Object.keys(groupedSales).length;
 
@@ -398,7 +398,7 @@ export function generateDailyReportPdf(
 
   let nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // ✅ Detailed Transactions - grouped by sale_number
+  //  Detailed Transactions - grouped by sale_number
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Detailed Transactions & Items Sold', 14, nextY);
@@ -420,7 +420,7 @@ export function generateDailyReportPdf(
       nextY += 6;
     }
 
-    // ✅ Show header with group info
+    //  Show header with group info
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(14, 116, 144);
@@ -432,7 +432,7 @@ export function generateDailyReportPdf(
     doc.setTextColor(0, 0, 0);
     nextY += 4;
 
-    // ✅ Build rows for ALL items in this group
+    //  Build rows for ALL items in this group
     const itemRows = saleGroup.map(s => [
       s.product_name || 'Unknown',
       (s.quantity || 1).toString(),
@@ -458,7 +458,7 @@ export function generateDailyReportPdf(
 
     nextY = (doc as any).lastAutoTable.finalY + 2;
 
-    // ✅ Show group summary
+    //  Show group summary
     doc.setFontSize(7);
     doc.setFont('helvetica', 'italic');
     doc.text(
@@ -584,7 +584,7 @@ export function generateMonthlyReportPdf(
   doc.setLineWidth(0.5);
   doc.line(14, 46, 196, 46);
 
-  // ✅ Group sales by sale_number for accurate metrics
+  //  Group sales by sale_number for accurate metrics
   const groupedSales = groupSalesBySaleNumber(monthlySales);
   const uniqueSales = Object.keys(groupedSales).length;
 
@@ -656,7 +656,7 @@ export function generateMonthlyReportPdf(
 
   nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // ✅ Top Selling Products - aggregated across all sale rows
+  //  Top Selling Products - aggregated across all sale rows
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Top Moving Medicines & Products', 14, nextY);
@@ -698,7 +698,7 @@ export function generateMonthlyReportPdf(
 
   nextY = (doc as any).lastAutoTable.finalY + 10;
 
-  // ✅ Daily Summary - using grouped sales for accurate daily totals
+  //  Daily Summary - using grouped sales for accurate daily totals
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Daily Sales Summary', 14, nextY);

@@ -530,8 +530,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <div
                   role="menu"
                   className={`absolute right-0 top-[calc(100%+10px)] z-50 w-[calc(100vw-24px)] max-w-[380px] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-2xl ${isDark
-                    ? 'border-white/[0.08] bg-[#10161d]/[0.98] text-slate-200 shadow-black/40'
-                    : 'border-slate-200 bg-white/[0.98] text-slate-800 shadow-slate-300/40'
+                    ? 'border-0 bg-[#10161d] text-slate-200 shadow-black/40'
+                    : 'border-0 bg-white/[0.98] text-slate-800 shadow-slate-300/40'
                     }`}
                 >
                   {/* Profile summary */}
@@ -832,9 +832,9 @@ export const Header: React.FC<HeaderProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="signout-title"
-            className={`w-full max-w-md overflow-hidden rounded-3xl border shadow-2xl ${isDark
-              ? 'border-white/[0.08] bg-[#10161d]'
-              : 'border-slate-200 bg-white'
+            className={`w-full max-w-md overflow-hidden rounded-3xl border-0 shadow-none ${isDark
+              ? 'border-0 bg-[#10161d]'
+              : 'border-0 bg-white'
               }`}
           >
             <div className="flex items-start justify-between px-5 pb-2 pt-5 sm:px-6 sm:pt-6">
@@ -880,13 +880,13 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="space-y-3 px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
               {/* Backup status */}
               <div
-                className={`rounded-2xl border-2 p-4 transition-all duration-300 ${backupAcknowledged
+                className={`rounded-2xl border-0 p-4 transition-all duration-300 ${backupAcknowledged
                   ? isDark
-                    ? 'border-emerald-400/40 bg-emerald-400/[0.08]'
-                    : 'border-emerald-400 bg-emerald-50'
+                    ? 'border-0 bg-emerald-400/[0.08]'
+                    : 'border-0 bg-emerald-50'
                   : isDark
-                    ? 'border-rose-400/30 bg-rose-400/[0.08] animate-pulse'
-                    : 'border-rose-400 bg-rose-50 animate-pulse'
+                    ? 'border-0 bg-rose-400/[0.08] animate-pulse'
+                    : 'border-0 bg-rose-50 animate-pulse'
                   }`}
               >
                 <div className="flex gap-3">
@@ -953,13 +953,13 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={handleBackupData}
                 disabled={isBackingUp || backupAcknowledged}
-                className={`w-full rounded-2xl border-2 px-4 py-3 text-[10px] font-bold transition-all ${backupAcknowledged
+                className={`w-full rounded-2xl border-0 px-4 py-3 text-[10px] font-bold transition-all ${backupAcknowledged
                   ? isDark
-                    ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400 cursor-default'
-                    : 'border-emerald-400 bg-emerald-50 text-emerald-700 cursor-default'
+                    ? 'border-0 bg-emerald-400/10 text-emerald-400 cursor-default'
+                    : 'border-0 bg-emerald-50 text-emerald-700 cursor-default'
                   : isDark
-                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 animate-pulse'
-                    : 'border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 animate-pulse'
+                    ? 'border-0 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 animate-pulse'
+                    : 'border-0 bg-amber-50 text-amber-700 hover:bg-amber-100 animate-pulse'
                   }`}
               >
                 {isBackingUp ? (
