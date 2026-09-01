@@ -64,7 +64,7 @@ export const PharmientaPro: React.FC<PharmientaProProps> = ({
 
     return (
         <div
-            className={`relative rounded-2xl overflow-hidden shadow-lg ${className}`}
+            className={`relative rounded-xl overflow-hidden shadow-lg ${className}`}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
         >
@@ -97,7 +97,7 @@ export const PharmientaPro: React.FC<PharmientaProProps> = ({
 
 
                                 <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
-                                    Visit Our Website
+                                    Stay Updated; Visit Our Website
                                 </h3>
                                 <p className="text-sm sm:text-base text-white/80 font-normal">
                                     Explore our platform, features, and services

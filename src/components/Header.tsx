@@ -384,7 +384,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header
-        className={`sticky top-0 z-60 border-b backdrop-blur-2xl ${surface}`}
+        className={`sticky top-0 z-60 border-0 rounded-2xl backdrop-blur-2xl ${surface}`}
       >
         <div className="mx-auto flex h-[68px] max-w-[1600px] items-center gap-2 px-3 sm:h-[72px] sm:px-5 lg:px-7">
           {/* Brand / pharmacy identity */}

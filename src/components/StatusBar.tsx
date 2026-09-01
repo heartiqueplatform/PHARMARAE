@@ -143,7 +143,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     const color = getBaseColor();
 
     return (
-        <div className="w-full h-[3px] overflow-hidden relative">
+        <div className="w-full h-[2px] overflow-hidden relative">
             {/* Base line */}
             <div
                 className={`w-full h-full transition-colors duration-700 ease-out ${color}`}

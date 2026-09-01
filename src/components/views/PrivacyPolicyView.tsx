@@ -199,9 +199,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme }) =
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <Brain className="w-5 h-5 text-[#2ea043]" />
                         Business Intelligence & Privacy
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043] border border-[#2ea043]/30">
-                            NEW
-                        </span>
+
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <p className="text-sm mb-3">

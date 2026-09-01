@@ -676,7 +676,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
               </div>
 
               {/* Info Box */}
-              <div className={`mt-3 p-3 rounded-xl ${isDark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200'}`}>
+              <div className={`mt-3 p-3 rounded-xl ${isDark ? 'bg-blue-500/10 border-0' : 'bg-blue-50 border-0'}`}>
                 <div className="flex items-start gap-2">
                   <Info className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                   <div className="text-[11px] leading-relaxed">

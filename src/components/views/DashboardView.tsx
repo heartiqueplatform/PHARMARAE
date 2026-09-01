@@ -160,7 +160,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           />
 
           {/* Gradient Overlay - from left to right for readability */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/10 to-black/0" />
 
           {/* Content */}
           <div className="relative z-10 p-4 sm:p-5">
@@ -207,7 +207,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* Today's Sales */}
             <div className={`rounded-2xl p-3.5 ${cardBg}`}>
               <div className={`flex items-center justify-between text-xs mb-1 ${textMuted}`}>
-                <span>Today's Sales</span>
+                <span>Today's Sales Status</span>
                 <TrendingUp className="w-4 h-4 text-[#2ea043]" />
               </div>
               <p className="text-lg sm:text-xl font-extrabold text-[#2ea043]">
@@ -464,7 +464,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className={`rounded-2xl p-4 flex flex-col ${cardBg}`}>
           <div className={`flex items-center justify-between pb-3 mb-3 ${isDark ? 'border-b border-[#30363d]' : 'border-b border-[#d0d7de]'}`}>
             <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
-              Today's Recent Sales
+              Today's Recent Sales Status
             </h3>
             <button
               onClick={() => onNavigate('reports')}
@@ -488,7 +488,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               No sales completed yet today. Tap <span className="text-[#2ea043] font-extrabold">SELL NOW</span> to record the first transaction!
             </div>
           ) : (
-            <div className="space-y-2 overflow-y-auto max-h-64 pr-1">
+            <div className="space-y-2 overflow-y-auto max-h-84 pr-1">
               {todaySales.slice(0, 5).map(sale => {
                 const productName = sale.product_name || 'Unknown Product';
                 const quantity = sale.quantity || 1;
@@ -553,7 +553,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               All stock levels are healthy and no batches expire within 90 days.
             </div>
           ) : (
-            <div className="space-y-2.5 overflow-y-auto max-h-64 pr-1">
+            <div className="space-y-2.5 overflow-y-auto max-h-84 pr-1">
               {lowStockProducts.map(prod => (
                 <div key={prod.id} className="p-2.5 bg-amber-500/10 rounded-xl text-xs flex items-center justify-between">
                   <div>
