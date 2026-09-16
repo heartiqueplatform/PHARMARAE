@@ -4,7 +4,12 @@ import { getSupabaseClient } from './client';
 
 export function normalizePharmacyName(name: string): string {
     if (!name) return '';
-    return name.trim().replace(/\s+/g, ' ').toUpperCase();
+    return name
+        .trim()
+        .replace(/\s+/g, ' ')
+        // Normalize curly/backtick/acute apostrophes to plain ASCII apostrophe
+        .replace(/[\u2018\u2019\u02BC\u2032\u0060\u00B4]/g, "'")
+        .toUpperCase();
 }
 
 export function mapEntityTypeToTable(entityType: string): string {
@@ -60,7 +65,6 @@ export const TABLE_CONFIGS = [
         dbKey: 'suppliers_orders',
         limit: 500,
     },
-
 ];
 
 // Cache for table existence checks
@@ -69,6 +73,7 @@ const TABLE_CACHE_TTL = 60000; // 1 minute
 
 export async function clearPharmacyData(pharmacyName: string): Promise<void> {
     const normalizedName = normalizePharmacyName(pharmacyName);
+    console.log(`[clearPharmacyData] Clearing all local data for: ${normalizedName}`);
 
     const tables = [
         'products', 'product_batches', 'categories', 'units',
@@ -85,6 +90,7 @@ export async function clearPharmacyData(pharmacyName: string): Promise<void> {
                 await table.where('pharmacy_name').equals(normalizedName).delete();
                 return { table: tableName, deleted: true };
             } catch (err) {
+                console.error(`[clearPharmacyData] Failed to clear ${tableName}:`, err);
                 return { table: tableName, deleted: false };
             }
         }
@@ -103,17 +109,19 @@ export async function checkDataExistsInSupabase(pharmacyName: string): Promise<{
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        const { data, error, count } = await client
+        const { error, count } = await client
             .from('products')
             .select('*', { count: 'exact', head: true })
-            .eq('pharmacy_name', normalizedName);
+            .ilike('pharmacy_name', normalizedName);
 
         if (error) {
+            console.error('[checkDataExistsInSupabase] Query error:', error);
             return { exists: false, count: 0 };
         }
 
         return { exists: (count || 0) > 0, count: count || 0 };
     } catch (err) {
+        console.error('[checkDataExistsInSupabase] Unexpected error:', err);
         return { exists: false, count: 0 };
     }
 }
@@ -150,6 +158,7 @@ export async function tableExistsInSupabase(tableName: string): Promise<boolean>
         tableExistsCache[cacheKey] = true;
         return true;
     } catch (err) {
+        console.error(`[tableExistsInSupabase] Error checking ${tableName}:`, err);
         return false;
     }
 }
@@ -182,9 +191,10 @@ export async function getTableRowCount(
         const { count, error } = await client
             .from(tableName)
             .select('*', { count: 'exact', head: true })
-            .eq('pharmacy_name', normalizedName);
+            .ilike('pharmacy_name', normalizedName);
 
         if (error) {
+            console.error(`[getTableRowCount] Query error on ${tableName}:`, error);
             return 0;
         }
 
@@ -198,6 +208,7 @@ export async function getTableRowCount(
 
         return result;
     } catch (err) {
+        console.error(`[getTableRowCount] Unexpected error on ${tableName}:`, err);
         return 0;
     }
 }
@@ -221,9 +232,10 @@ export async function getAllTableCounts(
                 const { count, error } = await client
                     .from(config.table)
                     .select('*', { count: 'exact', head: true })
-                    .eq('pharmacy_name', normalizedName);
+                    .ilike('pharmacy_name', normalizedName);
 
                 if (error) {
+                    console.error(`[getAllTableCounts] Query error on ${config.table}:`, error);
                     return { table: config.table, count: 0 };
                 }
 
@@ -235,11 +247,14 @@ export async function getAllTableCounts(
         for (const result of results) {
             if (result.status === 'fulfilled') {
                 counts[result.value.table] = result.value.count;
+            } else {
+                console.error('[getAllTableCounts] A table check rejected:', result.reason);
             }
         }
 
         return counts;
     } catch (err) {
+        console.error('[getAllTableCounts] Unexpected error:', err);
         return {};
     }
 }
@@ -250,34 +265,54 @@ export async function getAllTableCounts(
 export async function checkForChanges(
     pharmacyName: string,
     lastSyncTime: Date
-): Promise<{ hasChanges: boolean; tables: string[] }> {
+): Promise<{ hasChanges: boolean; tables: string[]; checkFailed: boolean }> {
     const normalizedName = normalizePharmacyName(pharmacyName);
     const client = getSupabaseClient();
 
     if (!client || !navigator.onLine) {
-        return { hasChanges: false, tables: [] };
+        console.warn('[checkForChanges] Aborted: offline or no client');
+        return { hasChanges: false, tables: [], checkFailed: true };
     }
 
     const changedTables: string[] = [];
+    let anyError = false;
 
     try {
         const checks = TABLE_CONFIGS.map(async (config) => {
             const { count, error } = await client
                 .from(config.table)
                 .select('*', { count: 'exact', head: true })
-                .eq('pharmacy_name', normalizedName)
+                .ilike('pharmacy_name', normalizedName)
                 .gte('updated_at', lastSyncTime.toISOString());
 
-            if (!error && count && count > 0) {
+            if (error) {
+                anyError = true;
+                console.error(`[checkForChanges] Check failed for ${config.table}:`, error);
+                return { table: config.table, count: 0 };
+            }
+
+            if (count && count > 0) {
                 changedTables.push(config.table);
             }
             return { table: config.table, count: count || 0 };
         });
 
         await Promise.allSettled(checks);
-        return { hasChanges: changedTables.length > 0, tables: changedTables };
+
+        if (anyError) {
+            console.error(`[checkForChanges] One or more table checks failed for ${normalizedName}`);
+        } else {
+            console.log(`[checkForChanges] ${changedTables.length} table(s) changed for ${normalizedName}:`, changedTables);
+        }
+
+        return {
+            hasChanges: changedTables.length > 0,
+            tables: changedTables,
+            checkFailed: anyError
+        };
     } catch (err) {
-        return { hasChanges: false, tables: [] };
+        console.error('[checkForChanges] Unexpected error:', err);
+        return { hasChanges: false, tables: [], checkFailed: true };
     }
 }
 
@@ -302,6 +337,7 @@ export async function getDataSizeEstimate(
 
         return { totalRecords, tableSizes };
     } catch (err) {
+        console.error('[getDataSizeEstimate] Unexpected error:', err);
         return { totalRecords: 0, tableSizes: {} };
     }
 }
@@ -335,7 +371,7 @@ export async function getTableRecordsBatch(
         let query = client
             .from(tableName)
             .select('*')
-            .eq('pharmacy_name', normalizedName)
+            .ilike('pharmacy_name', normalizedName)
             .range(offset, offset + limit - 1);
 
         if (options?.orderBy) {
@@ -346,12 +382,17 @@ export async function getTableRecordsBatch(
 
         const { data, error } = await query;
 
-        if (error || !data) {
+        if (error) {
+            console.error(`[getTableRecordsBatch] Query error on ${tableName}:`, error);
+            return [];
+        }
+        if (!data) {
             return [];
         }
 
         return data;
     } catch (err) {
+        console.error(`[getTableRecordsBatch] Unexpected error on ${tableName}:`, err);
         return [];
     }
 }
