@@ -16,43 +16,43 @@ async function pullTable<T>(
     const client = getSupabaseClient();
     if (!client) return 0;
 
-    const limit = options?.limit || 1000;
     const normalizedName = normalizePharmacyName(pharmacyName);
+    const pageSize = options?.limit || 1000; // rows per page
+    const maxRows = options?.limit ? options.limit : Infinity; // total cap only if caller asked
 
     try {
-        let { data, error } = await client
-            .from(tableName)
-            .select('*')
-            .ilike('pharmacy_name', normalizedName)
-            .limit(limit);
+        // Paginate through ALL rows for this pharmacy. Without this, PostgREST
+        // silently caps the result set (usually at 1,000 rows), which caused
+        // older historical data (days 11, 12, 13, ...) to never be pulled.
+        const allRows: any[] = [];
+        let offset = 0;
 
-        if (error) {
-            console.warn(`Primary query failed for ${tableName}, falling back to fetch-all + filter:`, error.message);
-
-            const { data: allData, error: fallbackError } = await client
+        while (allRows.length < maxRows) {
+            const { data, error } = await client
                 .from(tableName)
                 .select('*')
-                .limit(limit);
+                .ilike('pharmacy_name', normalizedName)
+                .order('created_at', { ascending: true })
+                .range(offset, offset + pageSize - 1);
 
-            if (fallbackError) {
-                console.error(`Fallback query also failed for ${tableName}:`, fallbackError);
-                throw fallbackError;
+            if (error) {
+                console.error(`[pullTable] Query error on ${tableName} (offset ${offset}):`, error);
+                throw error;
             }
 
-            if (allData && allData.length > 0) {
-                data = allData.filter((item: any) =>
-                    normalizePharmacyName(item.pharmacy_name) === normalizedName
-                );
-            } else {
-                data = [];
-            }
+            if (!data || data.length === 0) break;
+
+            allRows.push(...data);
+            if (data.length < pageSize) break;
+
+            offset += pageSize;
         }
 
-        if (!data || data.length === 0) {
+        if (allRows.length === 0) {
             return 0;
         }
 
-        let itemsWithPharmacy = data.map(item => ({
+        let itemsWithPharmacy = allRows.map(item => ({
             ...item,
             pharmacy_name: normalizedName
         }));
@@ -64,19 +64,19 @@ async function pullTable<T>(
             }));
         }
 
+        // Replace local rows for this pharmacy only after ALL pages succeeded.
         await dbTable.where('pharmacy_name').equals(normalizedName).delete();
-
         if (itemsWithPharmacy.length > 0) {
             await dbTable.bulkPut(itemsWithPharmacy);
         }
 
-        return data.length;
+        console.log(`[pullTable] ${tableName}: pulled ${itemsWithPharmacy.length} rows in ${Math.ceil(allRows.length / pageSize)} page(s)`);
+        return itemsWithPharmacy.length;
     } catch (err) {
         console.error(`Failed to pull ${tableName}:`, err);
         throw err;
     }
 }
-
 // =============================================
 // PROCESS CONFIRMED ORDER - Auto-add stock
 // =============================================
@@ -333,12 +333,15 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
             pullTable('units', normalizedName, db.units),
             pullTable('suppliers', normalizedName, db.suppliers),
             pullTable('customers', normalizedName, db.customers),
-            pullTable('sales', normalizedName, db.sales, { limit: 500 }),
-            pullTable('stock_movements', normalizedName, db.stock_movements, { limit: 500 }),
-            pullTable('audit_logs', normalizedName, db.audit_logs, { limit: 500 }),
+            //  NO LIMITS on historical tables — pull ALL rows for this pharmacy.
+            //    A limit of 500 was truncating older sales/movements/audit logs,
+            //    which is why historical days appeared empty.
+            pullTable('sales', normalizedName, db.sales),
+            pullTable('stock_movements', normalizedName, db.stock_movements),
+            pullTable('audit_logs', normalizedName, db.audit_logs),
             pullTable('profiles', normalizedName, db.profiles),
-            pullTable('requested_items', normalizedName, db.requested_items, { limit: 500 }),
-            pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }),
+            pullTable('requested_items', normalizedName, db.requested_items),
+            pullTable('sales_returns', normalizedName, db.sales_returns),
             //  ADD SUPPLIER TABLES
             pullSupplierPartnerships(normalizedName),
             pullSupplierOrders(normalizedName),
