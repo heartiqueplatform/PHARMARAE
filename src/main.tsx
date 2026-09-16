@@ -4,14 +4,8 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { setupServiceWorkerAutoUpdate } from './lib/service-worker-update';
-import { setupVersionCheck } from './lib/version-check';
 
-declare const __APP_VERSION__: string;
-
-const APP_VERSION =
-  typeof __APP_VERSION__ !== 'undefined'
-    ? __APP_VERSION__
-    : '11.0.78898979229';
+const APP_VERSION = '11.0.78898979229';
 const APP_NAME = 'Pharmienta Kenya';
 const VERSION_KEY = 'Pharmienta_app_version';
 const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';
@@ -80,29 +74,23 @@ const hideSplash = () => {
 };
 
 // ============================================
-// 🔥 AUTO-UPDATE BOOTSTRAP
-// Runs once at module level — before React mounts.
-// Both work even if React fails to render.
+// 🔥 AUTO-UPDATE — runs once, globally
+// Handles: new SW activated → reload, polling, visibility checks
 // ============================================
-
-// 1. Version check — fetch /version.json, if mismatch → nuke + reload
-setupVersionCheck();
-
-// 2. SW auto-update — listen for SW_ACTIVATED, poll, visibility checks
 setupServiceWorkerAutoUpdate();
-
-// Expose running version for version-check comparisons
-(window as any).__APP_VERSION__ = APP_VERSION;
-(window as any).__APP_NAME__ = APP_NAME;
 
 const RootApp = () => {
   useEffect(() => {
     hideSplash();
 
-    // Immediate SW update check on boot
+    // The heavy-lifting (polling, visibility, message handling)
+    // is now done by setupServiceWorkerAutoUpdate() above.
+    // Here we just nudge the SW once on boot so users get the
+    // update check as soon as the app opens.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready
         .then((registration) => {
+          // Immediate check on app boot
           registration.update().catch(() => { });
         })
         .catch(() => { });
@@ -170,3 +158,6 @@ if (import.meta.hot) {
     }
   });
 }
+
+(window as any).__APP_VERSION__ = APP_VERSION;
+(window as any).__APP_NAME__ = APP_NAME;
