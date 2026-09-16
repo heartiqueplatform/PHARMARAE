@@ -4,6 +4,11 @@ import { Pharmacy, Profile, UserRole, Product, ProductBatch, Customer, Sale, Sal
 import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X, Check, Calendar } from 'lucide-react';
 import { MedicationDatabaseOverlay } from '../MedicationDatabaseOverlay';
 import { CommonDrug } from '../../types/commonDrugs';
+import { calculateLoyaltyPoints, getPointsSummary } from '../../utils/loyaltyPoints';
+import { CustomerSelector } from '../pos/CustomerSelector';
+import { db } from '../../lib/db';
+import { queueLoyaltyMutation } from '../../lib/supabase';
+
 interface CartItem {
   product: Product;
   quantity: number;
@@ -48,7 +53,6 @@ export const PosView: React.FC<PosViewProps> = ({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        // Create audio element with proper settings
         const audio = new Audio('/Pharmienta.mp3');
         audio.preload = 'auto';
         audio.load();
@@ -68,7 +72,6 @@ export const PosView: React.FC<PosViewProps> = ({
   }, []);
 
   const playCompletionFeedback = () => {
-    // Try audio
     if (audioRef.current) {
       try {
         audioRef.current.currentTime = 0;
@@ -76,7 +79,6 @@ export const PosView: React.FC<PosViewProps> = ({
         if (playPromise !== undefined) {
           playPromise.catch(err => {
             console.log('Audio play failed:', err.message);
-            // Try fallback - create new audio element
             try {
               const fallbackAudio = new Audio('/pharmienta.mp3');
               fallbackAudio.play().catch(e => console.log('Fallback audio failed:', e));
@@ -87,7 +89,6 @@ export const PosView: React.FC<PosViewProps> = ({
         }
       } catch (err) {
         console.log('Audio error:', err);
-        // Try fallback
         try {
           const fallbackAudio = new Audio('/Pharmienta.mp3');
           fallbackAudio.play().catch(e => console.log('Fallback audio failed:', e));
@@ -96,7 +97,6 @@ export const PosView: React.FC<PosViewProps> = ({
         }
       }
     } else {
-      // No audio ref, try direct
       try {
         const fallbackAudio = new Audio('/Pharmienta.mp3');
         fallbackAudio.play().catch(e => console.log('Direct audio failed:', e));
@@ -105,7 +105,6 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
 
-    // Vibrate
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       try {
         window.navigator.vibrate([200, 100, 200]);
@@ -114,7 +113,6 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
   };
-  // --- END: Sound & Vibration ---
   // --- END: Sound & Vibration ---
 
   // Base card styles
@@ -136,7 +134,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const skeletonBg = isDark ? 'bg-[#21262d]' : 'bg-[#e8eaed]';
   const skeletonLight = isDark ? 'bg-[#30363d]' : 'bg-[#d0d7de]';
-
+  const [pointsEarned, setPointsEarned] = useState<{ total: number; details: any[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -151,7 +149,6 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const [saleDate, setSaleDate] = useState<string>(() => {
     const now = new Date();
-    // Store as full ISO string but timezone-aware for the input
     return now.toISOString();
   });
   // --- END: Sale Date State ---
@@ -275,25 +272,21 @@ export const PosView: React.FC<PosViewProps> = ({
     setShowConfirmOverlay(true);
   };
 
-  // 🔧 FIXED: Handle multi-item sale - passes ALL items with pharmacy_name
+  // Handle multi-item sale - passes ALL items with pharmacy_name
   const handleConfirmSale = async () => {
     if (cart.length === 0) return;
 
-    // Remove playCompletionFeedback() from here - sound only plays on checkout tap
     setIsSubmitting(true);
     setShowConfirmOverlay(false);
     setProcessingStatus('saving');
     setProcessingMessage('Saving sale locally...');
     try {
-      //  Ensure pharmacy_name is not null or undefined
       const safePharmacyName = pharmacyName || 'Unknown Pharmacy';
 
-      // Calculate totals
       const subtotalTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
       const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
       const finalTotal = Math.max(0, subtotalTotal - discountAmount);
 
-      //  Prepare sale data with pharmacy_name and selected sale date
       const saleData: Partial<Sale> = {
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || 'Cash Customer',
@@ -308,42 +301,157 @@ export const PosView: React.FC<PosViewProps> = ({
         payment_reference: `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
         status: 'completed',
         sale_date: (() => {
-          // Use the selected date/time directly
           const dateObj = new Date(saleDate);
-          // If invalid date, fallback to current time
           if (isNaN(dateObj.getTime())) {
             return new Date().toISOString();
           }
           return dateObj.toISOString();
-        })(),//  Use selected date instead of current date
+        })(),
         pharmacy_name: safePharmacyName,
         pharmacy_id: currentProfile?.pharmacy_id || null,
       };
-
       setProcessingStatus('syncing');
       setProcessingMessage('Syncing to cloud...');
 
-      //  Pass ALL cart items with pharmacy_name in each item
       const result = await onCompleteSale(saleData, cart);
 
-      // If discount was applied, save to discounts table
       if (discountAmount > 0 && result?.id) {
         setProcessingMessage('Saving discount details...');
-        // Discount saving is handled in useActions
       }
 
+      // --- CALCULATE AND AWARD LOYALTY POINTS AFTER SALE COMPLETES ---
+      // --- CALCULATE AND AWARD LOYALTY POINTS AFTER SALE COMPLETES ---
+      console.log('=== LOYALTY POINTS DEBUG START ===');
+      console.log('selectedCustomer:', selectedCustomer);
+      console.log('result:', result);
+      console.log('result?.saleId:', result?.saleId);
+      console.log('cart:', cart);
+
+      let pointsEarnedTotal = 0;
+      let allAwards: any[] = [];
+
+      if (selectedCustomer && result?.saleId) {
+        console.log('Condition met - calculating points...');
+        try {
+          setProcessingMessage('Calculating loyalty points...');
+
+          for (const item of cart) {
+            console.log('Processing item:', {
+              name: item.product.name,
+              quantity: item.quantity,
+              subtotal: item.subtotal,
+              category: item.product.category_name,
+              generic: item.product.generic_name
+            });
+
+            const context = {
+              product: item.product,
+              quantity: item.quantity,
+              customerId: selectedCustomer.id,
+              totalAmount: item.subtotal,
+              prescriptionDuration: 7
+            };
+
+            const calcResult = await calculateLoyaltyPoints(context, safePharmacyName);
+            console.log('calcResult for item:', calcResult);
+
+            pointsEarnedTotal += calcResult.totalPoints;
+            allAwards.push(...calcResult.awards);
+          }
+
+          console.log('Total points earned:', pointsEarnedTotal);
+
+          if (pointsEarnedTotal > 0) {
+            console.log('Calling db.addLoyaltyPoints...');
+            const loyaltyResult = await db.addLoyaltyPoints(
+              safePharmacyName,
+              selectedCustomer.id,
+              pointsEarnedTotal,
+              'earn_purchase',
+              null,
+              `Earned ${pointsEarnedTotal} points from sale #${result.saleNumber || result.saleId}`,
+              null,  // <-- SET TO NULL - Don't link to sale
+              currentProfile?.id
+            );
+            console.log('Points added successfully!');
+            console.log('Loyalty result:', loyaltyResult);
+            if (loyaltyResult.success) {
+              // QUEUE CUSTOMER UPDATE (using main sync queue - works fine)
+              console.log('Queueing customer update for sync...');
+              await db.sync_queue.add({
+                sync_id: crypto.randomUUID(),
+                pharmacy_name: safePharmacyName,
+                user_id: currentProfile?.id || 'system',
+                entity_type: 'customers',
+                operation: 'UPDATE',
+                payload: {
+                  id: selectedCustomer.id,
+                  loyalty_points: (selectedCustomer.loyalty_points || 0) + pointsEarnedTotal,
+                  total_points_earned: (selectedCustomer.total_points_earned || 0) + pointsEarnedTotal,
+                  updated_at: new Date().toISOString()
+                },
+                created_at: new Date().toISOString(),
+                status: 'pending',
+                retry_count: 0
+              });
+              console.log('Customer update queued for sync!');
+
+              // QUEUE LOYALTY TRANSACTION (using NEW loyalty sync system)
+              if (loyaltyResult.transaction) {
+                console.log('Queueing loyalty transaction with loyalty sync...');
+                await queueLoyaltyMutation(
+                  safePharmacyName,
+                  currentProfile?.id || 'system',
+                  'customers_loyalty_transactions',
+                  'INSERT',
+                  loyaltyResult.transaction
+                );
+                console.log('Loyalty transaction queued for loyalty sync!');
+              }
+            }
+
+            const updatedCustomer = await db.customers.where('id').equals(selectedCustomer.id).first();
+            console.log('Updated customer:', updatedCustomer);
+            if (updatedCustomer) {
+              setSelectedCustomer(updatedCustomer);
+            }
+          } else {
+            console.log('No points earned - pointsEarnedTotal is 0');
+          }
+
+          setPointsEarned({
+            total: pointsEarnedTotal,
+            details: allAwards
+          });
+
+        } catch (pointsError) {
+          console.error('Points calculation error:', pointsError);
+        }
+      } else {
+        console.log('Skipping points - conditions not met:');
+        console.log('  selectedCustomer:', selectedCustomer);
+        console.log('  result?.saleId:', result?.saleId);
+      }
+      console.log('=== LOYALTY POINTS DEBUG END ===');
+
       setProcessingStatus('complete');
-      setProcessingMessage(`Sale completed! ${totalItems} items sold`);
+      if (pointsEarnedTotal > 0) {
+        setProcessingMessage(`Sale completed! ${totalItems} items sold. Earned ${pointsEarnedTotal} loyalty points!`);
+      } else {
+        setProcessingMessage(`Sale completed! ${totalItems} items sold`);
+      }
 
       playCompletionFeedback();
 
       // Clear cart and reset to today
       setCart([]);
+      setPointsEarned(null);
       setDiscountAmount(0);
       setDiscountReason('');
-      setSelectedCustomer(null);
+      if (pointsEarnedTotal === 0) {
+        setSelectedCustomer(null);
+      }
       setPaymentMethod('cash');
-      // Reset to current date/time
       setSaleDate(new Date().toISOString());
 
       setTimeout(() => {
@@ -400,6 +508,7 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
     </div>
   );
+
   return (
     <div className="flex flex-col gap-4 px-0 md:px-4 pb-20 md:pb-6">
 
@@ -508,24 +617,23 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Customer & Payment Method - Mobile */}
         <div className={`mt-3 pt-2 ${borderLine} space-y-2`}>
-          <div className={`flex items-center justify-between text-sm ${textMuted}`}>
-            <span className="flex items-center gap-2">
-              <User className="w-4 h-4" />
+          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm ${textMuted} gap-1 sm:gap-2`}>
+            <span className="flex items-center gap-2 shrink-0">
+              <User className="w-4 h-4 shrink-0" />
               Customer:
             </span>
-            <select
-              value={selectedCustomer?.id || ''}
-              onChange={(e) => {
-                const found = customers.find(c => c.id === e.target.value);
-                setSelectedCustomer(found || null);
-              }}
-              className={`${selectBg} text-sm rounded-lg px-3 py-2 max-w-[140px] focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
-            >
-              <option value="">Cash</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="w-full sm:flex-1 sm:max-w-[280px]">
+              <CustomerSelector
+                pharmacyName={pharmacyName || ''}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomer}
+                onCustomerCreated={(customer) => {
+                  setSelectedCustomer(customer);
+                }}
+                theme={theme}
+                currentProfileId={currentProfile?.id}
+              />
+            </div>
           </div>
 
           <div className={`flex items-center justify-between text-sm ${textMuted}`}>
@@ -1043,26 +1151,24 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* Customer & Payment Method - Desktop */}
             <div className={`mt-4 pt-3 ${borderLine} space-y-3`}>
-              <div className={`flex items-center justify-between text-sm ${textMuted}`}>
-                <span className="flex items-center gap-2">
+              <div className={`flex items-center justify-between text-sm ${textMuted} gap-2`}>
+                <span className="flex items-center gap-2 shrink-0">
                   <User className="w-4 h-4" />
                   Customer:
                 </span>
-                <select
-                  value={selectedCustomer?.id || ''}
-                  onChange={(e) => {
-                    const found = customers.find(c => c.id === e.target.value);
-                    setSelectedCustomer(found || null);
-                  }}
-                  className={`${selectBg} text-sm rounded-lg px-3 py-2 max-w-[160px] focus:outline-none focus:ring-1 focus:ring-[#2ea043] ${touchTargetSmall}`}
-                >
-                  <option value="">Cash Customer</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <div className="flex-1 max-w-[320px]">
+                  <CustomerSelector
+                    pharmacyName={pharmacyName || ''}
+                    selectedCustomer={selectedCustomer}
+                    onSelectCustomer={setSelectedCustomer}
+                    onCustomerCreated={(customer) => {
+                      setSelectedCustomer(customer);
+                    }}
+                    theme={theme}
+                    currentProfileId={currentProfile?.id}
+                  />
+                </div>
               </div>
-
               <div className={`flex items-center justify-between text-sm ${textMuted}`}>
                 <span className="flex items-center gap-2">
                   <Tag className="w-4 h-4" />
@@ -1319,8 +1425,29 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
               )}
               {processingStatus === 'complete' && (
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center animate-bounce">
-                  <Check className="w-10 h-10 text-emerald-500" />
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center animate-bounce mx-auto">
+                    <Check className="w-10 h-10 text-emerald-500" />
+                  </div>
+                  {pointsEarned && pointsEarned.total > 0 && (
+                    <div className="mt-3 px-4 py-2 rounded-lg bg-amber-500/20 inline-block">
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-400 text-sm font-bold">+{pointsEarned.total} Loyalty Points!</span>
+                      </div>
+                      {pointsEarned.details.length > 0 && (
+                        <div className="mt-1 text-xs text-amber-400/70">
+                          {pointsEarned.details.slice(0, 3).map((award, i) => (
+                            <span key={i} className="block">
+                              {award.description}: +{award.points} pts
+                            </span>
+                          ))}
+                          {pointsEarned.details.length > 3 && (
+                            <span>+{pointsEarned.details.length - 3} more</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {processingStatus === 'error' && (

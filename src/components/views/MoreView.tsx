@@ -7,13 +7,13 @@ import {
   Image, FileCheck, Info, Download, X, UserPlus,
   Truck as TruckIcon, UserCog, Cloud, CloudOff,
   Clock, AlertTriangle, Edit, Trash2, ChevronRight,
-  Calendar, Lock
+  Calendar, Lock, Gift
 } from 'lucide-react';
 import { isSupabaseConfigured, getSupabaseClient, pullFromSupabaseToLocal } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { generateAuditReportPdf } from '../../utils/auditPdfGenerator';
-
+import { LoyaltySettings } from '../settings/LoyaltySettings';
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (err instanceof Error && err.message.trim()) {
     return err.message;
@@ -74,9 +74,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
   const touchTarget = 'min-h-[44px] min-w-[44px]';
   const touchTargetSmall = 'min-h-[36px] min-w-[36px]';
-
-  const [activeSection, setActiveSection] = useState<'staff' | 'suppliers' | 'settings' | 'sync' | 'audit'>('settings');
-
+  const [activeSection, setActiveSection] = useState<'staff' | 'suppliers' | 'settings' | 'sync' | 'audit' | 'loyalty'>('settings');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
@@ -592,6 +590,16 @@ export const MoreView: React.FC<MoreViewProps> = ({
         >
           <Shield className="w-6 h-6 mb-1 text-[#2ea043]" />
           <span className="text-sm font-bold">Audit</span>
+        </button>
+        <button
+          onClick={() => setActiveSection('loyalty')}
+          className={`p-4 rounded-2xl text-left flex flex-col items-center justify-center text-center gap-1.5 transition-colors ${touchTarget} ${activeSection === 'loyalty'
+            ? 'bg-[#2ea043]/20 text-[#2ea043] font-bold shadow-sm'
+            : `${cardBg}`
+            }`}
+        >
+          <Gift className="w-6 h-6 mb-1 text-[#2ea043]" />
+          <span className="text-sm font-bold">Loyalty</span>
         </button>
       </div>
 
@@ -1151,7 +1159,14 @@ export const MoreView: React.FC<MoreViewProps> = ({
           </div>
         </div>
       )}
-
+      {/* Loyalty Section */}
+      {activeSection === 'loyalty' && (
+        <LoyaltySettings
+          pharmacyName={profile?.pharmacy_name || ''}
+          theme={theme}
+          currentProfileId={profile?.id}
+        />
+      )}
       {/* Add Staff Modal */}
       {showAddStaffModal && (
         <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">

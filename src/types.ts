@@ -23,7 +23,34 @@ export type DosageFormType =
   | 'other';
 
 export type ScheduleType = 'none' | 'schedule_I' | 'schedule_II' | 'schedule_III' | 'schedule_IV' | 'schedule_V';
+// =============================================
+// LOYALTY & REWARDS SYSTEM TYPES
+// =============================================
 
+export type LoyaltyTransactionType =
+  | 'earn_purchase'
+  | 'earn_bonus'
+  | 'earn_referral'
+  | 'earn_welcome'
+  | 'redeem_reward'
+  | 'redeem_delivery'
+  | 'adjustment';
+
+export type RewardCategory =
+  | 'bp_check'
+  | 'glucose_test'
+  | 'dewormer'
+  | 'vitamins'
+  | 'hiv_test'
+  | 'delivery'
+  | 'discount';
+
+export type LoyaltyCardOrderStatus =
+  | 'pending'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 export type MovementType =
   | 'opening_balance'
   | 'purchase'
@@ -258,10 +285,30 @@ export interface Customer {
   email?: string;
   notes?: string;
   credit_allowed: boolean;
+
+  // 🆕 LOYALTY FIELDS
+  loyalty_points?: number;
+  loyalty_card_number?: string;
+  location?: string;
+  county?: string;
+  town?: string;
+  estate?: string;
+  landmark?: string;
+  date_of_birth?: string;
+  gender?: 'male' | 'female' | 'other';
+  total_spent?: number;
+  visit_count?: number;
+  last_visit_date?: string;
+  first_visit_date?: string;
+  referral_code?: string;
+  referred_by?: string;
+  is_loyalty_member?: boolean;
+  total_points_earned?: number;
+  total_points_redeemed?: number;
+
   created_at: string;
   updated_at: string;
 }
-
 /**
  * SALE - Single Table Design
  * Since we sell ONE item at a time, all product details are stored directly
@@ -900,7 +947,71 @@ export interface ReorderRecommendation {
 }
 
 // types/index.ts - Add after SupplierPartnershipRequest
+// =============================================
+// LOYALTY INTERFACES
+// =============================================
 
+export interface LoyaltyTransaction {
+  id: string;
+  pharmacy_name: string;
+  customer_id: string;
+  sale_id: string | null;
+  points: number;
+  balance_after: number;
+  transaction_type: LoyaltyTransactionType;
+  trigger_rule: string | null;
+  reward_id: string | null;
+  reward_name: string | null;
+  description: string;
+  metadata: Record<string, any>;
+  created_at: string;
+  created_by: string;
+}
+
+export interface RewardCatalog {
+  id: string;
+  pharmacy_name: string;
+  name: string;
+  description: string | null;
+  points_required: number;
+  category: RewardCategory;
+  is_active: boolean;
+  max_redemptions_per_customer: number | null;
+  requires_approval: boolean;
+  image_url: string | null;
+  icon_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoyaltyCardOrder {
+  id: string;
+  pharmacy_name: string;
+  order_number: string;
+  quantity: number;
+  card_start_number: string;
+  card_end_number: string;
+  status: LoyaltyCardOrderStatus;
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string | null;
+  shipping_address: string;
+  shipping_county: string;
+  shipping_town: string;
+  shipping_landmark: string | null;
+  payment_method: 'mpesa' | 'cash' | 'bank_transfer';
+  payment_status: 'pending' | 'paid' | 'failed';
+  payment_reference: string | null;
+  total_amount: number;
+  notes: string | null;
+  ordered_at: string;
+  processed_at: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
 // =============================================
 // SUPPLIER ACCOUNTS (Read-only from supplier app)
 // =============================================

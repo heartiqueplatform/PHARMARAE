@@ -25,9 +25,12 @@ import {
   Discount,
   Notification,
   SalesReturn,
-  SupplierPartnershipRequest,  //  ADD
-  SupplierOrder,               //  ADD
+  SupplierPartnershipRequest,
+  SupplierOrder,
   SupplierOrderItem,
+  LoyaltyTransaction,
+  RewardCatalog,
+  LoyaltyCardOrder,
 } from '../types';
 
 export interface PushSubscription {
@@ -71,10 +74,16 @@ export class MedPDatabase extends Dexie {
   sync_queue!: Table<OfflineSyncItem, number>;
   push_subscriptions!: Table<PushSubscription, string>;
 
-  //  ADD THESE
+  // Supplier tables
   suppliers_partnership_requests!: Table<SupplierPartnershipRequest, string>;
   suppliers_orders!: Table<SupplierOrder, string>;
   suppliers_order_items!: Table<SupplierOrderItem, string>;
+
+  // Loyalty tables
+  customers_loyalty_transactions!: Table<LoyaltyTransaction, string>;
+  customers_rewards_catalog!: Table<RewardCatalog, string>;
+  customers_loyalty_card_orders!: Table<LoyaltyCardOrder, string>;
+
   constructor() {
     super('MedPPharmacyDB');
 
@@ -132,11 +141,9 @@ export class MedPDatabase extends Dexie {
       sale_returns: 'id, pharmacy_name, sale_id, created_at',
       discounts: 'id, pharmacy_name, sale_id',
       audit_logs: 'id, pharmacy_name, user_id, action, created_at',
-      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
       sync_queue: '++id, sync_id, pharmacy_id, user_id, entity_type, status, created_at'
     }).upgrade(async (tx) => {
-      // Silent upgrade - no logs
       try {
         const profiles = await tx.table('profiles').toArray();
         const pharmacyUsers = await tx.table('pharmacy_users').toArray();
@@ -532,8 +539,6 @@ export class MedPDatabase extends Dexie {
       // Nothing to migrate - just adding table
     });
 
-    // lib/db.ts - Update VERSION 9 schema
-
     // =============================================
     // VERSION 11: Add entity_type+payload.id index to sync_queue
     // =============================================
@@ -559,21 +564,17 @@ export class MedPDatabase extends Dexie {
       audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
       requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
       notifications: 'id, pharmacy_name, user_id, read, created_at',
-      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id]',  //  ADDED the missing index
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id]',
       push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]',
       suppliers_partnership_requests: 'id, pharmacy_name, supplier_id, status, [pharmacy_name+status], [pharmacy_name+supplier_id]',
       suppliers_orders: 'id, pharmacy_name, supplier_id, order_number, status, order_date, [pharmacy_name+status], [pharmacy_name+supplier_id], [pharmacy_name+order_date]',
       suppliers_order_items: 'id, order_id, product_id, item_status, [order_id+product_id]',
     }).upgrade(async (tx) => {
-      // The existing upgrade code from version 10 stays the same
       try {
-        //  ADD: Migrate existing sales to include sale_id
         const sales = await tx.table('sales').toArray();
 
         for (const sale of sales) {
-          // If sale doesn't have sale_id, generate one from sale_number or id
           if (!sale.sale_id) {
-            // Use sale_number if available, otherwise use id
             const saleId = sale.sale_number
               ? sale.sale_number.replace('INV-', '').split('-')[0]
               : sale.id;
@@ -590,14 +591,12 @@ export class MedPDatabase extends Dexie {
           }
         }
 
-        //  ADD: Clean up any sales without pharmacy_name
         const invalidSales = await tx.table('sales')
           .where('pharmacy_name')
           .equals('')
           .toArray();
 
         for (const sale of invalidSales) {
-          // Try to find pharmacy_name from profile
           const profile = await tx.table('profiles')
             .where('id')
             .equals(sale.sold_by || '')
@@ -623,7 +622,183 @@ export class MedPDatabase extends Dexie {
         // Silent fail
       }
     });
+
+    // =============================================
+    // VERSION 13: Add Loyalty & Rewards Tables
+    // =============================================
+    this.version(13).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at, [pharmacy_name+role], [pharmacy_name+is_active]',
+      categories: 'id, pharmacy_name, name, active, [pharmacy_name+name]',
+      units: 'id, pharmacy_name, name, abbreviation, [pharmacy_name+name]',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at, shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition, [pharmacy_name+name], [pharmacy_name+barcode], [pharmacy_name+category_id]',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active, [pharmacy_name+name]',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at, [pharmacy_name+product_id], [pharmacy_name+expiry_date], [pharmacy_name+batch_number]',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at, loyalty_points, loyalty_card_number, is_loyalty_member, [pharmacy_name+name], [pharmacy_name+phone], [pharmacy_name+loyalty_card_number], [pharmacy_name+is_loyalty_member]',
+      sales: 'id, pharmacy_name, sale_id, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at, [pharmacy_name+sale_date], [pharmacy_name+product_id], [pharmacy_name+status]',
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at, [pharmacy_name+product_id], [pharmacy_name+created_at]',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at, [pharmacy_name+created_at], [pharmacy_name+sale_id]',
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id]',
+      push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]',
+      suppliers_partnership_requests: 'id, pharmacy_name, supplier_id, status, [pharmacy_name+status], [pharmacy_name+supplier_id]',
+      suppliers_orders: 'id, pharmacy_name, supplier_id, order_number, status, order_date, [pharmacy_name+status], [pharmacy_name+supplier_id], [pharmacy_name+order_date]',
+      suppliers_order_items: 'id, order_id, product_id, item_status, [order_id+product_id]',
+      customers_loyalty_transactions: 'id, pharmacy_name, customer_id, sale_id, transaction_type, created_at, [pharmacy_name+customer_id], [pharmacy_name+created_at], [pharmacy_name+transaction_type]',
+      customers_rewards_catalog: 'id, pharmacy_name, category, is_active, [pharmacy_name+category], [pharmacy_name+is_active]',
+      customers_loyalty_card_orders: 'id, pharmacy_name, order_number, status, payment_status, created_at, [pharmacy_name+status], [pharmacy_name+created_at]'
+    }).upgrade(async (tx) => {
+      try {
+        const existingRewards = await tx.table('customers_rewards_catalog').toArray();
+        if (existingRewards.length === 0) {
+          const defaultRewards = [
+            {
+              id: crypto.randomUUID(),
+              pharmacy_name: 'SYSTEM',
+              name: 'Free BP Check',
+              description: 'Blood pressure check at the pharmacy',
+              points_required: 50,
+              category: 'bp_check',
+              is_active: true,
+              max_redemptions_per_customer: null,
+              requires_approval: false,
+              icon_name: 'heart-pulse',
+              image_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: crypto.randomUUID(),
+              pharmacy_name: 'SYSTEM',
+              name: 'Free Blood Glucose Test',
+              description: 'Blood glucose test at the pharmacy',
+              points_required: 75,
+              category: 'glucose_test',
+              is_active: true,
+              max_redemptions_per_customer: null,
+              requires_approval: false,
+              icon_name: 'droplet',
+              image_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: crypto.randomUUID(),
+              pharmacy_name: 'SYSTEM',
+              name: 'Free Dewormer',
+              description: 'Single dose dewormer',
+              points_required: 100,
+              category: 'dewormer',
+              is_active: true,
+              max_redemptions_per_customer: 4,
+              requires_approval: true,
+              icon_name: 'pill',
+              image_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: crypto.randomUUID(),
+              pharmacy_name: 'SYSTEM',
+              name: 'Free Multivitamin',
+              description: '30-day multivitamin supply',
+              points_required: 150,
+              category: 'vitamins',
+              is_active: true,
+              max_redemptions_per_customer: 2,
+              requires_approval: true,
+              icon_name: 'beaker',
+              image_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: crypto.randomUUID(),
+              pharmacy_name: 'SYSTEM',
+              name: 'Free HIV Test (Couple)',
+              description: 'HIV testing for a couple',
+              points_required: 200,
+              category: 'hiv_test',
+              is_active: true,
+              max_redemptions_per_customer: 2,
+              requires_approval: true,
+              icon_name: 'vial',
+              image_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: crypto.randomUUID(),
+              pharmacy_name: 'SYSTEM',
+              name: 'Free Delivery',
+              description: 'Delivery within 5km radius',
+              points_required: 500,
+              category: 'delivery',
+              is_active: true,
+              max_redemptions_per_customer: null,
+              requires_approval: true,
+              icon_name: 'truck',
+              image_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ];
+
+          for (const reward of defaultRewards) {
+            await tx.table('customers_rewards_catalog').add(reward);
+          }
+        }
+      } catch (err) {
+        // Silent fail - rewards will be seeded on first use
+      }
+    });
+
+    // =============================================
+    // 🆕 VERSION 14: Fix sync_queue index for payload.id
+    // =============================================
+    this.version(14).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at, [pharmacy_name+role], [pharmacy_name+is_active]',
+      categories: 'id, pharmacy_name, name, active, [pharmacy_name+name]',
+      units: 'id, pharmacy_name, name, abbreviation, [pharmacy_name+name]',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at, shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition, [pharmacy_name+name], [pharmacy_name+barcode], [pharmacy_name+category_id]',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active, [pharmacy_name+name]',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at, [pharmacy_name+product_id], [pharmacy_name+expiry_date], [pharmacy_name+batch_number]',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at, loyalty_points, loyalty_card_number, is_loyalty_member, [pharmacy_name+name], [pharmacy_name+phone], [pharmacy_name+loyalty_card_number], [pharmacy_name+is_loyalty_member]',
+      sales: 'id, pharmacy_name, sale_id, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at, [pharmacy_name+sale_date], [pharmacy_name+product_id], [pharmacy_name+status]',
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at, [pharmacy_name+product_id], [pharmacy_name+created_at]',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at, [pharmacy_name+created_at], [pharmacy_name+sale_id]',
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id], [payload.id]',
+      push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]',
+      suppliers_partnership_requests: 'id, pharmacy_name, supplier_id, status, [pharmacy_name+status], [pharmacy_name+supplier_id]',
+      suppliers_orders: 'id, pharmacy_name, supplier_id, order_number, status, order_date, [pharmacy_name+status], [pharmacy_name+supplier_id], [pharmacy_name+order_date]',
+      suppliers_order_items: 'id, order_id, product_id, item_status, [order_id+product_id]',
+      customers_loyalty_transactions: 'id, pharmacy_name, customer_id, sale_id, transaction_type, created_at, [pharmacy_name+customer_id], [pharmacy_name+created_at], [pharmacy_name+transaction_type]',
+      customers_rewards_catalog: 'id, pharmacy_name, category, is_active, [pharmacy_name+category], [pharmacy_name+is_active]',
+      customers_loyalty_card_orders: 'id, pharmacy_name, order_number, status, payment_status, created_at, [pharmacy_name+status], [pharmacy_name+created_at]'
+    });
+
   }
+
   // =============================================
   // PERFORMANCE HELPERS
   // =============================================
@@ -781,6 +956,9 @@ export class MedPDatabase extends Dexie {
     await this.requested_items.clear();
     await this.notifications.clear();
     await this.sync_queue.clear();
+    await this.customers_loyalty_transactions.clear();
+    await this.customers_rewards_catalog.clear();
+    await this.customers_loyalty_card_orders.clear();
   }
 
   async clearPharmacyData(pharmacyName: string) {
@@ -793,7 +971,10 @@ export class MedPDatabase extends Dexie {
       'products', 'product_batches', 'categories', 'units',
       'suppliers', 'customers', 'sales',
       'stock_movements', 'audit_logs', 'sync_queue',
-      'requested_items', 'sales_returns'
+      'requested_items', 'sales_returns',
+      'customers_loyalty_transactions',
+      'customers_rewards_catalog',
+      'customers_loyalty_card_orders'
     ];
 
     for (const tableName of tables) {
@@ -807,9 +988,214 @@ export class MedPDatabase extends Dexie {
       }
     }
   }
-}
 
-// lib/db.ts - Add this at the bottom, before export const db
+  // =============================================
+  // LOYALTY HELPERS
+  // =============================================
+
+  async getCustomerLoyaltySummary(pharmacyName: string, customerId: string) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    const [customer, transactions] = await Promise.all([
+      this.customers.where('id').equals(customerId).first(),
+      this.customers_loyalty_transactions
+        .where('[pharmacy_name+customer_id]')
+        .equals([normalized, customerId])
+        .sortBy('created_at')
+    ]);
+
+    return {
+      customer,
+      transactions,
+      pointsBalance: customer?.loyalty_points || 0,
+      totalEarned: transactions.filter(t => t.points > 0).reduce((sum, t) => sum + t.points, 0),
+      totalRedeemed: transactions.filter(t => t.points < 0).reduce((sum, t) => sum + Math.abs(t.points), 0),
+    };
+  }
+
+  async getRewardsCatalog(pharmacyName: string, onlyActive: boolean = true) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    const systemRewards = await this.customers_rewards_catalog
+      .where('pharmacy_name')
+      .equals('SYSTEM')
+      .toArray();
+
+    const pharmacyRewards = await this.customers_rewards_catalog
+      .where('pharmacy_name')
+      .equals(normalized)
+      .toArray();
+
+    let allRewards = [...systemRewards, ...pharmacyRewards];
+
+    const seen = new Set();
+    allRewards = allRewards.filter(reward => {
+      const key = reward.category;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+
+    if (onlyActive) {
+      allRewards = allRewards.filter(r => r.is_active);
+    }
+
+    return allRewards;
+  }
+
+  async getCustomerTransactionHistory(pharmacyName: string, customerId: string, limit: number = 50) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    return this.customers_loyalty_transactions
+      .where('[pharmacy_name+customer_id]')
+      .equals([normalized, customerId])
+      .sortBy('created_at')
+      .then(transactions => transactions.slice(-limit).reverse());
+  }
+
+  async redeemReward(
+    pharmacyName: string,
+    customerId: string,
+    rewardId: string,
+    createdBy: string
+  ): Promise<{ success: boolean; message: string; transaction?: LoyaltyTransaction }> {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    const [customer, reward] = await Promise.all([
+      this.customers.where('id').equals(customerId).first(),
+      this.customers_rewards_catalog.where('id').equals(rewardId).first()
+    ]);
+
+    if (!customer) return { success: false, message: 'Customer not found' };
+    if (!reward || !reward.is_active) return { success: false, message: 'Reward not available' };
+
+    if (customer.loyalty_points < reward.points_required) {
+      return {
+        success: false,
+        message: `Insufficient points. Need ${reward.points_required}, have ${customer.loyalty_points}`
+      };
+    }
+
+    if (reward.max_redemptions_per_customer) {
+      const redemptions = await this.customers_loyalty_transactions
+        .where('[pharmacy_name+customer_id]')
+        .equals([normalized, customerId])
+        .filter(t => t.transaction_type === 'redeem_reward' && t.reward_id === rewardId)
+        .count();
+
+      if (redemptions >= reward.max_redemptions_per_customer) {
+        return {
+          success: false,
+          message: `Maximum redemptions (${reward.max_redemptions_per_customer}) reached for this reward`
+        };
+      }
+    }
+
+    const newPoints = customer.loyalty_points - reward.points_required;
+
+    const transaction: LoyaltyTransaction = {
+      id: crypto.randomUUID(),
+      pharmacy_name: normalized,
+      customer_id: customerId,
+      sale_id: null,
+      points: -reward.points_required,
+      balance_after: newPoints,
+      transaction_type: 'redeem_reward',
+      trigger_rule: null,
+      reward_id: reward.id,
+      reward_name: reward.name,
+      description: `Redeemed: ${reward.name}`,
+      metadata: { reward_id: reward.id, reward_name: reward.name },
+      created_at: new Date().toISOString(),
+      created_by: createdBy
+    };
+
+    await this.transaction('rw', this.customers, this.customers_loyalty_transactions, async () => {
+      await this.customers.update(customerId, {
+        loyalty_points: newPoints,
+        total_points_redeemed: customer.total_points_redeemed + reward.points_required,
+        updated_at: new Date().toISOString()
+      });
+      await this.customers_loyalty_transactions.add(transaction);
+    });
+
+    return {
+      success: true,
+      message: `Redeemed ${reward.name} for ${reward.points_required} points`,
+      transaction
+    };
+  }
+
+  async addLoyaltyPoints(
+    pharmacyName: string,
+    customerId: string,
+    points: number,
+    type: string,
+    triggerRule: string | null,
+    description: string,
+    saleId?: string,
+    createdBy?: string
+  ): Promise<{ success: boolean; transaction?: LoyaltyTransaction }> {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    const customer = await this.customers.where('id').equals(customerId).first();
+    if (!customer) return { success: false };
+
+    const newBalance = customer.loyalty_points + points;
+
+    const transaction: LoyaltyTransaction = {
+      id: crypto.randomUUID(),
+      pharmacy_name: normalized,
+      customer_id: customerId,
+      sale_id: saleId || null,
+      points: points,
+      balance_after: newBalance,
+      transaction_type: type as any,
+      trigger_rule: triggerRule,
+      reward_id: null,
+      reward_name: null,
+      description: description,
+      metadata: { points_added: points, trigger_rule: triggerRule },
+      created_at: new Date().toISOString(),
+      created_by: createdBy || 'system'
+    };
+
+    await this.transaction('rw', this.customers, this.customers_loyalty_transactions, async () => {
+      await this.customers.update(customerId, {
+        loyalty_points: newBalance,
+        total_points_earned: customer.total_points_earned + points,
+        total_spent: customer.total_spent || 0,
+        visit_count: (customer.visit_count || 0) + 1,
+        last_visit_date: new Date().toISOString(),
+        first_visit_date: customer.first_visit_date || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      await this.customers_loyalty_transactions.add(transaction);
+    });
+
+    return { success: true, transaction };
+  }
+
+  async getCustomerByPhone(pharmacyName: string, phone: string) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    return this.customers
+      .where('[pharmacy_name+phone]')
+      .equals([normalized, phone])
+      .first();
+  }
+
+  async getCustomerByLoyaltyCard(pharmacyName: string, cardNumber: string) {
+    const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
+
+    return this.customers
+      .where('[pharmacy_name+loyalty_card_number]')
+      .equals([normalized, cardNumber])
+      .first();
+  }
+}
 
 // =============================================
 // PERSISTENT STORAGE - Prevent cache clearing data loss
@@ -856,17 +1242,14 @@ export async function seedInitialDataIfNeeded() {
 
   while (retries < maxRetries) {
     try {
-      // Check if we've already run the latest migration
       if (localStorage.getItem('medp_schema_v10_optimized') === 'true') {
         return;
       }
 
-      // Open database with retry
       await db.open();
 
       const profiles = await db.profiles.toArray();
 
-      // Check for profiles without pharmacy_name
       const needsMigration = profiles.some(p => !p.pharmacy_name);
 
       if (needsMigration) {
@@ -907,7 +1290,6 @@ export async function seedInitialDataIfNeeded() {
         }
       }
 
-      // Clean up sync_queue items without pharmacy_name
       const orphaned = await db.sync_queue
         .where('pharmacy_name')
         .equals('')
@@ -919,7 +1301,6 @@ export async function seedInitialDataIfNeeded() {
         }
       }
 
-      // Clean up old sync records (older than 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const cutoffStr = thirtyDaysAgo.toISOString();
@@ -935,7 +1316,6 @@ export async function seedInitialDataIfNeeded() {
         }
       }
 
-      // Mark schema as clean
       localStorage.setItem('medp_schema_v9_optimized', 'true');
       localStorage.setItem('medp_db_initialized', Date.now().toString());
       return;
@@ -943,11 +1323,9 @@ export async function seedInitialDataIfNeeded() {
     } catch (err) {
       retries++;
       if (retries >= maxRetries) {
-        // Silent fail - allow app to work with what data exists
         localStorage.setItem('medp_db_initialization_failed', Date.now().toString());
         return;
       }
-      // Wait before retry with exponential backoff
       await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, retries)));
     }
   }
@@ -958,8 +1336,6 @@ export async function seedInitialDataIfNeeded() {
 // =============================================
 export async function forceDataFlush() {
   try {
-    // Dexie automatically persists to IndexedDB
-    // But we can trigger a manual flush by reading data
     await db.profiles.count();
     return true;
   } catch (error) {
@@ -975,7 +1351,6 @@ export async function checkAndRepairData(pharmacyName: string) {
     const normalized = pharmacyName.trim().replace(/\s+/g, ' ').toUpperCase();
     const issues = [];
 
-    // Check products without pharmacy_name
     const invalidProducts = await db.products.where('pharmacy_name').equals('').toArray();
     if (invalidProducts.length > 0) {
       issues.push(`${invalidProducts.length} products missing pharmacy_name`);
@@ -984,7 +1359,6 @@ export async function checkAndRepairData(pharmacyName: string) {
       }
     }
 
-    // Check sales without pharmacy_name
     const invalidSales = await db.sales.where('pharmacy_name').equals('').toArray();
     if (invalidSales.length > 0) {
       issues.push(`${invalidSales.length} sales missing pharmacy_name`);
@@ -993,7 +1367,6 @@ export async function checkAndRepairData(pharmacyName: string) {
       }
     }
 
-    // Check sync_queue items without pharmacy_name
     const invalidSync = await db.sync_queue.where('pharmacy_name').equals('').toArray();
     if (invalidSync.length > 0) {
       issues.push(`${invalidSync.length} sync items missing pharmacy_name`);
