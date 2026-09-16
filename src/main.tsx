@@ -1,9 +1,11 @@
+// main.tsx
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { setupServiceWorkerAutoUpdate } from './lib/service-worker-update';
 
-const APP_VERSION = '11.0.622228988332288855662222318622122228686586665858568844466699888889922222323676735378788989799';
+const APP_VERSION = '11.0.78898979229';
 const APP_NAME = 'Pharmienta Kenya';
 const VERSION_KEY = 'Pharmienta_app_version';
 const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';
@@ -12,7 +14,7 @@ const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';
 let rootInstance: any = null;
 
 const applyThemeAndSplash = () => {
-  const savedTheme = localStorage.getItem('medp_theme') as 'dark' | 'light' || 'light';
+  const savedTheme = (localStorage.getItem('medp_theme') as 'dark' | 'light') || 'light';
   const isDark = savedTheme === 'dark';
 
   const splash = document.getElementById('splash-screen');
@@ -71,42 +73,28 @@ const hideSplash = () => {
   }
 };
 
+// ============================================
+// 🔥 AUTO-UPDATE — runs once, globally
+// Handles: new SW activated → reload, polling, visibility checks
+// ============================================
+setupServiceWorkerAutoUpdate();
+
 const RootApp = () => {
   useEffect(() => {
     hideSplash();
 
+    // The heavy-lifting (polling, visibility, message handling)
+    // is now done by setupServiceWorkerAutoUpdate() above.
+    // Here we just nudge the SW once on boot so users get the
+    // update check as soon as the app opens.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        const intervalId = setInterval(() => {
-          registration.update();
-        }, 30000);
-
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // Update available - handled by App.tsx toast
-              }
-            });
-          }
-        });
-
-        return () => clearInterval(intervalId);
-      });
+      navigator.serviceWorker.ready
+        .then((registration) => {
+          // Immediate check on app boot
+          registration.update().catch(() => { });
+        })
+        .catch(() => { });
     }
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-        // Update available - handled by App.tsx toast
-      }
-    };
-
-    navigator.serviceWorker.addEventListener('message', handleMessage);
-
-    return () => {
-      navigator.serviceWorker.removeEventListener('message', handleMessage);
-    };
   }, []);
 
   return <App />;
@@ -136,15 +124,16 @@ const renderApp = () => {
   }
 };
 
-// Register service worker
+// ============================================
+// REGISTER SERVICE WORKER
+// Polling and reload-on-activate are handled inside
+// setupServiceWorkerAutoUpdate() — no need to duplicate
+// setInterval loops here.
+// ============================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(registration => {
-        setInterval(() => {
-          registration.update();
-        }, 60000);
-      })
+    navigator.serviceWorker
+      .register('/sw.js')
       .catch(() => {
         // Silent fail - SW registration not critical
       });

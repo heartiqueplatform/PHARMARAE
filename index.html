@@ -6,6 +6,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Pharmienta Kenya — Oriented To Care</title>
 
+  <!-- ============================================ -->
+  <!-- 🔥 ONE-TIME SW RESCUE — MUST BE FIRST -->
+  <!-- Runs before React loads. Detects stuck users,     -->
+  <!-- unregisters the stale SW, clears caches, and      -->
+  <!-- reloads once so they get the fresh bundle.        -->
+  <!-- ============================================ -->
+  <script>
+    (function () {
+      try {
+        var FIX_KEY = 'medp_sw_rescue_v1';
+        if (localStorage.getItem(FIX_KEY) === 'done') return;
+        if (!('serviceWorker' in navigator)) {
+          localStorage.setItem(FIX_KEY, 'done');
+          return;
+        }
+        navigator.serviceWorker.getRegistrations()
+          .then(function (regs) {
+            var hadStale = regs.length > 0;
+            return Promise.all(regs.map(function (r) { return r.unregister(); }))
+              .then(function () {
+                if (typeof caches !== 'undefined') {
+                  return caches.keys().then(function (keys) {
+                    return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                  });
+                }
+              })
+              .then(function () {
+                localStorage.setItem(FIX_KEY, 'done');
+                if (hadStale) {
+                  console.log('[SW Rescue] Cleared stale SW, reloading...');
+                  window.location.reload();
+                }
+              });
+          })
+          .catch(function () { localStorage.setItem(FIX_KEY, 'done'); });
+      } catch (e) { /* silent */ }
+    })();
+  </script>
+
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json" />
 
@@ -48,9 +87,8 @@
   <!-- Color Scheme -->
   <meta name="color-scheme" content="light dark" />
 
-  <!--  FIX: Minimal styles - Let main.tsx control theme -->
+  <!-- Minimal styles - Let main.tsx control theme -->
   <style>
-    /* Default styles - theme will be applied by main.tsx */
     html,
     body,
     #root {
@@ -96,20 +134,12 @@
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 
-  <!-- Service Worker Registration -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log(' Service Worker registered successfully:', registration);
-          })
-          .catch(error => {
-            console.error(' Service Worker registration failed:', error);
-          });
-      });
-    }
-  </script>
+  <!-- ============================================ -->
+  <!-- Service Worker registration is handled by      -->
+  <!-- main.tsx + lib/service-worker-update.ts.       -->
+  <!-- Do not register here — duplicate registration   -->
+  <!-- can conflict with the auto-update logic.        -->
+  <!-- ============================================ -->
 </body>
 
 </html>

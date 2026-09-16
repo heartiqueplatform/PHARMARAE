@@ -4,68 +4,157 @@ import { getSupabaseClient, isSupabaseConfigured } from './client';
 import { normalizePharmacyName, TABLE_CONFIGS } from './utils';
 import { genUUID } from '../../utils/helpers';
 
+const PAGE_SIZE = 1000;
+
 // =============================================
-// PULL SINGLE TABLE - Existing function
+// CONCURRENCY GUARD
+// Prevent parallel pulls from racing (delete + bulkPut)
+// =============================================
+let pullInFlight: Promise<boolean> | null = null;
+
+// =============================================
+// HELPER: Build sale_id from row
+// =============================================
+function normalizeSaleRow(item: any, normalizedName: string) {
+    return {
+        ...item,
+        pharmacy_name: normalizedName,
+        sale_id:
+            item.sale_id ||
+            item.sale_number?.replace('INV-', '').split('-')[0] ||
+            item.id,
+    };
+}
+
+// =============================================
+// HELPER: Apply table-specific row transforms
+// =============================================
+function transformRow(tableName: string, item: any, normalizedName: string) {
+    if (tableName === 'sales') {
+        return normalizeSaleRow(item, normalizedName);
+    }
+    return { ...item, pharmacy_name: normalizedName };
+}
+
+// =============================================
+// PULL SINGLE TABLE (PAGINATED, ORDERED)
 // =============================================
 async function pullTable<T>(
     tableName: string,
     pharmacyName: string,
     dbTable: any,
-    options?: { limit?: number }
+    options?: { limit?: number; since?: Date }
 ): Promise<number> {
     const client = getSupabaseClient();
     if (!client) return 0;
 
-    const limit = options?.limit || 1000;
     const normalizedName = normalizePharmacyName(pharmacyName);
+    const maxRows = options?.limit ?? Infinity;
+    const since = options?.since;
+
+    let from = 0;
+    let total = 0;
 
     try {
-        let { data, error } = await client
-            .from(tableName)
-            .select('*')
-            .eq('pharmacy_name', normalizedName)
-            .limit(limit);
+        while (total < maxRows) {
+            const to = Math.min(from + PAGE_SIZE - 1, from + (maxRows - total) - 1);
 
-        if (error) {
-            const { data: allData } = await client
+            let query = client
                 .from(tableName)
                 .select('*')
-                .limit(limit);
+                .eq('pharmacy_name', normalizedName)
+                .order('created_at', { ascending: false })
+                .range(from, to);
 
-            if (allData && allData.length > 0) {
-                data = allData.filter((item: any) =>
-                    normalizePharmacyName(item.pharmacy_name) === normalizedName
-                );
-            } else {
-                data = [];
+            if (since) {
+                query = query.gte('updated_at', since.toISOString());
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.warn(`Pull failed for ${tableName}:`, error.message);
+                break;
+            }
+
+            if (!data || data.length === 0) break;
+
+            const itemsWithPharmacy = data.map(item =>
+                transformRow(tableName, item, normalizedName)
+            );
+
+            await dbTable.bulkPut(itemsWithPharmacy);
+            total += itemsWithPharmacy.length;
+
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
+        }
+
+        return total;
+    } catch (err) {
+        console.warn(`pullTable(${tableName}) error:`, err);
+        return total;
+    }
+}
+
+// =============================================
+// PULL ENTIRE TABLE (with safe stale cleanup)
+// Use this when you want a FULL resync + prune orphans
+// =============================================
+async function pullTableFullResync(
+    tableName: string,
+    pharmacyName: string,
+    dbTable: any
+): Promise<number> {
+    const client = getSupabaseClient();
+    if (!client) return 0;
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+    const remoteIds = new Set<string>();
+    let from = 0;
+    let total = 0;
+
+    try {
+        while (true) {
+            const { data, error } = await client
+                .from(tableName)
+                .select('*')
+                .eq('pharmacy_name', normalizedName)
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1);
+
+            if (error || !data || data.length === 0) break;
+
+            const items = data.map(item =>
+                transformRow(tableName, item, normalizedName)
+            );
+
+            for (const it of items) remoteIds.add(it.id);
+
+            await dbTable.bulkPut(items);
+            total += items.length;
+
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
+        }
+
+        // Only prune AFTER full fetch succeeded
+        if (remoteIds.size > 0) {
+            const localKeys = await dbTable
+                .where('pharmacy_name')
+                .equals(normalizedName)
+                .primaryKeys();
+
+            const toDelete = localKeys.filter((id: string) => !remoteIds.has(id));
+            if (toDelete.length > 0) {
+                await dbTable.bulkDelete(toDelete);
             }
         }
 
-        if (!data || data.length === 0) {
-            return 0;
-        }
-
-        let itemsWithPharmacy = data.map(item => ({
-            ...item,
-            pharmacy_name: normalizedName
-        }));
-
-        if (tableName === 'sales') {
-            itemsWithPharmacy = itemsWithPharmacy.map(item => ({
-                ...item,
-                sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
-            }));
-        }
-
-        await dbTable.where('pharmacy_name').equals(normalizedName).delete();
-
-        if (itemsWithPharmacy.length > 0) {
-            await dbTable.bulkPut(itemsWithPharmacy);
-        }
-
-        return data.length;
+        return total;
     } catch (err) {
-        return 0;
+        console.warn(`pullTableFullResync(${tableName}) error:`, err);
+        return total;
     }
 }
 
@@ -77,7 +166,6 @@ async function processConfirmedOrder(orderId: string) {
         const order = await db.suppliers_orders.get(orderId);
         if (!order) return;
 
-        // Check if already processed
         if (order.delivery_info?.stock_added) return;
 
         const items = await db.suppliers_order_items
@@ -94,16 +182,14 @@ async function processConfirmedOrder(orderId: string) {
             const product = await db.products.get(item.product_id);
             if (!product) continue;
 
-            // Add to stock
             const currentStock = product.quantity || 0;
             const newStock = currentStock + item.accepted_quantity;
 
             await db.products.update(item.product_id, {
                 quantity: newStock,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
             });
 
-            // Create stock movement
             const movement = {
                 id: genUUID(),
                 pharmacy_name: pharmacyName,
@@ -118,90 +204,116 @@ async function processConfirmedOrder(orderId: string) {
                 performed_by: order.pharmacy_contact_person,
                 performed_by_name: order.pharmacy_contact_person,
                 reason: `Order #${order.order_number} confirmed - Supplier added stock`,
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
             };
             await db.stock_movements.put(movement);
         }
 
-        // Mark order as processed
         await db.suppliers_orders.update(orderId, {
             'delivery_info.stock_added': true,
-            'delivery_info.stock_added_at': new Date().toISOString()
+            'delivery_info.stock_added_at': new Date().toISOString(),
         });
-
     } catch (error) {
         console.error('Failed to process confirmed order:', error);
     }
 }
 
 // =============================================
-// PULL SUPPLIER PARTNERSHIPS
+// PULL SUPPLIER PARTNERSHIPS (PAGINATED)
 // =============================================
 async function pullSupplierPartnerships(pharmacyName: string): Promise<number> {
     const client = getSupabaseClient();
     if (!client) return 0;
 
     const normalizedName = normalizePharmacyName(pharmacyName);
+    let from = 0;
+    let total = 0;
 
     try {
-        const { data, error } = await client
-            .from('suppliers_partnership_requests')
-            .select('*')
-            .eq('pharmacy_name', normalizedName)
-            .order('created_at', { ascending: false });
+        while (true) {
+            const { data, error } = await client
+                .from('suppliers_partnership_requests')
+                .select('*')
+                .eq('pharmacy_name', normalizedName)
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1);
 
-        if (error || !data || data.length === 0) {
-            return 0;
+            if (error || !data || data.length === 0) break;
+
+            const items = data.map(item => ({
+                ...item,
+                pharmacy_name: normalizedName,
+            }));
+
+            await db.suppliers_partnership_requests.bulkPut(items);
+            total += items.length;
+
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
         }
 
-        // Update local DB
-        await db.suppliers_partnership_requests.bulkPut(data);
-        return data.length;
+        return total;
     } catch (err) {
-        return 0;
+        console.warn('Failed to pull supplier partnerships:', err);
+        return total;
     }
 }
 
 // =============================================
-// PULL SUPPLIER ORDERS
+// PULL SUPPLIER ORDERS (PAGINATED)
 // =============================================
 async function pullSupplierOrders(pharmacyName: string): Promise<number> {
     const client = getSupabaseClient();
     if (!client) return 0;
 
     const normalizedName = normalizePharmacyName(pharmacyName);
+    let from = 0;
+    let total = 0;
+    const confirmedOrders: string[] = [];
 
     try {
-        const { data, error } = await client
-            .from('suppliers_orders')
-            .select('*')
-            .eq('pharmacy_name', normalizedName)
-            .order('created_at', { ascending: false });
+        while (true) {
+            const { data, error } = await client
+                .from('suppliers_orders')
+                .select('*')
+                .eq('pharmacy_name', normalizedName)
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1);
 
-        if (error || !data || data.length === 0) {
-            return 0;
-        }
+            if (error || !data || data.length === 0) break;
 
-        // Update local DB
-        await db.suppliers_orders.bulkPut(data);
+            const items = data.map(item => ({
+                ...item,
+                pharmacy_name: normalizedName,
+            }));
 
-        // Check for confirmed orders to auto-add stock
-        for (const order of data) {
-            if (order.status === 'confirmed') {
-                await processConfirmedOrder(order.id);
+            await db.suppliers_orders.bulkPut(items);
+            total += items.length;
+
+            for (const order of items) {
+                if (order.status === 'confirmed') {
+                    confirmedOrders.push(order.id);
+                }
             }
+
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
         }
 
-        return data.length;
+        for (const orderId of confirmedOrders) {
+            await processConfirmedOrder(orderId);
+        }
+
+        return total;
     } catch (err) {
-        return 0;
+        console.warn('Failed to pull supplier orders:', err);
+        return total;
     }
 }
 
 // =============================================
-// PULL SUPPLIER ORDER ITEMS
+// PULL SUPPLIER ORDER ITEMS (by order_id, no pharmacy_name)
 // =============================================
-// lib/supabase/pull.ts
 async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
     const client = getSupabaseClient();
     if (!client) return 0;
@@ -215,102 +327,120 @@ async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
             .toArray();
 
         const orderIds = orders.map(o => o.id);
+        if (orderIds.length === 0) return 0;
 
-        if (orderIds.length === 0) {
-            return 0;
-        }
+        let total = 0;
+        const CHUNK = 200;
 
-        const { data, error } = await client
-            .from('suppliers_order_items')
-            .select('*')
-            .in('order_id', orderIds);
+        for (let i = 0; i < orderIds.length; i += CHUNK) {
+            const chunk = orderIds.slice(i, i + CHUNK);
 
-        if (error || !data || data.length === 0) {
-            return 0;
-        }
+            let from = 0;
+            while (true) {
+                const { data, error } = await client
+                    .from('suppliers_order_items')
+                    .select('*')
+                    .in('order_id', chunk)
+                    .order('created_at', { ascending: false })
+                    .range(from, from + PAGE_SIZE - 1);
 
-        //  CRITICAL: Preserve local product_id when pulling from Supabase
-        for (const item of data) {
-            // Check if we already have this item locally
-            const localItem = await db.suppliers_order_items.get(item.id);
-            if (localItem && localItem.product_id) {
-                //  Keep the pharmacy's product_id
-                item.product_id = localItem.product_id;
+                if (error || !data || data.length === 0) break;
+
+                // Preserve local product_id (pharmacy-side product mapping)
+                for (const item of data) {
+                    const localItem = await db.suppliers_order_items.get(item.id);
+                    if (localItem && localItem.product_id) {
+                        item.product_id = localItem.product_id;
+                    }
+                }
+
+                await db.suppliers_order_items.bulkPut(data);
+                total += data.length;
+
+                if (data.length < PAGE_SIZE) break;
+                from += PAGE_SIZE;
             }
         }
 
-        await db.suppliers_order_items.bulkPut(data);
-        return data.length;
+        return total;
     } catch (err) {
         console.warn('Failed to pull supplier order items:', err);
-        return 0;
+        return total;
     }
 }
 
 // =============================================
-// PULL AVAILABLE SUPPLIERS (From suppliers_accounts)
+// PULL AVAILABLE SUPPLIERS
 // =============================================
 async function pullAvailableSuppliers(): Promise<number> {
     const client = getSupabaseClient();
     if (!client) return 0;
 
     try {
-        //  Pull all active suppliers from supplier app
-        const { data, error } = await client
-            .from('suppliers_accounts')
-            .select('*')
-            .eq('status', 'active')
-            .order('business_name', { ascending: true });
+        let from = 0;
+        const all: any[] = [];
 
-        if (error || !data || data.length === 0) {
-            return 0;
+        while (true) {
+            const { data, error } = await client
+                .from('suppliers_accounts')
+                .select('*')
+                .eq('status', 'active')
+                .order('business_name', { ascending: true })
+                .range(from, from + PAGE_SIZE - 1);
+
+            if (error || !data || data.length === 0) break;
+
+            all.push(...data);
+
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
         }
 
-        //  Store in a local table or cache
-        // Since we don't have a local table for suppliers_accounts,
-        // we store them in localStorage as a cache
-        localStorage.setItem('medp_available_suppliers', JSON.stringify(data));
-        localStorage.setItem('medp_available_suppliers_updated', new Date().toISOString());
+        if (all.length === 0) return 0;
 
-        return data.length;
+        localStorage.setItem('medp_available_suppliers', JSON.stringify(all));
+        localStorage.setItem(
+            'medp_available_suppliers_updated',
+            new Date().toISOString()
+        );
+
+        return all.length;
     } catch (err) {
         console.warn('Failed to pull available suppliers:', err);
         return 0;
     }
 }
-// =============================================
-// MAIN PULL FUNCTIONS - UPDATED
-// =============================================
 
-// Full pull - all tables including supplier
-export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boolean> {
+// =============================================
+// FULL PULL
+// =============================================
+async function doPullFromSupabaseToLocal(
+    pharmacyName: string
+): Promise<boolean> {
     const client = getSupabaseClient();
 
-    if (!navigator.onLine) {
-        return false;
-    }
-
-    if (!client || !isSupabaseConfigured()) {
-        return false;
-    }
+    if (!navigator.onLine) return false;
+    if (!client || !isSupabaseConfigured()) return false;
 
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        const results = await Promise.allSettled([
+        await Promise.allSettled([
             pullTable('products', normalizedName, db.products),
             pullTable('product_batches', normalizedName, db.product_batches),
             pullTable('categories', normalizedName, db.categories),
             pullTable('units', normalizedName, db.units),
             pullTable('suppliers', normalizedName, db.suppliers),
             pullTable('customers', normalizedName, db.customers),
-            pullTable('sales', normalizedName, db.sales, { limit: 500 }),
-            pullTable('stock_movements', normalizedName, db.stock_movements, { limit: 500 }),
-            pullTable('audit_logs', normalizedName, db.audit_logs, { limit: 500 }),
+            pullTable('sales', normalizedName, db.sales),
+            pullTable('stock_movements', normalizedName, db.stock_movements),
+            pullTable('audit_logs', normalizedName, db.audit_logs, {
+                limit: 5000,
+            }),
             pullTable('profiles', normalizedName, db.profiles),
-            pullTable('requested_items', normalizedName, db.requested_items, { limit: 500 }),
-            pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }),
-            //  ADD SUPPLIER TABLES
+            pullTable('requested_items', normalizedName, db.requested_items),
+            pullTable('sales_returns', normalizedName, db.sales_returns),
+            // Supplier tables
             pullSupplierPartnerships(normalizedName),
             pullSupplierOrders(normalizedName),
             pullSupplierOrderItems(normalizedName),
@@ -319,88 +449,80 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
 
         return true;
     } catch (err) {
+        console.warn('Full pull failed:', err);
         return false;
     }
 }
 
-// =============================================
-// SMART PULL - Updated with supplier tables
-// =============================================
-// lib/supabase/pull.ts
+export async function pullFromSupabaseToLocal(
+    pharmacyName: string
+): Promise<boolean> {
+    if (pullInFlight) return pullInFlight;
+    pullInFlight = doPullFromSupabaseToLocal(pharmacyName).finally(() => {
+        pullInFlight = null;
+    });
+    return pullInFlight;
+}
 
-export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?: Date): Promise<boolean> {
+// =============================================
+// SMART PULL (incremental-aware, ordered)
+// =============================================
+async function doSmartPullFromSupabase(
+    pharmacyName: string,
+    lastSyncTime?: Date
+): Promise<boolean> {
     const client = getSupabaseClient();
 
-    if (!navigator.onLine || !client || !isSupabaseConfigured()) {
-        return false;
-    }
+    if (!navigator.onLine || !client || !isSupabaseConfigured()) return false;
 
     const normalizedName = normalizePharmacyName(pharmacyName);
 
     try {
-        //  Filter TABLE_CONFIGS to exclude tables that don't have pharmacy_name
+        // Exclude tables that don't have pharmacy_name
         const filteredConfigs = TABLE_CONFIGS.filter(config => {
-            // suppliers_order_items doesn't have pharmacy_name - handled separately
             if (config.table === 'suppliers_order_items') return false;
             return true;
         });
 
-        const pullPromises = filteredConfigs.map(async (config) => {
-            let query = client
-                .from(config.table)
-                .select('*')
-                .eq('pharmacy_name', normalizedName);
-
-            if (lastSyncTime) {
-                query = query.gte('updated_at', lastSyncTime.toISOString());
-            }
-
-            const { data, error } = await query.limit(config.limit || 1000);
-
-            if (error || !data || data.length === 0) {
-                return 0;
-            }
-
-            let itemsWithPharmacy = data.map(item => ({
-                ...item,
-                pharmacy_name: normalizedName
-            }));
-
-            if (config.table === 'sales') {
-                itemsWithPharmacy = itemsWithPharmacy.map(item => ({
-                    ...item,
-                    sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
-                }));
-            }
-
+        const pullPromises = filteredConfigs.map(async config => {
             const dbTable = db[config.dbKey as keyof typeof db] as any;
-            if (dbTable && typeof dbTable.bulkPut === 'function') {
-                await dbTable.bulkPut(itemsWithPharmacy);
-                return data.length;
-            }
+            if (!dbTable || typeof dbTable.bulkPut !== 'function') return 0;
 
-            return 0;
+            return pullTable(config.table, normalizedName, dbTable, {
+                limit: config.limit || Infinity,
+                since: lastSyncTime,
+            });
         });
 
-        const results = await Promise.allSettled(pullPromises);
+        await Promise.allSettled(pullPromises);
 
-        //  Pull partnerships separately
         await pullSupplierPartnerships(normalizedName);
-
-        //  Pull orders
         await pullSupplierOrders(normalizedName);
-
-        //  Pull order items (uses order_id, not pharmacy_name)
         await pullSupplierOrderItems(normalizedName);
         await pullAvailableSuppliers();
+
         return true;
     } catch (err) {
         console.warn('Smart pull failed:', err);
         return false;
     }
 }
+
+export async function smartPullFromSupabase(
+    pharmacyName: string,
+    lastSyncTime?: Date
+): Promise<boolean> {
+    if (pullInFlight) return pullInFlight;
+    pullInFlight = doSmartPullFromSupabase(pharmacyName, lastSyncTime).finally(
+        () => {
+            pullInFlight = null;
+        }
+    );
+    return pullInFlight;
+}
+
 // =============================================
-// INCREMENTAL PULL - Updated
+// INCREMENTAL PULL
 // =============================================
 export async function incrementalPullFromSupabase(
     pharmacyName: string,
@@ -417,68 +539,45 @@ export async function incrementalPullFromSupabase(
     let totalUpdated = 0;
 
     try {
-        const tablesToPull = options?.tables || TABLE_CONFIGS.map(c => c.table);
-        const configs = TABLE_CONFIGS.filter(c => tablesToPull.includes(c.table));
+        const tablesToPull =
+            options?.tables || TABLE_CONFIGS.map(c => c.table);
 
-        const pullPromises = configs.map(async (config) => {
-            const { data, error } = await client
-                .from(config.table)
-                .select('*')
-                .eq('pharmacy_name', normalizedName)
-                .gte('updated_at', lastSyncTime.toISOString())
-                .limit(config.limit || 1000);
+        const configs = TABLE_CONFIGS.filter(
+            c =>
+                tablesToPull.includes(c.table) &&
+                c.table !== 'suppliers_order_items'
+        );
 
-            if (error || !data || data.length === 0) {
-                return 0;
-            }
+        const results = await Promise.allSettled(
+            configs.map(async config => {
+                const dbTable = db[config.dbKey as keyof typeof db] as any;
+                if (!dbTable || typeof dbTable.bulkPut !== 'function') return 0;
 
-            let itemsWithPharmacy = data.map(item => ({
-                ...item,
-                pharmacy_name: normalizedName
-            }));
+                return pullTable(config.table, normalizedName, dbTable, {
+                    limit: config.limit || Infinity,
+                    since: lastSyncTime,
+                });
+            })
+        );
 
-            if (config.table === 'sales') {
-                itemsWithPharmacy = itemsWithPharmacy.map(item => ({
-                    ...item,
-                    sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
-                }));
-            }
-
-            const dbTable = db[config.dbKey as keyof typeof db] as any;
-            if (dbTable && typeof dbTable.bulkPut === 'function') {
-                await dbTable.bulkPut(itemsWithPharmacy);
-                return data.length;
-            }
-
-            return 0;
-        });
-
-        const results = await Promise.allSettled(pullPromises);
         totalUpdated = results.reduce((sum, r) => {
             if (r.status === 'fulfilled') return sum + r.value;
             return sum;
         }, 0);
 
-        //  Also pull partnerships
-        const partnershipCount = await pullSupplierPartnerships(normalizedName);
-        totalUpdated += partnershipCount;
-
-        //  Pull orders
-        const orderCount = await pullSupplierOrders(normalizedName);
-        totalUpdated += orderCount;
-
-        //  Pull order items
-        const itemCount = await pullSupplierOrderItems(normalizedName);
-        totalUpdated += itemCount;
+        totalUpdated += await pullSupplierPartnerships(normalizedName);
+        totalUpdated += await pullSupplierOrders(normalizedName);
+        totalUpdated += await pullSupplierOrderItems(normalizedName);
 
         return { success: true, updated: totalUpdated };
     } catch (err) {
+        console.warn('Incremental pull failed:', err);
         return { success: false, updated: totalUpdated };
     }
 }
 
 // =============================================
-// PULL SINGLE TABLE - Updated
+// PULL SINGLE TABLE (public)
 // =============================================
 export async function pullSingleTable(
     pharmacyName: string,
@@ -487,88 +586,69 @@ export async function pullSingleTable(
 ): Promise<number> {
     const client = getSupabaseClient();
 
-    if (!navigator.onLine || !client || !isSupabaseConfigured()) {
-        return 0;
-    }
+    if (!navigator.onLine || !client || !isSupabaseConfigured()) return 0;
 
     const normalizedName = normalizePharmacyName(pharmacyName);
-    const limit = options?.limit || 1000;
 
-    try {
-        let query = client
-            .from(tableName)
-            .select('*')
-            .eq('pharmacy_name', normalizedName);
+    // Supplier special cases
+    if (tableName === 'suppliers_partnership_requests') {
+        return pullSupplierPartnerships(normalizedName);
+    }
+    if (tableName === 'suppliers_orders') {
+        return pullSupplierOrders(normalizedName);
+    }
+    if (tableName === 'suppliers_order_items') {
+        return pullSupplierOrderItems(normalizedName);
+    }
 
-        if (options?.since) {
-            query = query.gte('updated_at', options.since.toISOString());
-        }
+    const config = TABLE_CONFIGS.find(c => c.table === tableName);
 
-        const { data, error } = await query.limit(limit);
-
-        if (error || !data || data.length === 0) {
-            return 0;
-        }
-
-        let itemsWithPharmacy = data.map(item => ({
-            ...item,
-            pharmacy_name: normalizedName
-        }));
-
-        if (tableName === 'sales') {
-            itemsWithPharmacy = itemsWithPharmacy.map(item => ({
-                ...item,
-                sale_id: item.sale_id || item.sale_number?.replace('INV-', '').split('-')[0] || item.id,
-            }));
-        }
-
-        // Check if it's a supplier table
-        if (tableName === 'suppliers_partnership_requests') {
-            await db.suppliers_partnership_requests.bulkPut(itemsWithPharmacy);
-            return data.length;
-        }
-
-        if (tableName === 'suppliers_orders') {
-            await db.suppliers_orders.bulkPut(itemsWithPharmacy);
-
-            // Check for confirmed orders
-            for (const order of itemsWithPharmacy) {
-                if (order.status === 'confirmed') {
-                    await processConfirmedOrder(order.id);
-                }
-            }
-            return data.length;
-        }
-
-        if (tableName === 'suppliers_order_items') {
-            await db.suppliers_order_items.bulkPut(itemsWithPharmacy);
-            return data.length;
-        }
-
-        const config = TABLE_CONFIGS.find(c => c.table === tableName);
-        if (!config) {
-            const dbTable = db[tableName as keyof typeof db] as any;
-            if (dbTable && typeof dbTable.bulkPut === 'function') {
-                await dbTable.bulkPut(itemsWithPharmacy);
-                return data.length;
-            }
-            return 0;
-        }
-
+    if (config) {
         const dbTable = db[config.dbKey as keyof typeof db] as any;
         if (dbTable && typeof dbTable.bulkPut === 'function') {
-            await dbTable.bulkPut(itemsWithPharmacy);
-            return data.length;
+            return pullTable(tableName, normalizedName, dbTable, {
+                limit: options?.limit ?? Infinity,
+                since: options?.since,
+            });
         }
-
-        return 0;
-    } catch (err) {
-        return 0;
     }
+
+    // Fallback: dynamic table lookup
+    const dbTable = db[tableName as keyof typeof db] as any;
+    if (dbTable && typeof dbTable.bulkPut === 'function') {
+        return pullTable(tableName, normalizedName, dbTable, {
+            limit: options?.limit ?? Infinity,
+            since: options?.since,
+        });
+    }
+
+    return 0;
 }
 
 // =============================================
-// CHECK FOR CHANGES - Updated
+// FULL RESYNC FOR A SINGLE TABLE (with pruning)
+// Use this if you intentionally want to drop stale rows
+// =============================================
+export async function fullResyncTable(
+    pharmacyName: string,
+    tableName: string
+): Promise<number> {
+    const client = getSupabaseClient();
+    if (!navigator.onLine || !client || !isSupabaseConfigured()) return 0;
+
+    const normalizedName = normalizePharmacyName(pharmacyName);
+    const config = TABLE_CONFIGS.find(c => c.table === tableName);
+
+    if (!config) return 0;
+
+    const dbTable = db[config.dbKey as keyof typeof db] as any;
+    if (!dbTable || typeof dbTable.bulkPut !== 'function') return 0;
+
+    return pullTableFullResync(tableName, normalizedName, dbTable);
+}
+
+// =============================================
+// CHECK FOR CHANGES
 // =============================================
 export async function hasDataChanged(
     pharmacyName: string,
@@ -584,30 +664,32 @@ export async function hasDataChanged(
     const changedTables: string[] = [];
 
     try {
-        // Check all tables including supplier tables
         const allTableConfigs = [
             ...TABLE_CONFIGS,
-            { table: 'suppliers_partnership_requests', dbKey: 'suppliers_partnership_requests' },
+            {
+                table: 'suppliers_partnership_requests',
+                dbKey: 'suppliers_partnership_requests',
+            },
             { table: 'suppliers_orders', dbKey: 'suppliers_orders' },
-            { table: 'suppliers_order_items', dbKey: 'suppliers_order_items' },
         ];
 
-        const checks = allTableConfigs.map(async (config) => {
-            const { count, error } = await client
-                .from(config.table)
-                .select('*', { count: 'exact', head: true })
-                .eq('pharmacy_name', normalizedName)
-                .gte('updated_at', lastSyncTime.toISOString());
+        await Promise.allSettled(
+            allTableConfigs.map(async config => {
+                const { count, error } = await client
+                    .from(config.table)
+                    .select('*', { count: 'exact', head: true })
+                    .eq('pharmacy_name', normalizedName)
+                    .gte('updated_at', lastSyncTime.toISOString());
 
-            if (!error && count && count > 0) {
-                changedTables.push(config.table);
-            }
-            return { table: config.table, count: count || 0 };
-        });
+                if (!error && count && count > 0) {
+                    changedTables.push(config.table);
+                }
+            })
+        );
 
-        await Promise.allSettled(checks);
         return { changed: changedTables.length > 0, tables: changedTables };
     } catch (err) {
+        console.warn('hasDataChanged failed:', err);
         return { changed: false, tables: [] };
     }
 }

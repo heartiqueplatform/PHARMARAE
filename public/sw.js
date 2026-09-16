@@ -1,12 +1,19 @@
-// public/sw.js - FIXED VERSION
-const APP_VERSION = '1.0.1';
+// public/sw.js — FULLY UPDATED
+// ============================================
+// 🔥 BUMP APP_VERSION ON EVERY DEPLOY
+// This is the ONLY thing that forces browsers to
+// install the new service worker. Forget to bump it,
+// and users keep running the old cached code.
+// ============================================
+const APP_VERSION = '1.0.33';
 const CACHE_NAME = `Pharmienta-${APP_VERSION}`;
 const PRECACHE_NAME = `Pharmienta-precache-${APP_VERSION}`;
 
-// Static assets to cache on install
+// Static assets to cache on install.
+// ⚠️ Do NOT precache '/' or '/index.html' — they must always
+// be fetched fresh from the network so users get the newest
+// <script src="..."> tags pointing at the latest JS bundle.
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
@@ -25,7 +32,7 @@ self.addEventListener('install', (event) => {
         return cache.addAll(STATIC_ASSETS);
       })
       .then(() => self.skipWaiting())
-      .catch((error) => console.error(' Installation failed:', error))
+      .catch((error) => console.error('❌ Installation failed:', error))
   );
 });
 
@@ -33,12 +40,13 @@ self.addEventListener('install', (event) => {
 // ACTIVATE EVENT
 // ============================================
 self.addEventListener('activate', (event) => {
-  console.log(` SW v${APP_VERSION}: Activating...`);
+  console.log(`🚀 SW v${APP_VERSION}: Activating...`);
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
+            // Delete ANY cache that isn't the current version
             if (cacheName !== PRECACHE_NAME && cacheName !== CACHE_NAME) {
               console.log(`🗑️ Removing old cache: ${cacheName}`);
               return caches.delete(cacheName);
@@ -47,6 +55,14 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => self.clients.claim())
+      .then(() => {
+        // Tell all open tabs "new SW is active, refresh if you want"
+        return self.clients.matchAll({ type: 'window' }).then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: 'SW_ACTIVATED', version: APP_VERSION });
+          });
+        });
+      })
   );
 });
 
@@ -67,56 +83,57 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML - Network first
+  // ============================================
+  // HTML - NETWORK ONLY (never serve stale HTML)
+  // We don't cache HTML at all so users always get the latest
+  // <script src="..."> tags pointing at the newest JS bundle.
+  // Offline fallback only if we're truly offline.
+  // ============================================
   if (request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(PRECACHE_NAME).then(cache => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => caches.match(request).then(res => res || caches.match('/index.html')))
+      fetch(request).catch(() => {
+        return caches.match('/') || caches.match('/index.html');
+      })
     );
     return;
   }
 
-  // Static assets - Cache first
+  // ============================================
+  // Static assets - Stale-While-Revalidate
+  // Vite/Webpack output filenames contain content hashes (app.abc123.js),
+  // so each deploy produces NEW filenames. Old files are simply not
+  // requested again — no risk of stale code.
+  // ============================================
   if (request.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$/)) {
     event.respondWith(
-      caches.match(request)
-        .then((cached) => {
-          if (cached) {
-            event.waitUntil(
-              fetch(request)
-                .then((res) => {
-                  if (res.status === 200) {
-                    caches.open(PRECACHE_NAME).then(cache => cache.put(request, res));
-                  }
-                })
-                .catch(() => { })
-            );
-            return cached;
-          }
-          return fetch(request).then((res) => {
+      caches.match(request).then((cached) => {
+        const networkFetch = fetch(request)
+          .then((res) => {
             if (res.status === 200) {
               const clone = res.clone();
-              caches.open(PRECACHE_NAME).then(cache => cache.put(request, clone));
+              caches.open(PRECACHE_NAME).then((cache) => cache.put(request, clone));
             }
             return res;
-          });
-        })
+          })
+          .catch(() => cached);
+
+        // If we have a cached copy, return it immediately (fast).
+        // Otherwise wait for the network.
+        return cached || networkFetch;
+      })
     );
     return;
   }
 
+  // ============================================
   // Default - Network first
+  // ============================================
   event.respondWith(
     fetch(request)
       .then((response) => {
         if (response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
       })
@@ -242,7 +259,7 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ============================================
-// 📱 MESSAGE HANDLER - FIXED
+// 📱 MESSAGE HANDLER
 // ============================================
 self.addEventListener('message', async (event) => {
   console.log('💬 SW Message received:', event.data);
@@ -274,9 +291,9 @@ self.addEventListener('message', async (event) => {
             { action: 'dismiss', title: ' Dismiss' }
           ]
         });
-        console.log(' Notification shown successfully');
+        console.log('✅ Notification shown successfully');
       } catch (error) {
-        console.error(' Error showing notification:', error);
+        console.error('❌ Error showing notification:', error);
       }
       break;
     }
