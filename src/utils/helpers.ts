@@ -4,7 +4,10 @@ export const APP_NAME = 'Pharmienta Kenya';
 export const VERSION_KEY = 'Pharmienta_app_version';
 export const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';
 
-export { normalizePharmacyName } from '../lib/supabase/utils';
+export const normalizePharmacyName = (name: string): string => {
+    if (!name) return '';
+    return name.trim().replace(/\s+/g, ' ').toUpperCase();
+};
 
 export const displayPharmacyName = (name: string): string => {
     if (!name) return '';

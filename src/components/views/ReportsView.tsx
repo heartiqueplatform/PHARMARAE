@@ -67,17 +67,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [stockWarning, setStockWarning] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Use local date (not UTC) for the default selections, otherwise at 01:00
-  // local time the "today" filter would be yesterday's UTC date.
-  const todayLocal = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
-  const thisMonthLocal = todayLocal.substring(0, 7);
+  const [dailyDate, setDailyDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [monthlyPeriod, setMonthlyPeriod] = useState<string>(new Date().toISOString().substring(0, 7));
+  const [multiDate, setMultiDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  const [dailyDate, setDailyDate] = useState<string>(todayLocal);
-  const [monthlyPeriod, setMonthlyPeriod] = useState<string>(thisMonthLocal);
-  const [multiDate, setMultiDate] = useState<string>(todayLocal);
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [returnReason, setReturnReason] = useState<string>('Customer returned item');
 
@@ -313,18 +306,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
     return Object.values(groups);
   };
+
   const filteredDailySalesRaw = useMemo(() => {
     return sales.filter(s => {
       const date = s.sale_date || s.created_at;
-      if (!date) return false;
-      // Convert the stored UTC timestamp to the browser's local calendar day,
-      // then compare against the local `dailyDate` string ("YYYY-MM-DD").
-      // Previously this used `.startsWith(dailyDate)` on the raw UTC string,
-      // which shifted sales made between 00:00 and 03:00 local time (UTC+3)
-      // onto the previous UTC day — making those days appear empty.
-      const d = new Date(date);
-      const localDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return localDay === dailyDate;
+      return date?.startsWith(dailyDate);
     });
   }, [sales, dailyDate]);
 
@@ -339,10 +325,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const filteredMonthlySalesRaw = useMemo(() => {
     return sales.filter(s => {
       const date = s.sale_date || s.created_at;
-      if (!date) return false;
-      const d = new Date(date);
-      const localMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      return localMonth === monthlyPeriod;
+      return date?.startsWith(monthlyPeriod);
     });
   }, [sales, monthlyPeriod]);
 
@@ -357,10 +340,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const filteredMultiSalesRaw = useMemo(() => {
     const salesForDate = sales.filter(s => {
       const date = s.sale_date || s.created_at;
-      if (!date) return false;
-      const d = new Date(date);
-      const localDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return localDay === multiDate;
+      return date?.startsWith(multiDate);
     });
 
     const grouped = getGroupedSales(salesForDate);

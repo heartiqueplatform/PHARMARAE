@@ -27,6 +27,8 @@ export {
   retryFailedSyncItems,
   cancelPendingSyncItems
 } from './supabase/queue';
+// lib/supabase.ts - Add this export
+// lib/supabase.ts - Add this at the end
 
 // =============================================
 // LOYALTY MODULE - Separate sync system
@@ -41,7 +43,6 @@ export {
   normalizePharmacyName as normalizeLoyaltyName,
   LOYALTY_TABLE_CONFIGS
 } from './supabase/loyalty';
-
 // Pull
 export {
   pullFromSupabaseToLocal,
@@ -77,7 +78,6 @@ let forceSyncInProgress = false;
 export async function forceSyncAllData(pharmacyName: string): Promise<boolean> {
   // Prevent concurrent force syncs
   if (forceSyncInProgress) {
-    console.warn('[forceSyncAllData] Aborted: another force sync is in progress');
     return false;
   }
 
@@ -89,11 +89,9 @@ export async function forceSyncAllData(pharmacyName: string): Promise<boolean> {
     const { normalizePharmacyName, setLastSyncTime } = await import('./supabase/utils');
 
     const normalizedName = normalizePharmacyName(pharmacyName);
-    console.log(`[forceSyncAllData] Starting for: ${normalizedName}`);
 
     // Process pending mutations first
     const { synced, failed } = await processOfflineSyncQueue();
-    console.log(`[forceSyncAllData] Queue processed — synced: ${synced}, failed: ${failed}`);
 
     // Pull latest data from Supabase
     const pulled = await pullFromSupabaseToLocal(normalizedName);
@@ -101,14 +99,10 @@ export async function forceSyncAllData(pharmacyName: string): Promise<boolean> {
     // Update last sync time on success
     if (pulled) {
       setLastSyncTime(normalizedName, new Date());
-      console.log(`[forceSyncAllData] SUCCESS — last sync time updated`);
-    } else {
-      console.warn(`[forceSyncAllData] FAILED — last sync time NOT updated (will retry next cycle)`);
     }
 
     return pulled;
   } catch (error) {
-    console.error('[forceSyncAllData] Unexpected error:', error);
     return false;
   } finally {
     forceSyncInProgress = false;
@@ -125,25 +119,15 @@ export async function quickSyncIfNeeded(pharmacyName: string): Promise<boolean> 
 
   // If no last sync or older than 5 minutes, do a full sync
   if (!lastSync || (Date.now() - lastSync.getTime() > 300000)) {
-    console.log('[quickSyncIfNeeded] No recent sync — triggering full sync');
     return forceSyncAllData(pharmacyName);
   }
 
   // Check for changes
-  const { hasChanges, tables, checkFailed } = await checkForChanges(pharmacyName, lastSync);
-
-  if (checkFailed) {
-    // Could not determine what changed — do NOT report success
-    console.warn('[quickSyncIfNeeded] Change check failed — reporting failure so sync retries');
-    return false;
-  }
+  const { hasChanges, tables } = await checkForChanges(pharmacyName, lastSync);
 
   if (!hasChanges) {
-    console.log('[quickSyncIfNeeded] No changes detected — nothing to pull');
     return true;
   }
-
-  console.log(`[quickSyncIfNeeded] Changes detected in: ${tables.join(', ')} — running incremental pull`);
 
   // Only pull changed tables
   const { incrementalPullFromSupabase } = await import('./supabase/pull');
@@ -153,9 +137,6 @@ export async function quickSyncIfNeeded(pharmacyName: string): Promise<boolean> 
 
   if (result.success) {
     setLastSyncTime(pharmacyName, new Date());
-    console.log(`[quickSyncIfNeeded] SUCCESS — ${result.updated} rows updated, watermark advanced`);
-  } else {
-    console.warn(`[quickSyncIfNeeded] FAILED — watermark NOT advanced (will retry next cycle)`);
   }
 
   return result.success;
@@ -179,11 +160,12 @@ export async function getSyncStatus(pharmacyName: string): Promise<{
 }> {
   const { isSupabaseConfigured } = await import('./supabase/client');
   const { getPendingSyncCount, getQueueStats } = await import('./supabase/queue');
-  const { getLastSyncTime, normalizePharmacyName } = await import('./supabase/utils');
+  const { getLastSyncTime } = await import('./supabase/utils');
 
-  const normalizedName = normalizePharmacyName(pharmacyName);
+  const normalizedName = pharmacyName;
   const isOnline = navigator.onLine;
   const isConfigured = isSupabaseConfigured();
+
   const [pendingCount, queueStats, lastSyncTime] = await Promise.all([
     getPendingSyncCount(normalizedName),
     getQueueStats(normalizedName),
@@ -204,11 +186,10 @@ export async function getSyncStatus(pharmacyName: string): Promise<{
 // =============================================
 export async function clearAllPharmacyData(pharmacyName: string): Promise<boolean> {
   try {
-    const { clearPharmacyData, normalizePharmacyName } = await import('./supabase/utils');
+    const { clearPharmacyData } = await import('./supabase/utils');
     const { cancelPendingSyncItems } = await import('./supabase/queue');
 
-    const normalizedName = normalizePharmacyName(pharmacyName);
-    console.log(`[clearAllPharmacyData] Clearing data for: ${normalizedName}`);
+    const normalizedName = pharmacyName;
 
     // Cancel any pending sync items first
     await cancelPendingSyncItems(normalizedName);
@@ -219,10 +200,8 @@ export async function clearAllPharmacyData(pharmacyName: string): Promise<boolea
     // Clear last sync time
     localStorage.removeItem(`medp_last_sync_${normalizedName}`);
 
-    console.log('[clearAllPharmacyData] SUCCESS');
     return true;
   } catch (error) {
-    console.error('[clearAllPharmacyData] Unexpected error:', error);
     return false;
   }
 }
@@ -249,7 +228,6 @@ export async function healthCheck(): Promise<{
 
     // Check IndexedDB
     try {
-      const { db } = await import('./db');
       const count = await db.profiles.count();
       details.indexedDB = 'accessible';
       details.profileCount = count;
@@ -283,8 +261,7 @@ export async function repairData(pharmacyName: string): Promise<{
   issues: string[];
 }> {
   const issues: string[] = [];
-  const { normalizePharmacyName } = await import('./supabase/utils');
-  const normalizedName = normalizePharmacyName(pharmacyName);
+  const normalizedName = pharmacyName;
 
   try {
     const { db } = await import('./db');

@@ -16,43 +16,36 @@ async function pullTable<T>(
     const client = getSupabaseClient();
     if (!client) return 0;
 
+    const limit = options?.limit || 1000;
     const normalizedName = normalizePharmacyName(pharmacyName);
-    const pageSize = options?.limit || 1000; // rows per page
-    const maxRows = options?.limit ? options.limit : Infinity; // total cap only if caller asked
 
     try {
-        // Paginate through ALL rows for this pharmacy. Without this, PostgREST
-        // silently caps the result set (usually at 1,000 rows), which caused
-        // older historical data (days 11, 12, 13, ...) to never be pulled.
-        const allRows: any[] = [];
-        let offset = 0;
+        let { data, error } = await client
+            .from(tableName)
+            .select('*')
+            .eq('pharmacy_name', normalizedName)
+            .limit(limit);
 
-        while (allRows.length < maxRows) {
-            const { data, error } = await client
+        if (error) {
+            const { data: allData } = await client
                 .from(tableName)
                 .select('*')
-                .ilike('pharmacy_name', normalizedName)
-                .order('id', { ascending: true })
-                .range(offset, offset + pageSize - 1);
+                .limit(limit);
 
-            if (error) {
-                console.error(`[pullTable] Query error on ${tableName} (offset ${offset}):`, error);
-                throw error;
+            if (allData && allData.length > 0) {
+                data = allData.filter((item: any) =>
+                    normalizePharmacyName(item.pharmacy_name) === normalizedName
+                );
+            } else {
+                data = [];
             }
-
-            if (!data || data.length === 0) break;
-
-            allRows.push(...data);
-            if (data.length < pageSize) break;
-
-            offset += pageSize;
         }
 
-        if (allRows.length === 0) {
+        if (!data || data.length === 0) {
             return 0;
         }
 
-        let itemsWithPharmacy = allRows.map(item => ({
+        let itemsWithPharmacy = data.map(item => ({
             ...item,
             pharmacy_name: normalizedName
         }));
@@ -64,19 +57,18 @@ async function pullTable<T>(
             }));
         }
 
-        // Replace local rows for this pharmacy only after ALL pages succeeded.
         await dbTable.where('pharmacy_name').equals(normalizedName).delete();
+
         if (itemsWithPharmacy.length > 0) {
             await dbTable.bulkPut(itemsWithPharmacy);
         }
 
-        console.log(`[pullTable] ${tableName}: pulled ${itemsWithPharmacy.length} rows in ${Math.ceil(allRows.length / pageSize)} page(s)`);
-        return itemsWithPharmacy.length;
+        return data.length;
     } catch (err) {
-        console.error(`Failed to pull ${tableName}:`, err);
-        throw err;
+        return 0;
     }
 }
+
 // =============================================
 // PROCESS CONFIRMED ORDER - Auto-add stock
 // =============================================
@@ -155,14 +147,10 @@ async function pullSupplierPartnerships(pharmacyName: string): Promise<number> {
         const { data, error } = await client
             .from('suppliers_partnership_requests')
             .select('*')
-            .ilike('pharmacy_name', normalizedName)
+            .eq('pharmacy_name', normalizedName)
             .order('created_at', { ascending: false });
 
-        if (error) {
-            console.error('Failed to pull supplier partnerships (query error):', error);
-            throw error;
-        }
-        if (!data || data.length === 0) {
+        if (error || !data || data.length === 0) {
             return 0;
         }
 
@@ -170,8 +158,7 @@ async function pullSupplierPartnerships(pharmacyName: string): Promise<number> {
         await db.suppliers_partnership_requests.bulkPut(data);
         return data.length;
     } catch (err) {
-        console.error('Failed to pull supplier partnerships:', err);
-        throw err;
+        return 0;
     }
 }
 
@@ -188,14 +175,10 @@ async function pullSupplierOrders(pharmacyName: string): Promise<number> {
         const { data, error } = await client
             .from('suppliers_orders')
             .select('*')
-            .ilike('pharmacy_name', normalizedName)
+            .eq('pharmacy_name', normalizedName)
             .order('created_at', { ascending: false });
 
-        if (error) {
-            console.error('Failed to pull supplier orders (query error):', error);
-            throw error;
-        }
-        if (!data || data.length === 0) {
+        if (error || !data || data.length === 0) {
             return 0;
         }
 
@@ -211,14 +194,14 @@ async function pullSupplierOrders(pharmacyName: string): Promise<number> {
 
         return data.length;
     } catch (err) {
-        console.error('Failed to pull supplier orders:', err);
-        throw err;
+        return 0;
     }
 }
 
 // =============================================
 // PULL SUPPLIER ORDER ITEMS
 // =============================================
+// lib/supabase/pull.ts
 async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
     const client = getSupabaseClient();
     if (!client) return 0;
@@ -242,11 +225,7 @@ async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
             .select('*')
             .in('order_id', orderIds);
 
-        if (error) {
-            console.error('Failed to pull supplier order items (query error):', error);
-            throw error;
-        }
-        if (!data || data.length === 0) {
+        if (error || !data || data.length === 0) {
             return 0;
         }
 
@@ -263,8 +242,8 @@ async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
         await db.suppliers_order_items.bulkPut(data);
         return data.length;
     } catch (err) {
-        console.error('Failed to pull supplier order items:', err);
-        throw err;
+        console.warn('Failed to pull supplier order items:', err);
+        return 0;
     }
 }
 
@@ -283,11 +262,7 @@ async function pullAvailableSuppliers(): Promise<number> {
             .eq('status', 'active')
             .order('business_name', { ascending: true });
 
-        if (error) {
-            console.error('Failed to pull available suppliers (query error):', error);
-            throw error;
-        }
-        if (!data || data.length === 0) {
+        if (error || !data || data.length === 0) {
             return 0;
         }
 
@@ -299,11 +274,10 @@ async function pullAvailableSuppliers(): Promise<number> {
 
         return data.length;
     } catch (err) {
-        console.error('Failed to pull available suppliers:', err);
-        throw err;
+        console.warn('Failed to pull available suppliers:', err);
+        return 0;
     }
 }
-
 // =============================================
 // MAIN PULL FUNCTIONS - UPDATED
 // =============================================
@@ -313,17 +287,14 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
     const client = getSupabaseClient();
 
     if (!navigator.onLine) {
-        console.warn('[pullFromSupabaseToLocal] Aborted: navigator.onLine is false');
         return false;
     }
 
     if (!client || !isSupabaseConfigured()) {
-        console.warn('[pullFromSupabaseToLocal] Aborted: client is null or not configured');
         return false;
     }
 
     const normalizedName = normalizePharmacyName(pharmacyName);
-    console.log(`[pullFromSupabaseToLocal] Starting full pull for: ${normalizedName}`);
 
     try {
         const results = await Promise.allSettled([
@@ -333,15 +304,12 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
             pullTable('units', normalizedName, db.units),
             pullTable('suppliers', normalizedName, db.suppliers),
             pullTable('customers', normalizedName, db.customers),
-            //  NO LIMITS on historical tables — pull ALL rows for this pharmacy.
-            //    A limit of 500 was truncating older sales/movements/audit logs,
-            //    which is why historical days appeared empty.
-            pullTable('sales', normalizedName, db.sales),
-            pullTable('stock_movements', normalizedName, db.stock_movements),
-            pullTable('audit_logs', normalizedName, db.audit_logs),
+            pullTable('sales', normalizedName, db.sales, { limit: 500 }),
+            pullTable('stock_movements', normalizedName, db.stock_movements, { limit: 500 }),
+            pullTable('audit_logs', normalizedName, db.audit_logs, { limit: 500 }),
             pullTable('profiles', normalizedName, db.profiles),
-            pullTable('requested_items', normalizedName, db.requested_items),
-            pullTable('sales_returns', normalizedName, db.sales_returns),
+            pullTable('requested_items', normalizedName, db.requested_items, { limit: 500 }),
+            pullTable('sales_returns', normalizedName, db.sales_returns, { limit: 500 }),
             //  ADD SUPPLIER TABLES
             pullSupplierPartnerships(normalizedName),
             pullSupplierOrders(normalizedName),
@@ -349,21 +317,8 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
             pullAvailableSuppliers(),
         ]);
 
-        const failed = results.filter(r => r.status === 'rejected');
-        if (failed.length > 0) {
-            console.error(`[pullFromSupabaseToLocal] FAILED for ${failed.length} table(s):`);
-            failed.forEach((f: any, i) => {
-                console.error(`  ${i + 1}. ${f.reason?.message || f.reason}`);
-            });
-            return false;
-        }
-
-        const succeeded = results.filter(r => r.status === 'fulfilled');
-        const totalRows = succeeded.reduce((sum, r: any) => sum + (r.value || 0), 0);
-        console.log(`[pullFromSupabaseToLocal] SUCCESS — ${succeeded.length} tables pulled, ${totalRows} total rows`);
         return true;
     } catch (err) {
-        console.error('[pullFromSupabaseToLocal] Unexpected error:', err);
         return false;
     }
 }
@@ -371,16 +326,16 @@ export async function pullFromSupabaseToLocal(pharmacyName: string): Promise<boo
 // =============================================
 // SMART PULL - Updated with supplier tables
 // =============================================
+// lib/supabase/pull.ts
+
 export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?: Date): Promise<boolean> {
     const client = getSupabaseClient();
 
     if (!navigator.onLine || !client || !isSupabaseConfigured()) {
-        console.warn('[smartPullFromSupabase] Aborted: offline or not configured');
         return false;
     }
 
     const normalizedName = normalizePharmacyName(pharmacyName);
-    console.log(`[smartPullFromSupabase] Starting smart pull for: ${normalizedName}`, lastSyncTime ? `since ${lastSyncTime.toISOString()}` : '(no since)');
 
     try {
         //  Filter TABLE_CONFIGS to exclude tables that don't have pharmacy_name
@@ -394,7 +349,7 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
             let query = client
                 .from(config.table)
                 .select('*')
-                .ilike('pharmacy_name', normalizedName);
+                .eq('pharmacy_name', normalizedName);
 
             if (lastSyncTime) {
                 query = query.gte('updated_at', lastSyncTime.toISOString());
@@ -402,11 +357,7 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
 
             const { data, error } = await query.limit(config.limit || 1000);
 
-            if (error) {
-                console.error(`[smartPullFromSupabase] Query error on ${config.table}:`, error);
-                throw error;
-            }
-            if (!data || data.length === 0) {
+            if (error || !data || data.length === 0) {
                 return 0;
             }
 
@@ -433,15 +384,6 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
 
         const results = await Promise.allSettled(pullPromises);
 
-        const failed = results.filter(r => r.status === 'rejected');
-        if (failed.length > 0) {
-            console.error(`[smartPullFromSupabase] FAILED for ${failed.length} table(s):`);
-            failed.forEach((f: any, i) => {
-                console.error(`  ${i + 1}. ${f.reason?.message || f.reason}`);
-            });
-            return false;
-        }
-
         //  Pull partnerships separately
         await pullSupplierPartnerships(normalizedName);
 
@@ -451,14 +393,12 @@ export async function smartPullFromSupabase(pharmacyName: string, lastSyncTime?:
         //  Pull order items (uses order_id, not pharmacy_name)
         await pullSupplierOrderItems(normalizedName);
         await pullAvailableSuppliers();
-        console.log('[smartPullFromSupabase] SUCCESS');
         return true;
     } catch (err) {
-        console.error('[smartPullFromSupabase] Unexpected error:', err);
+        console.warn('Smart pull failed:', err);
         return false;
     }
 }
-
 // =============================================
 // INCREMENTAL PULL - Updated
 // =============================================
@@ -470,13 +410,11 @@ export async function incrementalPullFromSupabase(
     const client = getSupabaseClient();
 
     if (!navigator.onLine || !client || !isSupabaseConfigured()) {
-        console.warn('[incrementalPullFromSupabase] Aborted: offline or not configured');
         return { success: false, updated: 0 };
     }
 
     const normalizedName = normalizePharmacyName(pharmacyName);
     let totalUpdated = 0;
-    console.log(`[incrementalPullFromSupabase] Starting for: ${normalizedName} since ${lastSyncTime.toISOString()}`, options?.tables ? `tables: ${options.tables.join(', ')}` : '(all tables)');
 
     try {
         const tablesToPull = options?.tables || TABLE_CONFIGS.map(c => c.table);
@@ -486,15 +424,11 @@ export async function incrementalPullFromSupabase(
             const { data, error } = await client
                 .from(config.table)
                 .select('*')
-                .ilike('pharmacy_name', normalizedName)
+                .eq('pharmacy_name', normalizedName)
                 .gte('updated_at', lastSyncTime.toISOString())
                 .limit(config.limit || 1000);
 
-            if (error) {
-                console.error(`[incrementalPullFromSupabase] Query error on ${config.table}:`, error);
-                throw error;
-            }
-            if (!data || data.length === 0) {
+            if (error || !data || data.length === 0) {
                 return 0;
             }
 
@@ -525,15 +459,6 @@ export async function incrementalPullFromSupabase(
             return sum;
         }, 0);
 
-        const failed = results.filter(r => r.status === 'rejected');
-        if (failed.length > 0) {
-            console.error(`[incrementalPullFromSupabase] FAILED for ${failed.length} table(s):`);
-            failed.forEach((f: any, i) => {
-                console.error(`  ${i + 1}. ${f.reason?.message || f.reason}`);
-            });
-            return { success: false, updated: totalUpdated };
-        }
-
         //  Also pull partnerships
         const partnershipCount = await pullSupplierPartnerships(normalizedName);
         totalUpdated += partnershipCount;
@@ -546,10 +471,8 @@ export async function incrementalPullFromSupabase(
         const itemCount = await pullSupplierOrderItems(normalizedName);
         totalUpdated += itemCount;
 
-        console.log(`[incrementalPullFromSupabase] SUCCESS — ${totalUpdated} rows updated`);
         return { success: true, updated: totalUpdated };
     } catch (err) {
-        console.error('[incrementalPullFromSupabase] Unexpected error:', err);
         return { success: false, updated: totalUpdated };
     }
 }
@@ -575,7 +498,7 @@ export async function pullSingleTable(
         let query = client
             .from(tableName)
             .select('*')
-            .ilike('pharmacy_name', normalizedName);
+            .eq('pharmacy_name', normalizedName);
 
         if (options?.since) {
             query = query.gte('updated_at', options.since.toISOString());
@@ -583,11 +506,7 @@ export async function pullSingleTable(
 
         const { data, error } = await query.limit(limit);
 
-        if (error) {
-            console.error(`[pullSingleTable] Query error on ${tableName}:`, error);
-            throw error;
-        }
-        if (!data || data.length === 0) {
+        if (error || !data || data.length === 0) {
             return 0;
         }
 
@@ -644,8 +563,7 @@ export async function pullSingleTable(
 
         return 0;
     } catch (err) {
-        console.error(`[pullSingleTable] Failed to pull ${tableName}:`, err);
-        throw err;
+        return 0;
     }
 }
 
@@ -678,15 +596,10 @@ export async function hasDataChanged(
             const { count, error } = await client
                 .from(config.table)
                 .select('*', { count: 'exact', head: true })
-                .ilike('pharmacy_name', normalizedName)
+                .eq('pharmacy_name', normalizedName)
                 .gte('updated_at', lastSyncTime.toISOString());
 
-            if (error) {
-                console.error(`[hasDataChanged] Check failed for ${config.table}:`, error);
-                return { table: config.table, count: 0 };
-            }
-
-            if (count && count > 0) {
+            if (!error && count && count > 0) {
                 changedTables.push(config.table);
             }
             return { table: config.table, count: count || 0 };
@@ -695,7 +608,6 @@ export async function hasDataChanged(
         await Promise.allSettled(checks);
         return { changed: changedTables.length > 0, tables: changedTables };
     } catch (err) {
-        console.error('[hasDataChanged] Unexpected error:', err);
         return { changed: false, tables: [] };
     }
 }
