@@ -7,7 +7,8 @@ import { db, seedInitialDataIfNeeded, forceDataFlush } from '../lib/db';
 import {
     processOfflineSyncQueue,
     isSupabaseConfigured,
-    smartPullFromSupabase,
+    quickSyncIfNeeded,
+    forceSyncAllData,
 } from '../lib/supabase';
 import { normalizePharmacyName } from '../utils/helpers';
 import {
@@ -370,16 +371,27 @@ export const useApp = (): AppState => {
 
                 if (shouldPullProfileData(lastProfileSyncTime)) {
                     try {
-                        const success = await smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined);
+                        // First sync of the session → full pull.
+                        // Subsequent syncs → incremental via quickSyncIfNeeded,
+                        // which respects checkFailed and only advances the
+                        // watermark when every table actually pulled successfully.
+                        const success = lastProfileSyncTime
+                            ? await quickSyncIfNeeded(pharmacyName)
+                            : await forceSyncAllData(pharmacyName);
+
                         if (success) {
-                            const syncTime = new Date();
-                            setLastSyncTime(syncTime);
-                            localStorage.setItem(`medp_last_sync_${pharmacyName}`, syncTime.toISOString());
-                            localStorage.setItem('medp_last_sync_time', syncTime.toISOString());
+                            // quickSyncIfNeeded / forceSyncAllData already wrote the
+                            // per-pharmacy watermark via setLastSyncTime.
+                            // Do NOT write it again here — that was causing
+                            // premature advancement on partial failures.
+                            setLastSyncTime(new Date());
+                            localStorage.setItem('medp_last_sync_time', new Date().toISOString());
 
                             if (!isInitialLoad.current) {
                                 await refreshChangedData(pharmacyName);
                             }
+                        } else {
+                            console.warn('[triggerSyncQueue] Pull reported failure — watermark NOT advanced, will retry next cycle');
                         }
                     } catch (err) {
                         console.warn('Pull from remote data store failed:', err);
@@ -467,7 +479,6 @@ export const useApp = (): AppState => {
             }
 
             const pharmacyName = normalizePharmacyName(selectedProfile.pharmacy_name);
-            // hooks/useApp.ts - Inside loadDatabaseData, after pharmacyName is set
 
             if (pharmacyName) {
                 // Check if storage is persistent and if data exists
@@ -534,13 +545,16 @@ export const useApp = (): AppState => {
                 const lastProfileSyncTime = getLastProfileSyncTime(pharmacyName);
                 if (shouldPullProfileData(lastProfileSyncTime)) {
                     try {
-                        const success = await smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined);
+                        const success = lastProfileSyncTime
+                            ? await quickSyncIfNeeded(pharmacyName)
+                            : await forceSyncAllData(pharmacyName);
+
                         if (success) {
-                            const syncTime = new Date();
-                            setLastSyncTime(syncTime);
-                            localStorage.setItem(`medp_last_sync_${pharmacyName}`, syncTime.toISOString());
-                            localStorage.setItem('medp_last_sync_time', syncTime.toISOString());
+                            setLastSyncTime(new Date());
+                            localStorage.setItem('medp_last_sync_time', new Date().toISOString());
                             await refreshChangedData(pharmacyName);
+                        } else {
+                            console.warn('[loadDatabaseData] Pull reported failure — watermark NOT advanced, will retry next cycle');
                         }
                     } catch (err) {
                         console.warn('Initial remote refresh failed:', err);
@@ -622,7 +636,6 @@ export const useApp = (): AppState => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [showToast]);
-    // Periodic internet connectivity check
     // Periodic internet connectivity check
     useEffect(() => {
         // Initial check - but don't let it block the UI

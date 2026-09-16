@@ -32,7 +32,7 @@ async function pullTable<T>(
                 .from(tableName)
                 .select('*')
                 .ilike('pharmacy_name', normalizedName)
-                .order('created_at', { ascending: true })
+                .order('id', { ascending: true })
                 .range(offset, offset + pageSize - 1);
 
             if (error) {

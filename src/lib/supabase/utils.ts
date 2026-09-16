@@ -279,12 +279,12 @@ export async function checkForChanges(
 
     try {
         const checks = TABLE_CONFIGS.map(async (config) => {
+            const ts = lastSyncTime.toISOString();
             const { count, error } = await client
                 .from(config.table)
                 .select('*', { count: 'exact', head: true })
                 .ilike('pharmacy_name', normalizedName)
-                .gte('updated_at', lastSyncTime.toISOString());
-
+                .or(`updated_at.gte.${ts},and(updated_at.is.null,created_at.gte.${ts})`);
             if (error) {
                 anyError = true;
                 console.error(`[checkForChanges] Check failed for ${config.table}:`, error);

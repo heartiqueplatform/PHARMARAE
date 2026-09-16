@@ -1024,18 +1024,22 @@ export const useActions = (props: UseActionsProps) => {
     const handleResetLocalCache = useCallback(async () => {
         if (!currentProfile) return;
         try {
-            await db.products.clear();
-            await db.product_batches.clear();
-            await db.sales.clear();
-            await db.stock_movements.clear();
-            await db.customers.clear();
-            await db.categories.clear();
-            await db.units.clear();
-
             const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
-            if (isSupabaseConfigured()) {
-                await pullFromSupabaseToLocal(pharmacyName);
+
+            if (!navigator.onLine || !isSupabaseConfigured()) {
+                alert('You are offline. Cannot reset the cache without internet.');
+                return;
             }
+
+            // Fetch FIRST. Do NOT clear local tables yet.
+            const ok = await pullFromSupabaseToLocal(pharmacyName);
+            if (!ok) {
+                alert('Could not fetch data from the server. Local cache was NOT cleared.');
+                return;
+            }
+
+            // pullFromSupabaseToLocal already replaced each table's rows.
+            // No need to clear manually — doing so here was wiping data on failure.
             await loadDatabaseData();
             alert('Local cache reset. Data re-synced from Supabase.');
         } catch (err: any) {
