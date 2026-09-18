@@ -5,7 +5,7 @@ import App from './App.tsx';
 import './index.css';
 import { setupServiceWorkerAutoUpdate } from './lib/service-worker-update';
 
-const APP_VERSION = '11.0.78898979229';
+const APP_VERSION = '11.0.78898979222229';
 const APP_NAME = 'Pharmienta Kenya';
 const VERSION_KEY = 'Pharmienta_app_version';
 const LAST_UPDATE_CHECK = 'Pharmienta_last_update_check';

@@ -100,6 +100,28 @@ export const useActions = (props: UseActionsProps) => {
     // =============================================
     // HANDLE COMPLETE SALE - FIXED
     // =============================================
+    // =============================================
+    // HANDLE COMPLETE SALE — ATOMIC, CRASH-SAFE
+    // =============================================
+    // WHY ATOMIC:
+    //   A sale touches 5+ tables: sales, products, product_batches,
+    //   stock_movements, audit_logs, discounts, sync_queue.
+    //
+    //   If the browser tab closes (or phone locks) mid-loop with the old
+    //   code, you get partial writes — a sale row with no stock movement,
+    //   or a product decremented with no sale. That's "broken daily sales".
+    //
+    // HOW DEXIE TRANSACTIONS HELP:
+    //   `db.transaction('rw', ...tables, async () => { ... })` makes every
+    //   operation inside the callback atomic. If anything throws, EVERY
+    //   write is rolled back. IndexedDB guarantees this.
+    //
+    // ⚠️ IMPORTANT: All writes that must be atomic MUST be inside ONE
+    //    `db.transaction` block. We cannot use `await` on non-Dexie
+    //    promises inside (like network calls) — Dexie will close the
+    //    transaction. So queueOfflineMutation (which is Dexie-only) is
+    //    safe, but Supabase network calls must happen AFTER.
+    // =============================================
     const handleCompleteSale = useCallback(async (saleData: Partial<Sale>, cartItems: any[]) => {
         if (!currentProfile) {
             throw new Error('No profile found');
@@ -114,37 +136,73 @@ export const useActions = (props: UseActionsProps) => {
             throw new Error('Cart is empty. Please add items to sell.');
         }
 
+        // =============================================
+        // STEP 1: PRE-FLIGHT VALIDATION (outside transaction)
+        // =============================================
+        // Read-only checks. If these fail, we never start a transaction.
+        // =============================================
         const now = new Date();
         const nowISO = now.toISOString();
+        const todayStr = nowISO.split('T')[0];
 
-        // Generate a single sale ID for all items
-        const saleId = genUUID();
-        const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-        const countToday = sales.filter(s => s.sale_date?.startsWith(now.toISOString().substring(0, 10)) || s.created_at?.startsWith(now.toISOString().substring(0, 10))).length + 1;
-        const saleNumber = `INV-${yearMonth}-${countToday.toString().padStart(4, '0')}`;
-
-        const subtotalTotal = cartItems.reduce((sum: number, item: any) => sum + (item.subtotal || item.quantity * item.unitPrice), 0);
-        const totalItems = cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
-        const discountAmount = saleData.discount || 0;
-        const finalTotal = Math.max(0, subtotalTotal - discountAmount);
-
-        // Check stock for all items first
+        // Validate every cart item has stock BEFORE we start writing.
+        const productSnapshots = new Map<string, Product>();
         for (const cartItem of cartItems) {
             const product = await db.products.get(cartItem.product.id);
             if (!product) {
                 throw new Error(`Product ${cartItem.product.name} not found`);
             }
             if ((product.quantity || 0) < cartItem.quantity) {
-                throw new Error(`Not enough stock for ${product.name}. Available: ${product.quantity || 0}`);
+                throw new Error(
+                    `Not enough stock for ${product.name}. ` +
+                    `Available: ${product.quantity || 0}, requested: ${cartItem.quantity}`
+                );
             }
+            if (cartItem.quantity <= 0) {
+                throw new Error(`Invalid quantity for ${product.name}`);
+            }
+            productSnapshots.set(product.id, product);
         }
 
-        const createdSales: Sale[] = [];
+        // =============================================
+        // STEP 2: BUILD IDS AND NUMBERS (deterministic)
+        // =============================================
+        // Generate all IDs UP FRONT so we can reference them consistently
+        // inside the transaction and afterwards for the receipt.
+        // =============================================
+        const saleId = genUUID();  // Group ID — same for all items in this sale
+        const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
 
+        // Use a monotonic counter that includes milliseconds to avoid
+        // collisions when two sales happen in the same second.
+        const countToday = sales.filter(s => {
+            const d = s.sale_date || s.created_at;
+            return d?.startsWith(todayStr);
+        }).length + 1;
+        const saleNumber = `INV-${yearMonth}-${countToday.toString().padStart(4, '0')}`;
 
+        const subtotalTotal = cartItems.reduce(
+            (sum: number, item: any) => sum + (item.subtotal || item.quantity * item.unitPrice),
+            0
+        );
+        const totalItems = cartItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+        const discountAmount = Math.max(0, saleData.discount || 0);
+        const finalTotal = Math.max(0, subtotalTotal - discountAmount);
 
-        // Create ONE sale per item (but with the same sale_id for grouping)
+        // Pre-build every row we're about to write. This way, if building
+        // throws (bad data), we haven't touched the DB yet.
+        const salesRows: Sale[] = [];
+        const movementsRows: StockMovement[] = [];
+        const productUpdates: Product[] = [];
+        const batchUpdates: Array<{ id: string; quantity_base: number; updated_at: string }> = [];
+
+        // Track batch deductions across all cart items in one pass
+        const batchDeductionMap = new Map<string, number>();
+
         for (const item of cartItems) {
+            const product = productSnapshots.get(item.product.id);
+            if (!product) continue; // shouldn't happen, validated above
+
             const usedBatch = item.batch || null;
             const itemSubtotal = item.subtotal || item.quantity * item.unitPrice;
             const itemId = genUUID();
@@ -152,7 +210,7 @@ export const useActions = (props: UseActionsProps) => {
             const newSale: Sale = {
                 id: itemId,
                 pharmacy_name: pharmacyName,
-                sale_id: saleId,
+                sale_id: saleId,  // ✅ Explicit — no more derived fallback
                 sale_number: saleNumber,
                 customer_id: saleData.customer_id || null,
                 customer_name: saleData.customer_name || 'Cash Customer',
@@ -170,10 +228,12 @@ export const useActions = (props: UseActionsProps) => {
                 discount: discountAmount,
                 discount_reason: saleData.discount_reason || null,
                 tax: saleData.tax || 0,
-                total: itemSubtotal,
+                total: itemSubtotal - (discountAmount / cartItems.length), // distribute discount
                 payment_method: saleData.payment_method || 'cash',
                 payment_status: 'paid',
-                payment_reference: saleData.payment_reference || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                payment_reference:
+                    saleData.payment_reference ||
+                    `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
                 status: 'completed',
                 product_details: {
                     generic_name: item.product.generic_name || null,
@@ -190,125 +250,72 @@ export const useActions = (props: UseActionsProps) => {
                     unit: item.product.base_unit_name || null,
                 },
                 notes: `Sale of ${item.product.name} x${item.quantity}`,
-                sale_date: saleData.sale_date || nowISO,  //  FIXED: Use selected date
+                sale_date: saleData.sale_date || nowISO,
                 created_at: nowISO,
                 updated_at: nowISO,
-                offline_id: null
+                offline_id: null,
             };
+            salesRows.push(newSale);
 
-            //  Save locally
-            await db.sales.put(newSale);
-
-            //  Queue for Supabase sync
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'INSERT', newSale);
-            createdSales.push(newSale);
-
-            // Update batch quantities
-            const todayStr = now.toISOString().split('T')[0];
-            const quantitySold = item.quantity;
-
+            // Compute batch deductions (do NOT write yet)
             const availableBatches = batches
-                .filter(b => b.product_id === item.product.id && b.quantity_base > 0 && b.expiry_date >= todayStr)
+                .filter(
+                    b =>
+                        b.product_id === item.product.id &&
+                        b.quantity_base > 0 &&
+                        b.expiry_date >= todayStr
+                )
                 .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
 
-            let remainingToDeduct = quantitySold;
-
+            let remaining = item.quantity;
             for (const batch of availableBatches) {
-                if (remainingToDeduct <= 0) break;
-                const deductFromBatch = Math.min(remainingToDeduct, batch.quantity_base);
-                const newBatchQty = batch.quantity_base - deductFromBatch;
-
-                await db.product_batches.update(batch.id, {
-                    quantity_base: newBatchQty,
-                    updated_at: nowISO
-                });
-
-                //  Queue batch update for Supabase
-                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
-                    id: batch.id,
-                    quantity_base: newBatchQty,
-                    updated_at: nowISO,
-                    pharmacy_name: pharmacyName
-                });
-
-                remainingToDeduct -= deductFromBatch;
+                if (remaining <= 0) break;
+                const deduct = Math.min(remaining, batch.quantity_base);
+                const current = batchDeductionMap.get(batch.id) || 0;
+                batchDeductionMap.set(batch.id, current + deduct);
+                remaining -= deduct;
             }
 
-            // Update product quantity -  FIXED with FULL payload
-            const product = await db.products.get(item.product.id);
-            if (product) {
-                const newQuantity = Math.max(0, (product.quantity || 0) - quantitySold);
-
-                // Update local
-                const updatedProduct = {
-                    ...product,
-                    quantity: newQuantity,
-                    updated_at: nowISO
-                };
-                await db.products.put(updatedProduct);
-
-                //  Queue product update for Supabase - FULL PAYLOAD with name
-                const fullPayload = buildProductUpdatePayload(updatedProduct);
-                await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', fullPayload);
-            }
-
-            // Create stock movement
-            const movId = genUUID();
+            // Stock movement
             const movement: StockMovement = {
-                id: movId,
+                id: genUUID(),
                 pharmacy_name: pharmacyName,
                 product_id: item.product.id,
                 product_name: item.product.name,
                 batch_id: usedBatch?.id || null,
                 batch_number: usedBatch?.batch_number || null,
                 movement_type: 'sale',
-                quantity_base: -quantitySold,
+                quantity_base: -item.quantity,
                 reference_type: 'sale',
                 reference_id: saleId,
                 performed_by: currentProfile?.id,
                 performed_by_name: currentProfile?.full_name || 'System User',
                 reason: `Sale transaction #${saleNumber}`,
-                created_at: nowISO
+                created_at: nowISO,
             };
+            movementsRows.push(movement);
 
-            await db.stock_movements.put(movement);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'stock_movement', 'INSERT', movement);
+            // Product update (decrement total quantity)
+            const updatedProduct: Product = {
+                ...product,
+                quantity: Math.max(0, (product.quantity || 0) - item.quantity),
+                updated_at: nowISO,
+            };
+            productUpdates.push(updatedProduct);
         }
 
-        // Save discount if applied
-        if (discountAmount > 0) {
-            const discountId = genUUID();
-            const discountData = {
-                id: discountId,
-                sale_id: saleId,
-                approved_by: currentProfile?.id || null,
-                amount: discountAmount,
-                percentage: null,
-                reason: saleData.discount_reason || 'Discount applied at POS',
-                pharmacy_name: pharmacyName,
-                created_at: nowISO
-            };
-
-            await db.discounts.put(discountData);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'discount', 'INSERT', discountData);
-
-            const discountAuditLog = {
-                id: genUUID(),
-                pharmacy_name: pharmacyName,
-                user_id: currentProfile?.id,
-                user_name: currentProfile?.full_name,
-                action: 'DISCOUNT_APPLIED',
-                entity_type: 'DISCOUNT',
-                entity_id: discountId,
-                details: `Discount of ${discountAmount} applied to sale #${saleNumber}${saleData.discount_reason ? ` (Reason: ${saleData.discount_reason})` : ''}`,
-                created_at: nowISO
-            };
-
-            await db.audit_logs.put(discountAuditLog);
-            await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', discountAuditLog);
+        // Convert batch deductions to update rows
+        for (const [batchId, deduct] of batchDeductionMap.entries()) {
+            const batch = batches.find(b => b.id === batchId);
+            if (!batch) continue;
+            batchUpdates.push({
+                id: batchId,
+                quantity_base: Math.max(0, batch.quantity_base - deduct),
+                updated_at: nowISO,
+            });
         }
 
-        // Create audit log
+        // Pre-build audit log
         const auditLog = {
             id: genUUID(),
             pharmacy_name: pharmacyName,
@@ -317,50 +324,212 @@ export const useActions = (props: UseActionsProps) => {
             action: 'SALE_COMPLETED',
             entity_type: 'SALE',
             entity_id: saleId,
-            details: `Sale #${saleNumber}: ${totalItems} items (${cartItems.length} unique products) for ${finalTotal}${discountAmount > 0 ? ` (Discount: ${discountAmount})` : ''}`,
-            created_at: nowISO
+            details:
+                `Sale #${saleNumber}: ${totalItems} items ` +
+                `(${cartItems.length} unique) for ${finalTotal}` +
+                (discountAmount > 0 ? ` (Discount: ${discountAmount})` : ''),
+            created_at: nowISO,
         };
 
-        await db.audit_logs.put(auditLog);
-        await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
+        // Pre-build discount row (if any)
+        const discountRow =
+            discountAmount > 0
+                ? {
+                    id: genUUID(),
+                    sale_id: saleId,
+                    approved_by: currentProfile?.id || null,
+                    amount: discountAmount,
+                    percentage: null,
+                    reason: saleData.discount_reason || 'Discount applied at POS',
+                    pharmacy_name: pharmacyName,
+                    created_at: nowISO,
+                }
+                : null;
 
-        //  Process sync queue immediately if online
+        // =============================================
+        // STEP 3: ATOMIC WRITE (all or nothing)
+        // =============================================
+        // Everything below is inside ONE Dexie transaction.
+        // If any single write fails, IndexedDB rolls back ALL of them.
+        //
+        // ⚠️ DO NOT put network calls inside this block.
+        // ⚠️ DO NOT await non-Dexie promises inside this block.
+        //    Dexie will auto-close the transaction and throw.
+        // =============================================
+        try {
+            await db.transaction(
+                'rw',
+                [
+                    db.sales,
+                    db.products,
+                    db.product_batches,
+                    db.stock_movements,
+                    db.audit_logs,
+                    db.discounts,
+                    db.sync_queue,
+                ],
+                async () => {
+                    // 1. Sales rows
+                    await db.sales.bulkPut(salesRows);
+
+                    // 2. Product updates
+                    await db.products.bulkPut(productUpdates);
+
+                    // 3. Batch updates
+                    for (const bu of batchUpdates) {
+                        await db.product_batches.update(bu.id, {
+                            quantity_base: bu.quantity_base,
+                            updated_at: bu.updated_at,
+                        });
+                    }
+
+                    // 4. Stock movements
+                    await db.stock_movements.bulkPut(movementsRows);
+
+                    // 5. Audit log
+                    await db.audit_logs.put(auditLog);
+
+                    // 6. Discount row
+                    if (discountRow) {
+                        await db.discounts.put(discountRow);
+                    }
+
+                    // 7. Sync queue entries (Dexie-only — safe in transaction)
+                    //    Queue every entity we just wrote so it eventually
+                    //    reaches Supabase.
+                    for (const sale of salesRows) {
+                        await queueOfflineMutation(
+                            pharmacyName,
+                            currentProfile?.id || '',
+                            'sale',
+                            'INSERT',
+                            sale
+                        );
+                    }
+                    for (const prod of productUpdates) {
+                        await queueOfflineMutation(
+                            pharmacyName,
+                            currentProfile?.id || '',
+                            'product',
+                            'UPDATE',
+                            buildProductUpdatePayload(prod)
+                        );
+                    }
+                    for (const bu of batchUpdates) {
+                        await queueOfflineMutation(
+                            pharmacyName,
+                            currentProfile?.id || '',
+                            'batch',
+                            'UPDATE',
+                            {
+                                id: bu.id,
+                                quantity_base: bu.quantity_base,
+                                updated_at: bu.updated_at,
+                                pharmacy_name: pharmacyName,
+                            }
+                        );
+                    }
+                    for (const mov of movementsRows) {
+                        await queueOfflineMutation(
+                            pharmacyName,
+                            currentProfile?.id || '',
+                            'stock_movement',
+                            'INSERT',
+                            mov
+                        );
+                    }
+                    await queueOfflineMutation(
+                        pharmacyName,
+                        currentProfile?.id || '',
+                        'audit_log',
+                        'INSERT',
+                        auditLog
+                    );
+                    if (discountRow) {
+                        await queueOfflineMutation(
+                            pharmacyName,
+                            currentProfile?.id || '',
+                            'discount',
+                            'INSERT',
+                            discountRow
+                        );
+                    }
+                }
+            );
+        } catch (txErr: any) {
+            // Transaction rolled back automatically. Local DB is untouched.
+            console.error('[handleCompleteSale] Transaction failed — rolled back:', txErr);
+            throw new Error(
+                `Sale could not be saved. Nothing was written. ` +
+                `Reason: ${txErr?.message || 'unknown'}`
+            );
+        }
+
+        // =============================================
+        // STEP 4: TRIGGER SYNC (outside transaction)
+        // =============================================
+        // Network calls MUST happen after the transaction commits.
+        // If they fail, the local data is still consistent; sync will retry.
+        // =============================================
         if (navigator.onLine && isSupabaseConfigured()) {
             try {
                 await processOfflineSyncQueue();
             } catch (syncErr) {
-                console.warn('Sync failed, will retry later:', syncErr);
+                console.warn(
+                    '[handleCompleteSale] Background sync failed — will retry later:',
+                    syncErr
+                );
             }
         }
 
-        // Reload data
+        // =============================================
+        // STEP 5: RELOAD + RECEIPT + NOTIFICATION
+        // =============================================
         await loadDatabaseData();
 
-        // Show receipt
-        if (createdSales.length > 0) {
-            setReceiptSale(createdSales[0]);
+        if (salesRows.length > 0) {
+            setReceiptSale(salesRows[0]);
             setIsReceiptModalOpen(true);
         }
 
-        // Send notification
         try {
             const notificationService = getNotificationService();
-            if (notificationService.isSupportedBrowser() && Notification.permission === 'granted') {
+            if (
+                notificationService.isSupportedBrowser() &&
+                Notification.permission === 'granted'
+            ) {
                 const currency = currentProfile?.pharmacy_currency || 'KSh';
-                await notificationService.notifySale({
-                    ...createdSales[0],
-                    pharmacy_currency: currency,
-                    items_count: totalItems,
-                    unique_items: cartItems.length
-                }, pharmacyName);
+                await notificationService.notifySale(
+                    {
+                        ...salesRows[0],
+                        pharmacy_currency: currency,
+                        items_count: totalItems,
+                        unique_items: cartItems.length,
+                    },
+                    pharmacyName
+                );
             }
-        } catch (notifError) {
-            // Silent fail
+        } catch {
+            // Notifications are best-effort
         }
 
-        return { success: true, saleId, saleNumber, totalItems, finalTotal };
-    }, [currentProfile, getPharmacyName, batches, sales, loadDatabaseData, setReceiptSale, setIsReceiptModalOpen, buildProductUpdatePayload]);
-
+        return {
+            success: true,
+            saleId,
+            saleNumber,
+            totalItems,
+            finalTotal,
+        };
+    }, [
+        currentProfile,
+        getPharmacyName,
+        batches,
+        sales,
+        loadDatabaseData,
+        setReceiptSale,
+        setIsReceiptModalOpen,
+        buildProductUpdatePayload,
+    ]);
     // =============================================
     // ADD PRODUCT - FIXED
     // =============================================

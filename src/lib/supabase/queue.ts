@@ -81,11 +81,28 @@ export async function queueOfflineMutation(
     await db.sync_queue.add(item);
     console.log(`Queued new item: ${syncId}`, { entityType, operation, id: sanitizedPayload.id });
 
-    // Trigger sync if online
+    // =============================================
+    // TRIGGER SYNC — BUT ONLY IF NOT INSIDE A TRANSACTION
+    // =============================================
+    // WHY: If this function is called from inside a Dexie transaction
+    // (like in handleCompleteSale), calling processOfflineSyncQueue()
+    // immediately will cause TransactionInactiveError because the
+    // network call closes the transaction prematurely.
+    //
+    // SOLUTION: Use setTimeout(0) to defer the sync trigger to the
+    // NEXT microtask, which runs AFTER the current transaction commits.
+    // Dexie transactions automatically end when control returns to
+    // the event loop, so this guarantees the transaction is closed
+    // before we touch the network.
+    // =============================================
+    // Trigger sync if online — deferred so we don't break an active
+    // Dexie transaction that may be wrapping this call.
     if (navigator.onLine && isSupabaseConfigured()) {
-        processOfflineSyncQueue().catch((err) => {
-            console.error('Background sync failed:', err);
-        });
+        setTimeout(() => {
+            processOfflineSyncQueue().catch((err) => {
+                console.error('Background sync failed:', err);
+            });
+        }, 0);
     }
 }
 

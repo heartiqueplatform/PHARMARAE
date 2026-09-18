@@ -116,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleConfirmSignOut = () => {
-    if (signOutConfirmText !== 'LOGOUT' || !backupAcknowledged) {
+    if (signOutConfirmText !== 'LOGOUT') {
       return;
     }
 
@@ -885,8 +885,8 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'border-0 bg-emerald-400/[0.08]'
                     : 'border-0 bg-emerald-50'
                   : isDark
-                    ? 'border-0 bg-rose-400/[0.08] animate-pulse'
-                    : 'border-0 bg-rose-50 animate-pulse'
+                    ? 'border-0 bg-white/[0.035]'
+                    : 'border-0 bg-slate-50'
                   }`}
               >
                 <div className="flex gap-3">
@@ -975,7 +975,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ) : (
                   <>
                     <Download className="mr-2 inline h-3.5 w-3.5" />
-                    Backup Data Now (Required)
+                    Backup Data (Optional)
                   </>
                 )}
               </button>
@@ -997,11 +997,7 @@ export const Header: React.FC<HeaderProps> = ({
                     setSignOutConfirmText(event.target.value.toUpperCase())
                   }
                   onKeyDown={(event) => {
-                    if (
-                      event.key === 'Enter' &&
-                      signOutConfirmText === 'LOGOUT' &&
-                      backupAcknowledged
-                    ) {
+                    if (event.key === 'Enter' && signOutConfirmText === 'LOGOUT') {
                       handleConfirmSignOut();
                     }
                   }}
@@ -1019,12 +1015,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                 />
 
-                {signOutConfirmText === 'LOGOUT' && !backupAcknowledged && (
-                  <p className="mt-2 flex items-center gap-1.5 text-[9px] font-bold text-rose-500">
-                    <AlertCircle className="h-3 w-3" />
-                    You must backup your data before signing out
-                  </p>
-                )}
+
               </div>
 
               {/* Action buttons */}
@@ -1049,8 +1040,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmSignOut}
-                  disabled={signOutConfirmText !== 'LOGOUT' || !backupAcknowledged}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-extrabold text-white shadow-lg transition-all ${signOutConfirmText === 'LOGOUT' && backupAcknowledged
+                  disabled={signOutConfirmText !== 'LOGOUT'}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-extrabold text-white shadow-lg transition-all ${signOutConfirmText === 'LOGOUT'
                     ? 'bg-rose-500 shadow-rose-500/15 hover:bg-rose-600'
                     : 'bg-slate-400 cursor-not-allowed opacity-40'
                     }`}
