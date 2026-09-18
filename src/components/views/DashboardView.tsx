@@ -471,25 +471,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* =============================================
           🆕 LOYALTY MEMBERS STRIP
           ============================================= */}
-      {!isLoading && loyaltyCustomers.length > 0 && (
+      {/* =============================================
+          🆕 LOYALTY MEMBERS STRIP
+          Shows empty state when no members exist
+          ============================================= */}
+      {!isLoading && (
         <div className={`rounded-2xl p-4 ${cardBg}`}>
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-2xl ${isDark ? 'bg-amber-500/15' : 'bg-amber-500/10'
-                  } flex items-center justify-center`}
-              >
-                <Sparkles className="w-5 h-5 text-amber-500" />
-              </div>
+
               <div>
-                <h3 className={`text-xs font-extrabold uppercase tracking-wider ${textTitle}`}>
+                <h3 className={`text-xs font-extrabold  tracking-wider ${textTitle}`}>
                   Loyalty Members
                 </h3>
                 <p className={`text-[10px] ${textMuted} mt-0.5`}>
-                  {loyaltyCustomers.length} member
-                  {loyaltyCustomers.length === 1 ? '' : 's'} •{' '}
-                  {totalPointsOutstanding.toLocaleString()} pts outstanding
+                  {loyaltyCustomers.length > 0
+                    ? `${loyaltyCustomers.length} member${loyaltyCustomers.length === 1 ? '' : 's'} • ${totalPointsOutstanding.toLocaleString()} pts outstanding`
+                    : 'No members yet'}
                 </p>
               </div>
             </div>
@@ -497,99 +496,165 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => onNavigate('loyalty')}
               className="text-xs text-[#2ea043] hover:underline flex items-center gap-1 font-bold"
             >
-              <span>Manage</span>
+              <span>{loyaltyCustomers.length > 0 ? 'Manage' : 'Set up'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Horizontal story scroller */}
-          <div className="flex gap-3 overflow-x-auto pb-2 pt-1 no-scrollbar">
-            {topLoyaltyCustomers.map(customer => {
-              const points = customer.loyalty_points || 0;
-              const tier = getTierFromPoints(points);
-              const TierIcon = tier.icon;
-              const gradient = getAvatarGradient(customer.name || '?');
-              const initials = getInitials(customer.name || '?');
-
-              return (
-                <button
-                  key={customer.id}
-                  onClick={() => onNavigate('loyalty')}
-                  className={`shrink-0 w-[110px] flex flex-col items-center text-center p-2.5 rounded-2xl transition-transform active:scale-95 ${itemBg}`}
-                >
-                  <div className="relative mb-2">
-                    <div
-                      className={`w-14 h-14 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-lg font-black ring-2 ${isDark ? 'ring-[#0d1117]' : 'ring-white'
-                        }`}
-                    >
-                      {initials}
-                    </div>
-                    <div
-                      className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${tier.bg} ring-2 ${isDark ? 'ring-[#21262d]' : 'ring-white'
-                        } flex items-center justify-center`}
-                    >
-                      <TierIcon className={`w-2.5 h-2.5 ${tier.color}`} />
-                    </div>
-                  </div>
-
-                  <p className={`text-[11px] font-bold ${textTitle} truncate w-full`}>
-                    {customer.name?.split(' ')[0] || 'Unknown'}
-                  </p>
-
-                  <div className="flex items-center gap-0.5 mt-1">
-                    <Gift className="w-2.5 h-2.5 text-[#2ea043]" />
-                    <span className="text-[10px] font-black text-[#2ea043]">{points}</span>
-                  </div>
-
-                  <span
-                    className={`text-[8px] font-bold uppercase tracking-wider mt-0.5 ${tier.color}`}
-                  >
-                    {tier.label}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* View-all tail card */}
-            <button
-              onClick={() => onNavigate('loyalty')}
-              className={`shrink-0 w-[110px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl ${itemBg} transition-transform active:scale-95`}
-            >
+          {loyaltyCustomers.length === 0 ? (
+            /* =============================================
+               EMPTY STATE — no loyalty members yet
+               ============================================= */
+            <div className="flex flex-col items-center text-center py-6 gap-3">
               <div
-                className={`w-14 h-14 rounded-full ${isDark ? 'bg-[#30363d]' : 'bg-slate-200'
-                  } flex items-center justify-center mb-2`}
+                className={`w-16 h-16 rounded-full ${isDark ? 'bg-amber-500/10' : 'bg-amber-500/5'
+                  } flex items-center justify-center`}
               >
-                <ArrowRight className={`w-6 h-6 ${textMuted}`} />
+                <Gift className="w-8 h-8 text-amber-500" />
               </div>
-              <p className={`text-[11px] font-bold ${textTitle}`}>View all</p>
-              <p className={`text-[9px] ${textMuted} mt-0.5`}>
-                {loyaltyCustomers.length} members
-              </p>
-            </button>
-          </div>
+              <div>
+                <p className={`text-sm font-bold ${textTitle}`}>No loyalty members yet</p>
+                <p className={`text-xs ${textMuted} mt-1 max-w-[280px] mx-auto leading-relaxed`}>
+                  Add a customer at the POS to start giving loyalty points. They'll
+                  appear here automatically after their first sale.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={() => onNavigate('sell')}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2ea043] hover:bg-[#2c9b3e] text-white text-xs font-bold transition-colors"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Start a sale</span>
+                </button>
+                <button
+                  onClick={() => onNavigate('loyalty')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${isDark ? 'bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9]' : 'bg-[#f6f8fa] hover:bg-[#eaeef2] text-[#1f2328]'}`}
+                >
+                  <Gift className="w-3.5 h-3.5" />
+                  <span>Configure rewards</span>
+                </button>
+              </div>
 
-          {/* Loyalty metrics row */}
-          <div
-            className={`grid grid-cols-3 gap-2 mt-3 pt-3 border-t ${isDark ? 'border-[#21262d]' : 'border-[#eaeef2]'
-              }`}
-          >
-            <div className="text-center">
-              <p className="text-lg font-black text-[#2ea043]">
-                {todayPointsEarned.toLocaleString()}
-              </p>
-              <p className={`text-[9px] uppercase font-bold ${textMuted}`}>Points Earned Today</p>
+              {/* Educational footer */}
+              <div className={`mt-2 pt-3 border-t w-full ${isDark ? 'border-[#21262d]' : 'border-[#eaeef2]'}`}>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center">
+                    <p className="text-lg font-black text-[#2ea043]">1</p>
+                    <p className={`text-[9px] uppercase font-bold ${textMuted} leading-tight`}>
+                      Add customer to sale
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-black text-[#2ea043]">2</p>
+                    <p className={`text-[9px] uppercase font-bold ${textMuted} leading-tight`}>
+                      Points awarded automatically
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-black text-[#2ea043]">3</p>
+                    <p className={`text-[9px] uppercase font-bold ${textMuted} leading-tight`}>
+                      Redeem for rewards
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-center">
-              <p className={`text-lg font-black ${textTitle}`}>
-                {totalPointsOutstanding.toLocaleString()}
-              </p>
-              <p className={`text-[9px] uppercase font-bold ${textMuted}`}>Points With Users</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-black text-amber-500">{totalEarns}</p>
-              <p className={`text-[9px] uppercase font-bold ${textMuted}`}>Points Earned (Times)</p>
-            </div>
-          </div>
+          ) : (
+            /* =============================================
+               MEMBERS EXIST — show story strip + metrics
+               ============================================= */
+            <>
+              {/* Horizontal story scroller */}
+              <div className="flex gap-3 overflow-x-auto pb-2 pt-1 no-scrollbar">
+                {topLoyaltyCustomers.map(customer => {
+                  const points = customer.loyalty_points || 0;
+                  const tier = getTierFromPoints(points);
+                  const TierIcon = tier.icon;
+                  const gradient = getAvatarGradient(customer.name || '?');
+                  const initials = getInitials(customer.name || '?');
+
+                  return (
+                    <button
+                      key={customer.id}
+                      onClick={() => onNavigate('loyalty')}
+                      className={`shrink-0 w-[110px] flex flex-col items-center text-center p-2.5 rounded-2xl transition-transform active:scale-95 ${itemBg}`}
+                    >
+                      <div className="relative mb-2">
+                        <div
+                          className={`w-14 h-14 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-lg font-black ring-2 ${isDark ? 'ring-[#0d1117]' : 'ring-white'
+                            }`}
+                        >
+                          {initials}
+                        </div>
+                        <div
+                          className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${tier.bg} ring-2 ${isDark ? 'ring-[#21262d]' : 'ring-white'
+                            } flex items-center justify-center`}
+                        >
+                          <TierIcon className={`w-2.5 h-2.5 ${tier.color}`} />
+                        </div>
+                      </div>
+
+                      <p className={`text-[11px] font-bold ${textTitle} truncate w-full`}>
+                        {customer.name?.split(' ')[0] || 'Unknown'}
+                      </p>
+
+                      <div className="flex items-center gap-0.5 mt-1">
+                        <Gift className="w-2.5 h-2.5 text-[#2ea043]" />
+                        <span className="text-[10px] font-black text-[#2ea043]">{points}</span>
+                      </div>
+
+                      <span
+                        className={`text-[8px] font-bold uppercase tracking-wider mt-0.5 ${tier.color}`}
+                      >
+                        {tier.label}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* View-all tail card */}
+                <button
+                  onClick={() => onNavigate('loyalty')}
+                  className={`shrink-0 w-[110px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl ${itemBg} transition-transform active:scale-95`}
+                >
+                  <div
+                    className={`w-14 h-14 rounded-full ${isDark ? 'bg-[#30363d]' : 'bg-slate-200'
+                      } flex items-center justify-center mb-2`}
+                  >
+                    <ArrowRight className={`w-6 h-6 ${textMuted}`} />
+                  </div>
+                  <p className={`text-[11px] font-bold ${textTitle}`}>View all</p>
+                  <p className={`text-[9px] ${textMuted} mt-0.5`}>
+                    {loyaltyCustomers.length} members
+                  </p>
+                </button>
+              </div>
+
+              {/* Loyalty metrics row */}
+              <div
+                className={`grid grid-cols-3 gap-2 mt-3 pt-3 border-t ${isDark ? 'border-[#21262d]' : 'border-[#eaeef2]'
+                  }`}
+              >
+                <div className="text-center">
+                  <p className="text-lg font-black text-[#2ea043]">
+                    {todayPointsEarned.toLocaleString()}
+                  </p>
+                  <p className={`text-[9px] uppercase font-bold ${textMuted}`}>Points Earned Today</p>
+                </div>
+                <div className="text-center">
+                  <p className={`text-lg font-black ${textTitle}`}>
+                    {totalPointsOutstanding.toLocaleString()}
+                  </p>
+                  <p className={`text-[9px] uppercase font-bold ${textMuted}`}>Points With Users</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-black text-amber-500">{totalEarns}</p>
+                  <p className={`text-[9px] uppercase font-bold ${textMuted}`}>Points Earned (Times)</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
       {/* Quick Action Hub */}
@@ -669,7 +734,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="font-extrabold flex items-center gap-1.5">
                 ORDERS
                 <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#f0883e]/20 text-[#f0883e]">
-                  SMART
+                  Smart
                 </span>
               </div>
               <div className="text-[10px] opacity-80 font-normal">Supplier orders</div>
@@ -684,9 +749,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="text-left">
               <div className="font-extrabold flex items-center gap-1.5">
                 INSIGHTS
-                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-[#2ea043]/20 text-[#2ea043]">
-                  NEW
-                </span>
+
               </div>
               <div className="text-[10px] opacity-80 font-normal">Smart analytics</div>
             </div>
@@ -701,9 +764,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="text-left">
               <div className="font-extrabold flex items-center gap-1.5">
                 LOYALTY
-                <span className="text-[8px] font-black px-1 py-0.5 rounded bg-amber-500/20 text-amber-500">
-                  NEW
-                </span>
+
               </div>
               <div className="text-[10px] opacity-80 font-normal">Rewards & points</div>
             </div>
