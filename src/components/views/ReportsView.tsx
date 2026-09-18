@@ -1088,12 +1088,27 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
               <Calendar className="w-5 h-5 text-[#2ea043]" />
               <span className={`text-sm font-bold ${textMuted}`}>Select Date:</span>
-              <input
-                type="date"
-                value={dailyDate}
-                onChange={(e) => setDailyDate(e.target.value)}
-                className={`text-sm rounded-xl px-4 py-3 focus:outline-none ${inputBg} ${touchTargetSmall}`}
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={dailyDate}
+                  onChange={(e) => setDailyDate(e.target.value)}
+                  onMouseDown={(e) => {
+                    const input = e.currentTarget as HTMLInputElement;
+                    if (typeof input.showPicker === 'function') {
+                      try {
+                        e.preventDefault();
+                        input.showPicker();
+                      } catch { }
+                    }
+                  }}
+                  className={`text-sm rounded-xl pl-4 pr-10 py-3 focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                />
+                <Calendar
+                  className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
+                    }`}
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
