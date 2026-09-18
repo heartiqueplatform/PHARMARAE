@@ -210,14 +210,15 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
     return (
         <div className="space-y-4 px-0 md:px-4 pb-20 md:pb-6">
 
-            {/* Back Button */}
+            {/* Back Arrow — icon only */}
             <button
                 onClick={onBack}
-                className={`flex items-center gap-2 text-sm font-bold transition-colors ${touchTargetSmall} ${isDark ? 'text-[#8b949e] hover:text-[#f0f6fc]' : 'text-[#656d76] hover:text-[#1f2328]'
-                    }`}
+                aria-label="Go back"
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-[#c9d1d9]' : 'hover:bg-black/5 text-[#1f2328]'}`}
             >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back to Settings</span>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
             </button>
 
             {/* Header */}

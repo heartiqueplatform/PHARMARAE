@@ -1,25 +1,43 @@
 // lib/supabase/loyalty/index.ts
 
-// Queue exports
+// =============================================
+// QUEUE EXPORTS
+// =============================================
 export {
     queueLoyaltyMutation,
     processLoyaltyQueue,
-    getLoyaltyPendingCount
+    getLoyaltyPendingCount,
+    getLoyaltyQueueStats,
+    retryFailedLoyaltyItems,
+    cleanupLoyaltyQueue,
+    LOYALTY_ENTITY_TYPES,
 } from './queue';
 
-// Pull exports
+// =============================================
+// PULL EXPORTS
+// =============================================
 export {
-    pullLoyaltyData
+    pullLoyaltyData,
+    fullResyncLoyaltyData,
+    getLocalLoyaltyCounts,
+    getRemoteLoyaltyCounts,
 } from './pull';
 
-// Client exports
+// =============================================
+// CLIENT EXPORTS
+// =============================================
 export {
-    getLoyaltyClient
+    getLoyaltyClient,
 } from './client';
 
-// Utils exports
+// =============================================
+// UTILS EXPORTS
+// =============================================
 export {
     mapLoyaltyEntityToTable,
     normalizePharmacyName,
-    LOYALTY_TABLE_CONFIGS
+    LOYALTY_TABLE_CONFIGS,
+    loyaltyLog,
+    loyaltyWarn,
+    loyaltyDebugEnabled,
 } from './utils';

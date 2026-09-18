@@ -72,6 +72,10 @@ export class MedPDatabase extends Dexie {
   requested_items!: Table<RequestedItem, string>;
   notifications!: Table<Notification, string>;
   sync_queue!: Table<OfflineSyncItem, number>;
+  // =============================================
+  // 🆕 Dedicated loyalty sync queue (isolated from main queue)
+  // =============================================
+  loyalty_sync_queue!: Table<OfflineSyncItem, number>;
   push_subscriptions!: Table<PushSubscription, string>;
 
   // Supplier tables
@@ -796,7 +800,80 @@ export class MedPDatabase extends Dexie {
       customers_rewards_catalog: 'id, pharmacy_name, category, is_active, [pharmacy_name+category], [pharmacy_name+is_active]',
       customers_loyalty_card_orders: 'id, pharmacy_name, order_number, status, payment_status, created_at, [pharmacy_name+status], [pharmacy_name+created_at]'
     });
+    // =============================================
+    // 🆕 VERSION 15: Dedicated loyalty_sync_queue
+    // =============================================
+    // Why a separate table?
+    //   - At scale, a shared queue gets hammered by two
+    //     processors scanning for their own rows.
+    //   - Isolating loyalty keeps both queues small.
+    //   - Different retry policies per queue.
+    // =============================================
+    this.version(15).stores({
+      profiles: 'id, auth_user_id, pharmacy_name, email, pin_code, role, is_active, created_at, [pharmacy_name+role], [pharmacy_name+is_active]',
+      categories: 'id, pharmacy_name, name, active, [pharmacy_name+name]',
+      units: 'id, pharmacy_name, name, abbreviation, [pharmacy_name+name]',
+      products: 'id, pharmacy_name, name, barcode, category_id, active, created_at, shelf_number, bay_number, rack_number, zone, bin_number, cardboard_box_id, storage_condition, [pharmacy_name+name], [pharmacy_name+barcode], [pharmacy_name+category_id]',
+      product_units: 'id, product_id, unit_id',
+      suppliers: 'id, pharmacy_name, name, phone, active, [pharmacy_name+name]',
+      product_batches: 'id, pharmacy_name, product_id, batch_number, expiry_date, created_at, [pharmacy_name+product_id], [pharmacy_name+expiry_date], [pharmacy_name+batch_number]',
+      purchases: 'id, pharmacy_name, supplier_id, purchase_number, status, created_at',
+      purchase_items: 'id, purchase_id, product_id, batch_id',
+      customers: 'id, pharmacy_name, name, phone, created_at, loyalty_points, loyalty_card_number, is_loyalty_member, [pharmacy_name+name], [pharmacy_name+phone], [pharmacy_name+loyalty_card_number], [pharmacy_name+is_loyalty_member]',
+      sales: 'id, pharmacy_name, sale_id, sale_number, customer_id, customer_name, product_id, product_name, status, payment_method, payment_status, sale_date, created_at, [pharmacy_name+sale_date], [pharmacy_name+product_id], [pharmacy_name+status]',
+      payments: 'id, pharmacy_name, sale_id, method, status',
+      stock_movements: 'id, pharmacy_name, product_id, batch_id, movement_type, created_at, [pharmacy_name+product_id], [pharmacy_name+created_at]',
+      stocktakes: 'id, pharmacy_name, status, started_at',
+      stocktake_items: 'id, stocktake_id, product_id, batch_id',
+      sale_returns: 'id, pharmacy_name, sale_id, created_at',
+      sales_returns: 'id, pharmacy_name, sale_id, product_id, batch_id, return_type, status, created_at, [pharmacy_name+created_at], [pharmacy_name+sale_id]',
+      discounts: 'id, pharmacy_name, sale_id',
+      audit_logs: 'id, pharmacy_name, user_id, action, created_at, [pharmacy_name+created_at], [pharmacy_name+action]',
+      requested_items: 'id, pharmacy_name, item_name, status, priority, request_count, last_requested_at, [pharmacy_name+status], [pharmacy_name+priority]',
+      notifications: 'id, pharmacy_name, user_id, read, created_at',
+      sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id], [payload.id]',
+      // 🆕 New table
+      loyalty_sync_queue: '++id, sync_id, pharmacy_name, user_id, entity_type, status, created_at, [pharmacy_name+status], [pharmacy_name+entity_type], [entity_type+payload.id], [payload.id]',
+      push_subscriptions: '++id, user_id, pharmacy_name, endpoint, created_at, updated_at, [pharmacy_name+user_id]',
+      suppliers_partnership_requests: 'id, pharmacy_name, supplier_id, status, [pharmacy_name+status], [pharmacy_name+supplier_id]',
+      suppliers_orders: 'id, pharmacy_name, supplier_id, order_number, status, order_date, [pharmacy_name+status], [pharmacy_name+supplier_id], [pharmacy_name+order_date]',
+      suppliers_order_items: 'id, order_id, product_id, item_status, [order_id+product_id]',
+      customers_loyalty_transactions: 'id, pharmacy_name, customer_id, sale_id, transaction_type, created_at, [pharmacy_name+customer_id], [pharmacy_name+created_at], [pharmacy_name+transaction_type]',
+      customers_rewards_catalog: 'id, pharmacy_name, category, is_active, [pharmacy_name+category], [pharmacy_name+is_active]',
+      customers_loyalty_card_orders: 'id, pharmacy_name, order_number, status, payment_status, created_at, [pharmacy_name+status], [pharmacy_name+created_at]',
+    }).upgrade(async (tx) => {
+      // =============================================
+      // MIGRATION: Move existing loyalty items out of
+      // sync_queue into the new loyalty_sync_queue
+      // =============================================
+      try {
+        const LOYALTY_TYPES = [
+          'customers_loyalty_transactions',
+          'customers_rewards_catalog',
+          'customers_loyalty_card_orders',
+          'loyalty_transaction',
+          'reward_catalog',
+          'loyalty_card_order',
+        ];
 
+        const mainQueueTable = tx.table('sync_queue');
+        const loyaltyQueueTable = tx.table('loyalty_sync_queue');
+
+        const loyaltyItems = await mainQueueTable
+          .filter((item: any) => LOYALTY_TYPES.includes(item.entity_type))
+          .toArray();
+
+        for (const item of loyaltyItems) {
+          const { id, ...rest } = item;
+          await loyaltyQueueTable.add(rest);
+          await mainQueueTable.delete(id);
+        }
+
+        console.log(`[DB v15] Migrated ${loyaltyItems.length} loyalty items to dedicated queue`);
+      } catch (err) {
+        console.warn('[DB v15] Loyalty queue migration failed:', err);
+      }
+    });
   }
 
   // =============================================
@@ -956,6 +1033,7 @@ export class MedPDatabase extends Dexie {
     await this.requested_items.clear();
     await this.notifications.clear();
     await this.sync_queue.clear();
+    await this.loyalty_sync_queue.clear();
     await this.customers_loyalty_transactions.clear();
     await this.customers_rewards_catalog.clear();
     await this.customers_loyalty_card_orders.clear();
@@ -971,6 +1049,7 @@ export class MedPDatabase extends Dexie {
       'products', 'product_batches', 'categories', 'units',
       'suppliers', 'customers', 'sales',
       'stock_movements', 'audit_logs', 'sync_queue',
+      'loyalty_sync_queue',
       'requested_items', 'sales_returns',
       'customers_loyalty_transactions',
       'customers_rewards_catalog',

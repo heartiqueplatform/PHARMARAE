@@ -6,16 +6,16 @@ import {
     CreditCard, FileCheck, Lock, Target, Lightbulb, Star,
     ArrowRight, Layers, Database, Cloud, GitBranch, Calendar,
     GraduationCap, Truck, ShoppingBag, Store, BadgeCheck,
-    Brain, // Added for BI
-    LineChart, // Added for BI
-    PieChart // Added for BI
+    Brain, LineChart, PieChart,
+    Gift, Crown, // 🆕 loyalty icons
 } from 'lucide-react';
 
 interface AboutViewProps {
     theme: 'dark' | 'light';
+    onBack?: () => void;        // ← ADD THIS LINE
 }
 
-export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
+export const AboutView: React.FC<AboutViewProps> = ({ theme, onBack }) => {
     const isDark = theme === 'dark';
 
     const features = [
@@ -50,9 +50,22 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
         { icon: Target, title: 'Profit Margin Tracking', description: 'Monitor profitability trends and get alerts when margins fall below targets' },
     ];
 
+
     return (
         <div className={`max-w-5xl mx-auto p-4 sm:p-6 pt-16 sm:pt-20 pb-24 sm:pb-32 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1f2328]'}`}>
 
+            {/* Back Arrow — icon only */}
+            <button
+                onClick={onBack}
+                aria-label="Go back"
+                className={`mb-4 flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-[#c9d1d9]' : 'hover:bg-black/5 text-[#1f2328]'}`}
+            >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+
+            {/* Header Section */}
             {/* Header Section */}
             <div className="flex items-center gap-4 mb-8">
                 <img
@@ -315,7 +328,126 @@ export const AboutView: React.FC<AboutViewProps> = ({ theme }) => {
                         </div>
                     </div>
                 </section>
+                {/* =============================================
+                    LOYALTY & REWARDS — marketing section
+                    ============================================= */}
+                <section>
+                    <div className="flex items-center gap-2 mb-3">
+                        <Gift className="w-5 h-5 text-[#f0883e]" />
+                        <h2 className="text-lg font-semibold">Loyalty & Rewards — Bring Customers Back</h2>
 
+                    </div>
+
+                    <div className={`p-5 rounded-2xl ${isDark ? 'bg-gradient-to-br from-[#161b22] to-[#0d1117]' : 'bg-gradient-to-br from-[#f6f8fa] to-white'}`}>
+                        <p className={`text-sm leading-relaxed mb-4 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                            Turn one-time buyers into regular customers. Pharmienta's built-in loyalty program
+                            automatically rewards every purchase — customers collect points, redeem rewards,
+                            and keep coming back to <span className="font-bold text-[#2ea043]">your</span> pharmacy
+                            instead of the one down the street.
+                        </p>
+
+                        {/* Reward tiers - visual */}
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+                            <div className={`p-3 rounded-xl text-center ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                                <div className="w-8 h-8 rounded-full bg-slate-500/20 flex items-center justify-center mx-auto mb-1.5">
+                                    <Users className="w-4 h-4 text-slate-400" />
+                                </div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase">Member</p>
+                                <p className={`text-[9px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>0+ pts</p>
+                            </div>
+                            <div className={`p-3 rounded-xl text-center ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                                <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-1.5">
+                                    <Award className="w-4 h-4 text-amber-600" />
+                                </div>
+                                <p className="text-[10px] font-black text-amber-600 uppercase">Bronze</p>
+                                <p className={`text-[9px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>50+ pts</p>
+                            </div>
+                            <div className={`p-3 rounded-xl text-center ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                                <div className="w-8 h-8 rounded-full bg-slate-400/20 flex items-center justify-center mx-auto mb-1.5">
+                                    <Award className="w-4 h-4 text-slate-300" />
+                                </div>
+                                <p className="text-[10px] font-black text-slate-300 uppercase">Silver</p>
+                                <p className={`text-[9px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>100+ pts</p>
+                            </div>
+                            <div className={`p-3 rounded-xl text-center ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                                <div className="w-8 h-8 rounded-full bg-amber-400/20 flex items-center justify-center mx-auto mb-1.5">
+                                    <Star className="w-4 h-4 text-amber-400" />
+                                </div>
+                                <p className="text-[10px] font-black text-amber-400 uppercase">Gold</p>
+                                <p className={`text-[9px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>200+ pts</p>
+                            </div>
+                            <div className={`p-3 rounded-xl text-center ${isDark ? 'bg-[#0d1117]' : 'bg-white'}`}>
+                                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-1.5">
+                                    <Crown className="w-4 h-4 text-purple-400" />
+                                </div>
+                                <p className="text-[10px] font-black text-purple-400 uppercase">Platinum</p>
+                                <p className={`text-[9px] mt-0.5 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>500+ pts</p>
+                            </div>
+                        </div>
+
+                        {/* Feature bullets */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            <div className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-[#2ea043] flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold">Automatic Points on Every Sale</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        Points awarded the moment a sale completes — no manual tracking, no cards to swipe.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-[#2ea043] flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold">Real Rewards, Not Just Discounts</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        Free BP checks, glucose tests, vitamins, dewormers, delivery — pick what matters to your customers.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-[#2ea043] flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold">Points Belong to the Customer</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        Balances live safely on the customer, synced across all your branches in real time.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-[#2ea043] flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold">Zero Extra Hardware</p>
+                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                        No loyalty cards to print, no scanners. Works on the same phone or tablet you already use.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Outcome strip */}
+                        <div className={`pt-4 border-t ${isDark ? 'border-[#30363d]/40' : 'border-[#d0d7de]/60'} grid grid-cols-3 gap-3 text-center`}>
+                            <div>
+                                <p className="text-xl font-black text-[#2ea043]">+28%</p>
+                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                    Repeat Visits
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-xl font-black text-[#f0883e]">+35%</p>
+                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                    Avg. Basket Size
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-xl font-black text-[#58a6ff]">3x</p>
+                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                                    Customer Retention
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
                 {/* Contact Section */}
                 <section>
                     <div className="flex items-center gap-2 mb-3">

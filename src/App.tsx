@@ -26,6 +26,7 @@ import { db } from './lib/db';
 import { queueOfflineMutation } from './lib/supabase';
 import { BusinessIntelligenceView } from './components/views/BusinessIntelligenceView';
 import { SmartOrderView } from './components/views/SmartOrderView';
+import { LoyaltySettings } from './components/settings/LoyaltySettings';
 
 
 export default function App() {
@@ -55,6 +56,7 @@ export default function App() {
     auditLogs,
     requestedItems,
     salesReturns,
+    loyaltyTransactions,
     isLoading,
     isOnline,
     isSyncing,
@@ -74,6 +76,7 @@ export default function App() {
     receiptSale,
     isReceiptModalOpen,
     activeTab,
+
     setCurrentProfile,
     setCurrentRole,
     setIsAuthenticated,
@@ -104,7 +107,6 @@ export default function App() {
   });
 
   // Handle updating individual sale items
-  // In App.tsx - Updated handleUpdateSale
   const handleUpdateSale = useCallback(async (saleId: string, updates: Partial<Sale>) => {
     try {
       const existingSale = await db.sales.get(saleId);
@@ -121,7 +123,6 @@ export default function App() {
         const product = await db.products.get(existingSale.product_id);
         if (product) {
           const currentStock = product.quantity || 0;
-          // If quantity increased, reduce stock. If decreased, increase stock
           const newStock = Math.max(0, currentStock - quantityDifference);
 
           const updatedProduct = {
@@ -131,12 +132,10 @@ export default function App() {
           };
           await db.products.put(updatedProduct);
 
-          // Queue product update for sync
           const pharmacyName = normalizePharmacyName(currentProfile?.pharmacy_name || '');
           await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'product', 'UPDATE', updatedProduct);
         }
 
-        // Update batch quantities if there's a batch
         if (existingSale.batch_id) {
           const batch = await db.product_batches.get(existingSale.batch_id);
           if (batch) {
@@ -146,7 +145,6 @@ export default function App() {
               updated_at: new Date().toISOString()
             });
 
-            // Queue batch update for sync
             const pharmacyName = normalizePharmacyName(currentProfile?.pharmacy_name || '');
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'batch', 'UPDATE', {
               id: existingSale.batch_id,
@@ -157,7 +155,6 @@ export default function App() {
         }
       }
 
-      // Update the sale
       const updatedSale = {
         ...existingSale,
         ...updates,
@@ -168,11 +165,9 @@ export default function App() {
 
       await db.sales.put(updatedSale);
 
-      // Queue sale update for sync
       const pharmacyName = normalizePharmacyName(currentProfile?.pharmacy_name || '');
       await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'sale', 'UPDATE', updatedSale);
 
-      // Create audit log for stock adjustment
       if (quantityDifference !== 0) {
         const auditLog = {
           id: genUUID(),
@@ -209,6 +204,7 @@ export default function App() {
       }, 3000);
     }
   }, [currentProfile, loadDatabaseData, app]);
+
   // Computed values
   const todayStr = getTodayStr();
   const todaySales = sales.filter(s => s.sale_date?.startsWith(todayStr));
@@ -245,6 +241,87 @@ export default function App() {
       clearToast();
     }
   };
+
+  // ============================================================
+  // FULL-PAGE OVERRIDES (rendered ABOVE header & navigation)
+  // ============================================================
+
+  // Hard Reset — full screen takeover
+  if (showHardResetView) {
+    return (
+      <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+        }`}>
+        <HardResetView
+          theme={theme}
+          pharmacyName={currentProfile?.pharmacy_name}
+          onCancel={() => setShowHardResetView(false)}
+          onComplete={() => {
+            setShowHardResetView(false);
+            window.location.reload();
+          }}
+          onTriggerSync={triggerSyncQueue}
+        />
+      </div>
+    );
+  }
+
+  // Security — full screen takeover
+  if (showSecurityView) {
+    return (
+      <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+        }`}>
+        <SecurityView
+          profile={currentProfile}
+          currentRole={currentRole}
+          profiles={profiles}
+          theme={theme}
+          onBack={() => setShowSecurityView(false)}
+          onChangePin={actions.handleChangePin}
+          onChangePassword={actions.handleChangePassword}
+          onDeleteAccount={actions.handleDeleteAccount}
+          onSignOut={() => {
+            localStorage.removeItem('medp_authenticated');
+            localStorage.removeItem('medp_current_user_id');
+            setIsAuthenticated(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // About — full screen takeover
+  // About — full screen takeover
+  if (activeTab === 'about') {
+    return (
+      <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+        }`}>
+        <AboutView theme={theme} onBack={() => setActiveTab('more')} />
+      </div>
+    );
+  }
+  // Privacy Policy — full screen takeover
+  // Privacy Policy — full screen takeover
+  if (activeTab === 'privacy') {
+    return (
+      <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+        }`}>
+        <PrivacyPolicyView theme={theme} onBack={() => setActiveTab('more')} />
+      </div>
+    );
+  }
+  // Terms & Conditions — full screen takeover
+  if (activeTab === 'terms') {
+    return (
+      <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+        }`}>
+        <TermsConditionsView theme={theme} onBack={() => setActiveTab('more')} />
+      </div>
+    );
+  }
+
+  // ============================================================
+  // MAIN APP LAYOUT (with header + navigation)
+  // ============================================================
 
   return (
     <div className={`h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
@@ -283,7 +360,6 @@ export default function App() {
           appVersion="1.0.0"
         />
 
-
         <StatusBar
           message={statusMessage}
           type={statusType}
@@ -295,199 +371,164 @@ export default function App() {
         />
 
         <main className="flex-1 w-full px-2 sm:px-3 md:px-4 pt-2 sm:pt-4 pb-24 min-w-0 overflow-y-auto">
-          {/* =============================================
-              HARD RESET VIEW - Full page (rendered FIRST)
-              ============================================ */}
-          {showHardResetView ? (
-            <HardResetView
+          {activeTab === 'home' && (
+            <DashboardView
+              pharmacyName={currentProfile?.pharmacy_name || null}
+              profile={currentProfile}
+              role={currentRole}
+              todaySales={todaySales}
+              lowStockProducts={lowStockProducts}
+              expiringBatches={expiringBatches}
+              onNavigate={(tab) => setActiveTab(tab)}
+              onOpenAddStockModal={() => setActiveTab('stock')}
               theme={theme}
-              pharmacyName={currentProfile?.pharmacy_name}
-              onCancel={() => setShowHardResetView(false)}
-              onComplete={() => {
-                setShowHardResetView(false);
-                window.location.reload();
-              }}
-              onTriggerSync={triggerSyncQueue}
+              isLoading={isLoading}
+              requestedItems={requestedItems}
+              salesReturns={salesReturns}
+              loyaltyCustomers={customers}
+              loyaltyTransactions={loyaltyTransactions}
             />
-          ) : (
-            <>
-              {/* Security View - Full page */}
-              {showSecurityView ? (
-                <SecurityView
-                  profile={currentProfile}
-                  currentRole={currentRole}
-                  profiles={profiles}
-                  theme={theme}
-                  onBack={() => setShowSecurityView(false)}
-                  onChangePin={actions.handleChangePin}
-                  onChangePassword={actions.handleChangePassword}
-                  onDeleteAccount={actions.handleDeleteAccount}
-                  onSignOut={() => {
-                    localStorage.removeItem('medp_authenticated');
-                    localStorage.removeItem('medp_current_user_id');
-                    setIsAuthenticated(false);
-                  }}
-                />
-              ) : (
-                <>
-                  {activeTab === 'home' && (
-                    <DashboardView
-                      pharmacyName={currentProfile?.pharmacy_name || null}
-                      profile={currentProfile}
-                      role={currentRole}
-                      todaySales={todaySales}
-                      lowStockProducts={lowStockProducts}
-                      expiringBatches={expiringBatches}
-                      onNavigate={(tab) => setActiveTab(tab)}
-                      onOpenAddStockModal={() => setActiveTab('stock')}
-                      theme={theme}
-                      isLoading={isLoading}
-                      requestedItems={requestedItems}
-                      salesReturns={salesReturns}
-                    />
-                  )}
+          )}
+          {activeTab === 'loyalty' && (
+            <LoyaltySettings
+              pharmacyName={currentProfile?.pharmacy_name || ''}
+              theme={theme}
+              currentProfileId={currentProfile?.id}
+            />
+          )}
+          {activeTab === 'sell' && (
+            <PosView
+              pharmacyName={currentProfile?.pharmacy_name || null}
+              currentProfile={currentProfile}
+              role={currentRole}
+              products={products}
+              batches={batches}
+              customers={customers}
+              onCompleteSale={actions.handleCompleteSale}
+              onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
+              scannedBarcode={scannedBarcode}
+              theme={theme}
+              isLoading={isLoading}
+            />
+          )}
 
-                  {activeTab === 'sell' && (
-                    <PosView
-                      pharmacyName={currentProfile?.pharmacy_name || null}
-                      currentProfile={currentProfile}
-                      role={currentRole}
-                      products={products}
-                      batches={batches}
-                      customers={customers}
-                      onCompleteSale={actions.handleCompleteSale}
-                      onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
-                      scannedBarcode={scannedBarcode}
-                      theme={theme}
-                      isLoading={isLoading}
-                    />
-                  )}
+          {activeTab === 'stock' && (
+            <InventoryView
+              pharmacy={getPharmacyFromProfile(currentProfile)}
+              products={products}
+              batches={batches}
+              categories={categories}
+              suppliers={suppliers}
+              units={units}
+              movements={movements}
+              onAddProduct={actions.handleAddProduct}
+              onAddBatch={actions.handleAddBatch}
+              onUpdateProduct={actions.handleUpdateProduct}
+              onDeleteProduct={actions.handleDeleteProduct}
+              onUpdateBatch={actions.handleUpdateBatch}
+              isLoading={isLoading}
+              theme={theme}
+            />
+          )}
 
-                  {activeTab === 'stock' && (
-                    <InventoryView
-                      pharmacy={getPharmacyFromProfile(currentProfile)}
-                      products={products}
-                      batches={batches}
-                      categories={categories}
-                      suppliers={suppliers}
-                      units={units}
-                      movements={movements}
-                      onAddProduct={actions.handleAddProduct}
-                      onAddBatch={actions.handleAddBatch}
-                      onUpdateProduct={actions.handleUpdateProduct}
-                      onDeleteProduct={actions.handleDeleteProduct}
-                      onUpdateBatch={actions.handleUpdateBatch}
-                      isLoading={isLoading}
-                      theme={theme}
-                    />
-                  )}
+          {activeTab === 'reports' && (
+            <ReportsView
+              pharmacy={getPharmacyFromProfile(currentProfile)}
+              role={currentRole}
+              sales={sales}
+              products={products}
+              batches={batches}
+              movements={movements}
+              onUpdateSale={handleUpdateSale}
+              theme={theme}
+              isLoading={isLoading}
+              isSyncing={isSyncing}
+              onRefresh={triggerSyncQueue}
+            />
+          )}
 
-                  {activeTab === 'reports' && (
-                    <ReportsView
-                      pharmacy={getPharmacyFromProfile(currentProfile)}
-                      role={currentRole}
-                      sales={sales}
-                      products={products}
-                      batches={batches}
-                      movements={movements}
-                      onUpdateSale={handleUpdateSale}
-                      theme={theme}
-                      isLoading={isLoading}
-                      isSyncing={isSyncing}
-                      onRefresh={triggerSyncQueue}
-                    />
-                  )}
+          {activeTab === 'orders' && (
+            <SmartOrderView
+              pharmacyName={currentProfile?.pharmacy_name || ''}
+              pharmacyId={currentProfile?.id || ''}
+              profileId={currentProfile?.id || ''}
+              profileName={currentProfile?.full_name || ''}
+              products={products}
+              theme={theme}
+              currency={currentProfile?.pharmacy_currency || 'KSh'}
+              onOrderPlaced={() => {
+                loadDatabaseData();
+              }}
+            />
+          )}
 
-                  {activeTab === 'orders' && (
-                    <SmartOrderView
-                      pharmacyName={currentProfile?.pharmacy_name || ''}
-                      pharmacyId={currentProfile?.id || ''}
-                      profileId={currentProfile?.id || ''}
-                      profileName={currentProfile?.full_name || ''}
-                      products={products}
-                      theme={theme}
-                      currency={currentProfile?.pharmacy_currency || 'KSh'}
-                      onOrderPlaced={() => {
-                        loadDatabaseData();
-                      }}
-                    />
-                  )}
-                  {/* NEW: Business Intelligence Tab */}
-                  {activeTab === 'intelligence' && (
-                    <BusinessIntelligenceView
-                      pharmacy={getPharmacyFromProfile(currentProfile)}
-                      sales={sales}
-                      products={products}
-                      movements={movements}
-                      auditLogs={auditLogs}
-                      theme={theme}
-                      isLoading={isLoading}
-                      onRefresh={triggerSyncQueue}
-                    />
-                  )}
-                  {activeTab === 'requests' && (
-                    <RequestedItemsView
-                      requestedItems={requestedItems || []}
-                      pharmacyName={currentProfile?.pharmacy_name || null}
-                      currency={currentProfile?.pharmacy_currency || 'KSh'}
-                      theme={theme}
-                      isLoading={isLoading}
-                      onAddRequestedItem={actions.handleAddRequestedItem}
-                      onUpdateRequestedItem={actions.handleUpdateRequestedItem}
-                      onDeleteRequestedItem={actions.handleDeleteRequestedItem}
-                      pharmacy={{
-                        name: currentProfile?.pharmacy_name || 'Pharmacy',
-                        address: currentProfile?.pharmacy_address || '',
-                        phone: currentProfile?.pharmacy_phone || '',
-                        currency: currentProfile?.pharmacy_currency || 'KSh'
-                      }}
-                    />
-                  )}
+          {activeTab === 'intelligence' && (
+            <BusinessIntelligenceView
+              pharmacy={getPharmacyFromProfile(currentProfile)}
+              sales={sales}
+              products={products}
+              movements={movements}
+              auditLogs={auditLogs}
+              theme={theme}
+              isLoading={isLoading}
+              onRefresh={triggerSyncQueue}
+            />
+          )}
 
-                  {activeTab === 'returns' && (
-                    <SalesReturnsView
-                      sales={sales}
-                      products={products}
-                      batches={batches}
-                      salesReturns={salesReturns || []}
-                      pharmacyName={currentProfile?.pharmacy_name || null}
-                      currency={currentProfile?.pharmacy_currency || 'KSh'}
-                      theme={theme}
-                      isLoading={isLoading}
-                      onSalesReturn={actions.handleSalesReturn}
-                    />
-                  )}
+          {activeTab === 'requests' && (
+            <RequestedItemsView
+              requestedItems={requestedItems || []}
+              pharmacyName={currentProfile?.pharmacy_name || null}
+              currency={currentProfile?.pharmacy_currency || 'KSh'}
+              theme={theme}
+              isLoading={isLoading}
+              onAddRequestedItem={actions.handleAddRequestedItem}
+              onUpdateRequestedItem={actions.handleUpdateRequestedItem}
+              onDeleteRequestedItem={actions.handleDeleteRequestedItem}
+              pharmacy={{
+                name: currentProfile?.pharmacy_name || 'Pharmacy',
+                address: currentProfile?.pharmacy_address || '',
+                phone: currentProfile?.pharmacy_phone || '',
+                currency: currentProfile?.pharmacy_currency || 'KSh'
+              }}
+            />
+          )}
 
-                  {activeTab === 'more' && (
-                    <MoreView
-                      profile={currentProfile}
-                      profiles={profiles}
-                      currentRole={currentRole}
-                      suppliers={suppliers}
-                      auditLogs={auditLogs}
-                      isOnline={isOnline}
-                      syncPendingCount={syncPendingCount}
-                      onUpdateProfile={actions.handleUpdateProfile}
-                      onUpdatePharmacyName={actions.handleUpdatePharmacyName}
-                      onAddSupplier={actions.handleAddSupplier}
-                      onAddStaff={actions.handleAddStaff}
-                      onTriggerSync={triggerSyncQueue}
-                      theme={theme}
-                      onResetLocalCache={actions.handleResetLocalCache}
-                      onNavigateToTab={(tab) => setActiveTab(tab)}
-                      onNavigateToSecurity={() => setShowSecurityView(true)}
-                      onNavigateToHardReset={() => setShowHardResetView(true)}
-                      onNavigateToSmartOrder={() => setActiveTab('orders')}
-                    />
-                  )}
+          {activeTab === 'returns' && (
+            <SalesReturnsView
+              sales={sales}
+              products={products}
+              batches={batches}
+              salesReturns={salesReturns || []}
+              pharmacyName={currentProfile?.pharmacy_name || null}
+              currency={currentProfile?.pharmacy_currency || 'KSh'}
+              theme={theme}
+              isLoading={isLoading}
+              onSalesReturn={actions.handleSalesReturn}
+            />
+          )}
 
-                  {/* Other Views */}
-                  {activeTab === 'about' && <AboutView theme={theme} />}
-                  {activeTab === 'privacy' && <PrivacyPolicyView theme={theme} />}
-                  {activeTab === 'terms' && <TermsConditionsView theme={theme} />}
-                </>
-              )}
-            </>
+          {activeTab === 'more' && (
+            <MoreView
+              profile={currentProfile}
+              profiles={profiles}
+              currentRole={currentRole}
+              suppliers={suppliers}
+              auditLogs={auditLogs}
+              isOnline={isOnline}
+              syncPendingCount={syncPendingCount}
+              onUpdateProfile={actions.handleUpdateProfile}
+              onUpdatePharmacyName={actions.handleUpdatePharmacyName}
+              onAddSupplier={actions.handleAddSupplier}
+              onAddStaff={actions.handleAddStaff}
+              onTriggerSync={triggerSyncQueue}
+              theme={theme}
+              onResetLocalCache={actions.handleResetLocalCache}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
+              onNavigateToSecurity={() => setShowSecurityView(true)}
+              onNavigateToHardReset={() => setShowHardResetView(true)}
+              onNavigateToSmartOrder={() => setActiveTab('orders')}
+            />
           )}
         </main>
       </div>
@@ -516,9 +557,7 @@ export default function App() {
             `}
             role="alert"
           >
-            {/* Top Row: Icon + Message + Close */}
             <div className="flex items-start gap-3 sm:gap-4">
-              {/* Icon Section */}
               <div className="flex-shrink-0">
                 {toastType === 'success' && (
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
@@ -543,7 +582,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Message Section */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm sm:text-base font-bold break-words">
                   {toastMessage}
@@ -565,7 +603,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Close Button - Larger touch target for mobile */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -580,7 +617,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Bottom Row: Buttons - Only for Info type */}
             {toastType === 'info' && (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-3 sm:mt-4 ml-0 sm:ml-16">
                 <button
@@ -747,7 +783,6 @@ export default function App() {
         .animate-slide-up {
           animation: slideUp 0.3s ease-out forwards;
         }
-        /* Mobile touch improvements */
         .touch-manipulation {
           touch-action: manipulation;
           -webkit-tap-highlight-color: transparent;

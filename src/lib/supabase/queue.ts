@@ -13,7 +13,37 @@ const MAX_RETRY_COUNT = 5;
 const BATCH_SIZE = 50;
 const SYNC_TIMEOUT_MS = 30000;
 const LOCK_TIMEOUT_MS = 10000;
-
+// =============================================
+// PROCESSOR LOCK — only one run of processOfflineSyncQueue
+// can be in flight at a time.
+// =============================================
+// WHY: queueOfflineMutation defers a sync via setTimeout(0),
+// AND handleCompleteSale calls processOfflineSyncQueue()
+// directly at the end. Both can fire within milliseconds.
+// Without this lock, the same pending item is picked up
+// by two parallel runs, and one gets 409.
+// =============================================
+let mainQueueInFlight: Promise<{ synced: number; failed: number }> | null = null;
+// =============================================
+// 🆕 LOYALTY ENTITY TYPES
+// =============================================
+// These entity types live in `db.loyalty_sync_queue`,
+// processed by lib/supabase/loyalty/queue.ts.
+//
+// This filter is a DEFENSIVE safety net:
+//   If a loyalty item ever leaks into `db.sync_queue`
+//   (legacy code, migration bug, manual insert),
+//   the main queue MUST NOT pick it up — otherwise
+//   both queues would push the same row → race + duplicates.
+// =============================================
+const LOYALTY_ENTITY_TYPES = new Set<string>([
+    'customers_loyalty_transactions',
+    'customers_rewards_catalog',
+    'customers_loyalty_card_orders',
+    'loyalty_transaction',
+    'reward_catalog',
+    'loyalty_card_order',
+]);
 // =============================================
 // QUEUE MUTATION - WITH DEDUPLICATION AND VALIDATION
 // =============================================
@@ -97,12 +127,24 @@ export async function queueOfflineMutation(
     // =============================================
     // Trigger sync if online — deferred so we don't break an active
     // Dexie transaction that may be wrapping this call.
+    // =============================================
+    // Deferred sync trigger
+    // =============================================
+    // Only schedule if we don't already have one pending.
+    // The lock inside processOfflineSyncQueue handles the case
+    // where a call slips through, but avoiding the extra
+    // scheduling reduces noise.
+    // =============================================
     if (navigator.onLine && isSupabaseConfigured()) {
-        setTimeout(() => {
-            processOfflineSyncQueue().catch((err) => {
-                console.error('Background sync failed:', err);
-            });
-        }, 0);
+        if (!(globalThis as any).__medpSyncScheduled) {
+            (globalThis as any).__medpSyncScheduled = true;
+            setTimeout(() => {
+                (globalThis as any).__medpSyncScheduled = false;
+                processOfflineSyncQueue().catch((err) => {
+                    console.error('Background sync failed:', err);
+                });
+            }, 0);
+        }
     }
 }
 
@@ -194,8 +236,21 @@ function sanitizePayload(entityType: string, operation: string, payload: any): a
 // PROCESS SYNC QUEUE - BATCH PROCESSING FOR SCALING
 // =============================================
 export async function processOfflineSyncQueue(): Promise<{ synced: number; failed: number }> {
-    const client = getSupabaseClient();
+    // Already running? Return the same promise to all callers.
+    if (mainQueueInFlight) {
+        console.log('[queue] processOfflineSyncQueue: already running, awaiting existing run');
+        return mainQueueInFlight;
+    }
 
+    mainQueueInFlight = doProcessOfflineSyncQueue().finally(() => {
+        mainQueueInFlight = null;
+    });
+
+    return mainQueueInFlight;
+}
+
+async function doProcessOfflineSyncQueue(): Promise<{ synced: number; failed: number }> {
+    const client = getSupabaseClient();
     if (!navigator.onLine || !client || !isSupabaseConfigured()) {
         return { synced: 0, failed: 0 };
     }
@@ -209,11 +264,35 @@ export async function processOfflineSyncQueue(): Promise<{ synced: number; faile
 
     // Process in batches for memory efficiency
     while (true) {
-        const pendingItems = await db.sync_queue
+        // =============================================
+        // 🆕 Filter out loyalty entities
+        // =============================================
+        // The `.filter()` runs in-memory AFTER the index scan,
+        // so it's cheap: we only ever hold BATCH_SIZE items.
+        // If a loyalty item sneaks into `sync_queue`, this
+        // skips it and logs a warning.
+        // =============================================
+        const rawPending = await db.sync_queue
             .where('status')
             .equals('pending')
-            .limit(BATCH_SIZE)
+            .limit(BATCH_SIZE * 2)   // over-fetch in case some are loyalty
             .toArray();
+
+        const pendingItems = rawPending
+            .filter(item => !LOYALTY_ENTITY_TYPES.has(item.entity_type))
+            .slice(0, BATCH_SIZE);
+
+        // Log the leak if we ever find a loyalty item here
+        const leaked = rawPending.filter(item =>
+            LOYALTY_ENTITY_TYPES.has(item.entity_type)
+        );
+        if (leaked.length > 0) {
+            console.warn(
+                `[queue] Found ${leaked.length} loyalty item(s) in main queue. ` +
+                `They will be skipped. If this recurs, check your migration.`,
+                leaked.map(i => ({ id: i.id, entity_type: i.entity_type }))
+            );
+        }
 
         if (pendingItems.length === 0) {
             break;
@@ -354,15 +433,20 @@ async function processSyncItem(item: OfflineSyncItem): Promise<{ success: boolea
                     payload.name = 'Unknown Product';
                 }
             }
-
             const { error: insertErr } = await client
                 .from(tableName)
-                .upsert(payload, { onConflict: 'id' });
+                .upsert(payload, {
+                    onConflict: 'id',
+                    ignoreDuplicates: false,
+                });
             error = insertErr;
         }
 
         if (error) {
-            // Handle foreign key errors
+            // =============================================
+            // FOREIGN KEY on suppliers_order_items —
+            // retry without product_id (server-side rule)
+            // =============================================
             if (error.code === '23503' && tableName === 'suppliers_order_items') {
                 console.warn('Foreign key error, retrying without product_id...');
                 const retryPayload = { ...item.payload };
@@ -382,6 +466,26 @@ async function processSyncItem(item: OfflineSyncItem): Promise<{ success: boolea
                 }
                 throw retryErr;
             }
+
+            // =============================================
+            // CONFLICT (409 / unique_violation) — row already exists.
+            // Treat as success: delete from queue and move on.
+            // =============================================
+            if (
+                error.code === '23505' ||
+                error.code === '409' ||
+                error.message?.toLowerCase().includes('conflict') ||
+                error.message?.toLowerCase().includes('duplicate key')
+            ) {
+                console.log(
+                    `[queue] Conflict on ${tableName} id=${item.payload?.id} — already synced, treating as success`
+                );
+                if (item.id) {
+                    await db.sync_queue.delete(item.id);
+                }
+                return { success: true };
+            }
+
             throw error;
         }
 

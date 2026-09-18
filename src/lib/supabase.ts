@@ -33,11 +33,20 @@ export {
 // =============================================
 // LOYALTY MODULE - Separate sync system
 // =============================================
+// =============================================
+// LOYALTY MODULE - Separate sync system
+// =============================================
 export {
   queueLoyaltyMutation,
   processLoyaltyQueue,
   getLoyaltyPendingCount,
+  getLoyaltyQueueStats,
+  retryFailedLoyaltyItems,
+  cleanupLoyaltyQueue,
   pullLoyaltyData,
+  fullResyncLoyaltyData,
+  getLocalLoyaltyCounts,
+  getRemoteLoyaltyCounts,
   getLoyaltyClient,
   mapLoyaltyEntityToTable,
   normalizePharmacyName as normalizeLoyaltyName,
@@ -85,24 +94,71 @@ export async function forceSyncAllData(pharmacyName: string): Promise<boolean> {
 
   try {
     const { processOfflineSyncQueue } = await import('./supabase/queue');
+    const { processLoyaltyQueue } = await import('./supabase/loyalty/queue');
     const { pullFromSupabaseToLocal } = await import('./supabase/pull');
+    const { pullLoyaltyData } = await import('./supabase/loyalty/pull');
     const { normalizePharmacyName, setLastSyncTime } = await import('./supabase/utils');
 
     const normalizedName = normalizePharmacyName(pharmacyName);
 
-    // Process pending mutations first
-    const { synced, failed } = await processOfflineSyncQueue();
+    // =============================================
+    // PUSH: Both queues in parallel.
+    // =============================================
+    // They write to different Dexie tables AND different
+    // Supabase tables, so there is zero contention.
+    // Running them in parallel halves the wall-clock time.
+    // =============================================
+    // Sequential — main queue must finish before loyalty queue
+    // so FK parents exist in Supabase.
+    const pushResults: Array<PromiseSettledResult<any>> = [];
+    try {
+      const mainRes = await processOfflineSyncQueue();
+      pushResults.push({ status: 'fulfilled', value: mainRes });
+    } catch (e) {
+      pushResults.push({ status: 'rejected', reason: e });
+    }
+    try {
+      const loyaltyRes = await processLoyaltyQueue();
+      pushResults.push({ status: 'fulfilled', value: loyaltyRes });
+    } catch (e) {
+      pushResults.push({ status: 'rejected', reason: e });
+    }
 
-    // Pull latest data from Supabase
-    const pulled = await pullFromSupabaseToLocal(normalizedName);
+    // Log failures but don't abort — pulling still matters
+    for (const [i, result] of pushResults.entries()) {
+      if (result.status === 'rejected') {
+        const which = i === 0 ? 'main' : 'loyalty';
+        console.warn(`[forceSync] ${which} push failed:`, result.reason);
+      }
+    }
 
-    // Update last sync time on success
-    if (pulled) {
+    // =============================================
+    // PULL: Both datasets in parallel.
+    // =============================================
+    const pullResults = await Promise.allSettled([
+      pullFromSupabaseToLocal(normalizedName),
+      pullLoyaltyData(normalizedName),
+    ]);
+
+    const mainPulled =
+      pullResults[0].status === 'fulfilled' && pullResults[0].value === true;
+
+    if (pullResults[0].status === 'rejected') {
+      console.warn('[forceSync] main pull failed:', pullResults[0].reason);
+    }
+    if (pullResults[1].status === 'rejected') {
+      console.warn('[forceSync] loyalty pull failed:', pullResults[1].reason);
+    }
+
+    // Only bump the sync timestamp if the MAIN pull succeeded.
+    // Loyalty is best-effort; if it failed, we'll retry next cycle.
+    if (mainPulled) {
       setLastSyncTime(normalizedName, new Date());
     }
 
-    return pulled;
+    return mainPulled;
   } catch (error) {
+    console.warn('[forceSync] unexpected error:', error);
     return false;
   } finally {
     forceSyncInProgress = false;
@@ -149,6 +205,7 @@ export async function getSyncStatus(pharmacyName: string): Promise<{
   isOnline: boolean;
   isConfigured: boolean;
   pendingCount: number;
+  loyaltyPendingCount: number;
   lastSyncTime: Date | null;
   queueStats: {
     pending: number;
@@ -157,30 +214,41 @@ export async function getSyncStatus(pharmacyName: string): Promise<{
     permanent_failure: number;
     total: number;
   };
+  loyaltyQueueStats: {
+    pending: number;
+    syncing: number;
+    failed: number;
+    total: number;
+  };
 }> {
   const { isSupabaseConfigured } = await import('./supabase/client');
   const { getPendingSyncCount, getQueueStats } = await import('./supabase/queue');
+  const { getLoyaltyPendingCount, getLoyaltyQueueStats } = await import('./supabase/loyalty/queue');
   const { getLastSyncTime } = await import('./supabase/utils');
 
   const normalizedName = pharmacyName;
   const isOnline = navigator.onLine;
   const isConfigured = isSupabaseConfigured();
 
-  const [pendingCount, queueStats, lastSyncTime] = await Promise.all([
-    getPendingSyncCount(normalizedName),
-    getQueueStats(normalizedName),
-    Promise.resolve(getLastSyncTime(normalizedName))
-  ]);
+  const [pendingCount, loyaltyPendingCount, queueStats, loyaltyQueueStats, lastSyncTime] =
+    await Promise.all([
+      getPendingSyncCount(normalizedName),
+      getLoyaltyPendingCount(),
+      getQueueStats(normalizedName),
+      getLoyaltyQueueStats(),
+      Promise.resolve(getLastSyncTime(normalizedName)),
+    ]);
 
   return {
     isOnline,
     isConfigured,
     pendingCount,
+    loyaltyPendingCount,
     lastSyncTime: lastSyncTime || null,
-    queueStats
+    queueStats,
+    loyaltyQueueStats,
   };
 }
-
 // =============================================
 // OPTIMIZED: Clear all data for a pharmacy
 // =============================================

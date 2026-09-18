@@ -8,6 +8,8 @@ import {
     processOfflineSyncQueue,
     isSupabaseConfigured,
     smartPullFromSupabase,
+    processLoyaltyQueue,
+    pullLoyaltyData,
 } from '../lib/supabase';
 import { normalizePharmacyName } from '../utils/helpers';
 import {
@@ -24,6 +26,7 @@ import {
     AuditLog,
     RequestedItem,
     SalesReturn,
+    LoyaltyTransaction,   // 🆕
 } from '../types';
 
 const APP_VERSION = '1.0.0';
@@ -60,6 +63,9 @@ export interface AppState {
     auditLogs: AuditLog[];
     requestedItems: RequestedItem[];
     salesReturns: SalesReturn[];
+    loyaltyTransactions: LoyaltyTransaction[];   // 🆕
+
+    // UI State
 
     // UI State
     isLoading: boolean;
@@ -132,6 +138,7 @@ export const useApp = (): AppState => {
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [requestedItems, setRequestedItems] = useState<RequestedItem[]>([]);
     const [salesReturns, setSalesReturns] = useState<SalesReturn[]>([]);
+    const [loyaltyTransactions, setLoyaltyTransactions] = useState<LoyaltyTransaction[]>([]);   // 🆕
 
     // UI State
     const [isLoading, setIsLoading] = useState(true);
@@ -326,6 +333,8 @@ export const useApp = (): AppState => {
                 changedMovements,
                 changedRequestedItems,
                 changedSalesReturns,
+                changedCustomers,
+                changedLoyaltyTxs,
             ] = await Promise.all([
                 db.products.where('pharmacy_name').equals(normalized).toArray(),
                 db.product_batches.where('pharmacy_name').equals(normalized).toArray(),
@@ -333,6 +342,10 @@ export const useApp = (): AppState => {
                 db.stock_movements.where('pharmacy_name').equals(normalized).toArray(),
                 db.requested_items.where('pharmacy_name').equals(normalized).toArray(),
                 db.sales_returns.where('pharmacy_name').equals(normalized).toArray(),
+                // 🆕 customers carry loyalty_points balance
+                db.customers.where('pharmacy_name').equals(normalized).toArray(),
+                // 🆕 loyalty transactions history (used by CustomerSelector + Dashboard)
+                db.customers_loyalty_transactions.where('pharmacy_name').equals(normalized).toArray(),
             ]);
 
             setProducts(changedProducts);
@@ -341,6 +354,10 @@ export const useApp = (): AppState => {
             setMovements(changedMovements);
             setRequestedItems(changedRequestedItems);
             setSalesReturns(changedSalesReturns);
+            setCustomers(changedCustomers);
+            setLoyaltyTransactions(changedLoyaltyTxs);   // 🆕
+            // Note: loyalty transactions are not top-level state here, but they
+            // are now re-read so any consumer that queries the DB gets fresh data.
         } catch (err) {
             console.warn('Unable to refresh changed pharmacy data:', err);
         }
@@ -361,17 +378,58 @@ export const useApp = (): AppState => {
         showStatus('Syncing pharmacy data', 'loading', false);
 
         try {
-            const result = await processOfflineSyncQueue();
-            const { synced, failed } = result;
+            // =============================================
+            // PUSH: Both queues in parallel.
+            // =============================================
+            // Main queue handles sales/products/batches/etc.
+            // Loyalty queue handles points/rewards/card orders.
+            // They write to different Dexie tables AND different
+            // Supabase tables, so parallel is safe and faster.
+            // =============================================
+            // Sequential: main first, then loyalty. Prevents FK violations
+            // when the loyalty row references a sale/customer that hasn't
+            // landed in Supabase yet.
+            let mainResult: PromiseSettledResult<any>;
+            let loyaltyResult: PromiseSettledResult<any>;
+            try {
+                const mainValue = await processOfflineSyncQueue();
+                mainResult = { status: 'fulfilled', value: mainValue } as PromiseFulfilledResult<any>;
+            } catch (e) {
+                mainResult = { status: 'rejected', reason: e } as PromiseRejectedResult;
+            }
+            try {
+                const loyaltyValue = await processLoyaltyQueue();
+                loyaltyResult = { status: 'fulfilled', value: loyaltyValue } as PromiseFulfilledResult<any>;
+            } catch (e) {
+                loyaltyResult = { status: 'rejected', reason: e } as PromiseRejectedResult;
+            }
 
+            const synced = mainResult.status === 'fulfilled' ? mainResult.value.synced : 0;
+            const failed = mainResult.status === 'fulfilled' ? mainResult.value.failed : 0;
+
+            if (mainResult.status === 'rejected') {
+                console.warn('[useApp] main queue push failed:', mainResult.reason);
+            }
+            if (loyaltyResult.status === 'rejected') {
+                console.warn('[useApp] loyalty queue push failed:', loyaltyResult.reason);
+            }
+
+            // =============================================
+            // PULL: Remote → local for both systems
+            // =============================================
             if (isSupabaseConfigured() && isOnline) {
                 const pharmacyName = normalizePharmacyName(currentProfile.pharmacy_name);
                 const lastProfileSyncTime = getLastProfileSyncTime(pharmacyName);
 
                 if (shouldPullProfileData(lastProfileSyncTime)) {
                     try {
-                        const success = await smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined);
-                        if (success) {
+                        // Parallel pull of main + loyalty datasets
+                        const [mainPull] = await Promise.allSettled([
+                            smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined),
+                            pullLoyaltyData(pharmacyName),
+                        ]);
+
+                        if (mainPull.status === 'fulfilled' && mainPull.value === true) {
                             const syncTime = new Date();
                             setLastSyncTime(syncTime);
                             localStorage.setItem(`medp_last_sync_${pharmacyName}`, syncTime.toISOString());
@@ -387,8 +445,14 @@ export const useApp = (): AppState => {
                 }
             }
 
-            const pendingCount = await db.sync_queue.where('status').equals('pending').count();
-            setSyncPendingCount(pendingCount);
+            // =============================================
+            // UPDATE PENDING BADGE: counts both queues
+            // =============================================
+            const [mainPending, loyaltyPending] = await Promise.all([
+                db.sync_queue.where('status').equals('pending').count(),
+                db.loyalty_sync_queue.where('status').equals('pending').count(),
+            ]);
+            setSyncPendingCount(mainPending + loyaltyPending);
 
             const timeStr = new Date().toLocaleTimeString('en-US', {
                 hour: '2-digit',
@@ -424,6 +488,7 @@ export const useApp = (): AppState => {
         }
     }, [
         isOnline,
+        isInternetReachable,
         currentProfile,
         showStatus,
         refreshChangedData,
@@ -492,7 +557,6 @@ export const useApp = (): AppState => {
             if (!pharmacyName) {
                 return;
             }
-
             const [
                 pharmacyProducts,
                 pharmacyBatches,
@@ -505,6 +569,7 @@ export const useApp = (): AppState => {
                 pharmacyAuditLogs,
                 pharmacyRequestedItems,
                 pharmacySalesReturns,
+                pharmacyLoyaltyTx,   // 🆕
             ] = await Promise.all([
                 db.products.where('pharmacy_name').equals(pharmacyName).toArray(),
                 db.product_batches.where('pharmacy_name').equals(pharmacyName).toArray(),
@@ -517,8 +582,8 @@ export const useApp = (): AppState => {
                 db.audit_logs.where('pharmacy_name').equals(pharmacyName).toArray(),
                 db.requested_items.where('pharmacy_name').equals(pharmacyName).toArray(),
                 db.sales_returns.where('pharmacy_name').equals(pharmacyName).toArray(),
+                db.customers_loyalty_transactions.where('pharmacy_name').equals(pharmacyName).toArray(),   // 🆕
             ]);
-
             setProducts(pharmacyProducts);
             setBatches(pharmacyBatches);
             setCategories(pharmacyCategories);
@@ -530,12 +595,24 @@ export const useApp = (): AppState => {
             setAuditLogs(pharmacyAuditLogs);
             setRequestedItems(pharmacyRequestedItems);
             setSalesReturns(pharmacySalesReturns);
+            setLoyaltyTransactions(pharmacyLoyaltyTx);   // 🆕
             if (isOnline && isInternetReachable && isSupabaseConfigured() && !syncInProgressRef.current) {
                 const lastProfileSyncTime = getLastProfileSyncTime(pharmacyName);
+
+                // Always push pending loyalty items on boot (cheap if empty)
+                processLoyaltyQueue().catch(err =>
+                    console.warn('[useApp] boot loyalty push failed:', err)
+                );
+
                 if (shouldPullProfileData(lastProfileSyncTime)) {
                     try {
-                        const success = await smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined);
-                        if (success) {
+                        // Pull main + loyalty in parallel
+                        const [mainPull] = await Promise.allSettled([
+                            smartPullFromSupabase(pharmacyName, lastProfileSyncTime || undefined),
+                            pullLoyaltyData(pharmacyName),
+                        ]);
+
+                        if (mainPull.status === 'fulfilled' && mainPull.value === true) {
                             const syncTime = new Date();
                             setLastSyncTime(syncTime);
                             localStorage.setItem(`medp_last_sync_${pharmacyName}`, syncTime.toISOString());
@@ -548,8 +625,13 @@ export const useApp = (): AppState => {
                 }
             }
 
-            const pendingCount = await db.sync_queue.where('status').equals('pending').count();
-            setSyncPendingCount(pendingCount);
+
+            // Count both queues for the badge
+            const [mainPendingCount, loyaltyPendingCount] = await Promise.all([
+                db.sync_queue.where('status').equals('pending').count(),
+                db.loyalty_sync_queue.where('status').equals('pending').count(),
+            ]);
+            setSyncPendingCount(mainPendingCount + loyaltyPendingCount);
         } catch (err) {
             console.error('Unable to load pharmacy data:', err);
             if (!isInitialLoad.current) {
@@ -794,6 +876,7 @@ export const useApp = (): AppState => {
         auditLogs,
         requestedItems,
         salesReturns,
+        loyaltyTransactions,   // 🆕
         isLoading,
         isOnline,
         isSyncing,

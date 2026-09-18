@@ -813,9 +813,12 @@ export const HardResetView: React.FC<HardResetViewProps> = ({
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50">
                 <button
                     onClick={onCancel}
-                    className={`p-2 rounded-xl transition-colors ${touchTarget} ${isDark ? 'hover:bg-[#21262d]' : 'hover:bg-gray-200'}`}
+                    aria-label="Go back"
+                    className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-[#c9d1d9]' : 'hover:bg-black/5 text-[#1f2328]'}`}
                 >
-                    <ArrowLeft className="w-5 h-5" />
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
                 </button>
                 <div>
                     <h1 className={`text-lg font-bold ${textTitle}`}>Hard Reset</h1>

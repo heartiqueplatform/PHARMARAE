@@ -4,10 +4,10 @@ import { Pharmacy, Profile, UserRole, Product, ProductBatch, Customer, Sale, Sal
 import { Search, Camera, ShoppingBag, Plus, Minus, Trash2, Tag, User, CreditCard, Banknote, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X, Check, Calendar } from 'lucide-react';
 import { MedicationDatabaseOverlay } from '../MedicationDatabaseOverlay';
 import { CommonDrug } from '../../types/commonDrugs';
-import { calculateLoyaltyPoints, getPointsSummary } from '../../utils/loyaltyPoints';
+
 import { CustomerSelector } from '../pos/CustomerSelector';
 import { db } from '../../lib/db';
-import { queueLoyaltyMutation } from '../../lib/supabase';
+
 
 interface CartItem {
   product: Product;
@@ -49,7 +49,8 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // --- START: Sound & Vibration ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
+  // Hard lock for handleConfirmSale — prevents double submission
+  const isSubmittingRef = useRef(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -276,6 +277,22 @@ export const PosView: React.FC<PosViewProps> = ({
   const handleConfirmSale = async () => {
     if (cart.length === 0) return;
 
+    // =============================================
+    // GUARD: reject re-entry
+    // =============================================
+    // The button can fire twice before React flushes the
+    // `disabled` state to the DOM. A module-level ref
+    // survives across the two synchronous clicks, so we
+    // use it as a hard lock.
+    //
+    // This is the fix for the "double sale → 409" bug.
+    // =============================================
+    if (isSubmittingRef.current) {
+      console.warn('[PosView] handleConfirmSale: already in flight, ignoring');
+      return;
+    }
+    isSubmittingRef.current = true;
+
     setIsSubmitting(true);
     setShowConfirmOverlay(false);
     setProcessingStatus('saving');
@@ -315,124 +332,37 @@ export const PosView: React.FC<PosViewProps> = ({
 
       const result = await onCompleteSale(saleData, cart);
 
-      if (discountAmount > 0 && result?.id) {
+      if (discountAmount > 0 && result?.saleId) {
         setProcessingMessage('Saving discount details...');
       }
 
       // --- CALCULATE AND AWARD LOYALTY POINTS AFTER SALE COMPLETES ---
-      // --- CALCULATE AND AWARD LOYALTY POINTS AFTER SALE COMPLETES ---
-      console.log('=== LOYALTY POINTS DEBUG START ===');
-      console.log('selectedCustomer:', selectedCustomer);
-      console.log('result:', result);
-      console.log('result?.saleId:', result?.saleId);
-      console.log('cart:', cart);
+      // =============================================
+      // LOYALTY POINTS
+      // =============================================
+      // Points are now awarded INSIDE handleCompleteSale's
+      // transaction. The result object tells us how many.
+      //
+      // The variable `pointsEarnedTotal` is still used below
+      // (in the completion message and the reset logic), so we
+      // define it here from the result.
+      // =============================================
+      const pointsEarnedTotal = result?.loyaltyAwarded || 0;
 
-      let pointsEarnedTotal = 0;
-      let allAwards: any[] = [];
-
-      if (selectedCustomer && result?.saleId) {
-        console.log('Condition met - calculating points...');
-        try {
-          setProcessingMessage('Calculating loyalty points...');
-
-          for (const item of cart) {
-            console.log('Processing item:', {
-              name: item.product.name,
-              quantity: item.quantity,
-              subtotal: item.subtotal,
-              category: item.product.category_name,
-              generic: item.product.generic_name
-            });
-
-            const context = {
-              product: item.product,
-              quantity: item.quantity,
-              customerId: selectedCustomer.id,
-              totalAmount: item.subtotal,
-              prescriptionDuration: 7
-            };
-
-            const calcResult = await calculateLoyaltyPoints(context, safePharmacyName);
-            console.log('calcResult for item:', calcResult);
-
-            pointsEarnedTotal += calcResult.totalPoints;
-            allAwards.push(...calcResult.awards);
-          }
-
-          console.log('Total points earned:', pointsEarnedTotal);
-
-          if (pointsEarnedTotal > 0) {
-            console.log('Calling db.addLoyaltyPoints...');
-            const loyaltyResult = await db.addLoyaltyPoints(
-              safePharmacyName,
-              selectedCustomer.id,
-              pointsEarnedTotal,
-              'earn_purchase',
-              null,
-              `Earned ${pointsEarnedTotal} points from sale #${result.saleNumber || result.saleId}`,
-              null,  // <-- SET TO NULL - Don't link to sale
-              currentProfile?.id
-            );
-            console.log('Points added successfully!');
-            console.log('Loyalty result:', loyaltyResult);
-            if (loyaltyResult.success) {
-              // QUEUE CUSTOMER UPDATE (using main sync queue - works fine)
-              console.log('Queueing customer update for sync...');
-              await db.sync_queue.add({
-                sync_id: crypto.randomUUID(),
-                pharmacy_name: safePharmacyName,
-                user_id: currentProfile?.id || 'system',
-                entity_type: 'customers',
-                operation: 'UPDATE',
-                payload: {
-                  id: selectedCustomer.id,
-                  loyalty_points: (selectedCustomer.loyalty_points || 0) + pointsEarnedTotal,
-                  total_points_earned: (selectedCustomer.total_points_earned || 0) + pointsEarnedTotal,
-                  updated_at: new Date().toISOString()
-                },
-                created_at: new Date().toISOString(),
-                status: 'pending',
-                retry_count: 0
-              });
-              console.log('Customer update queued for sync!');
-
-              // QUEUE LOYALTY TRANSACTION (using NEW loyalty sync system)
-              if (loyaltyResult.transaction) {
-                console.log('Queueing loyalty transaction with loyalty sync...');
-                await queueLoyaltyMutation(
-                  safePharmacyName,
-                  currentProfile?.id || 'system',
-                  'customers_loyalty_transactions',
-                  'INSERT',
-                  loyaltyResult.transaction
-                );
-                console.log('Loyalty transaction queued for loyalty sync!');
-              }
-            }
-
-            const updatedCustomer = await db.customers.where('id').equals(selectedCustomer.id).first();
-            console.log('Updated customer:', updatedCustomer);
-            if (updatedCustomer) {
-              setSelectedCustomer(updatedCustomer);
-            }
-          } else {
-            console.log('No points earned - pointsEarnedTotal is 0');
-          }
-
-          setPointsEarned({
-            total: pointsEarnedTotal,
-            details: allAwards
-          });
-
-        } catch (pointsError) {
-          console.error('Points calculation error:', pointsError);
-        }
+      if (pointsEarnedTotal > 0) {
+        setPointsEarned({
+          total: pointsEarnedTotal,
+          details: [], // details come from inside the transaction
+        });
       } else {
-        console.log('Skipping points - conditions not met:');
-        console.log('  selectedCustomer:', selectedCustomer);
-        console.log('  result?.saleId:', result?.saleId);
+        setPointsEarned(null);
       }
-      console.log('=== LOYALTY POINTS DEBUG END ===');
+
+      // Refresh selectedCustomer so the header shows the new balance
+      if (selectedCustomer) {
+        const refreshed = await db.customers.where('id').equals(selectedCustomer.id).first();
+        if (refreshed) setSelectedCustomer(refreshed);
+      }
 
       setProcessingStatus('complete');
       if (pointsEarnedTotal > 0) {
@@ -469,6 +399,7 @@ export const PosView: React.FC<PosViewProps> = ({
         setProcessingMessage('');
       }, 3000);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -617,24 +548,35 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Customer & Payment Method - Mobile */}
         <div className={`mt-3 pt-2 ${borderLine} space-y-2`}>
-          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm ${textMuted} gap-1 sm:gap-2`}>
-            <span className="flex items-center gap-2 shrink-0">
-              <User className="w-4 h-4 shrink-0" />
-              Customer:
-            </span>
-            <div className="w-full sm:flex-1 sm:max-w-[280px]">
-              <CustomerSelector
-                pharmacyName={pharmacyName || ''}
-                selectedCustomer={selectedCustomer}
-                onSelectCustomer={setSelectedCustomer}
-                onCustomerCreated={(customer) => {
-                  setSelectedCustomer(customer);
-                }}
-                theme={theme}
-                currentProfileId={currentProfile?.id}
-              />
+          {selectedCustomer ? (
+            <SelectedCustomerCard
+              customer={selectedCustomer}
+              onClear={() => setSelectedCustomer(null)}
+              onChange={() => setSelectedCustomer(null)}
+              isDark={isDark}
+              textMuted={textMuted}
+              textTitle={textTitle}
+            />
+          ) : (
+            <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm ${textMuted} gap-1 sm:gap-2`}>
+              <span className="flex items-center gap-2 shrink-0">
+                <User className="w-4 h-4 shrink-0" />
+                Customer:
+              </span>
+              <div className="w-full sm:flex-1 sm:max-w-[280px]">
+                <CustomerSelector
+                  pharmacyName={pharmacyName || ''}
+                  selectedCustomer={selectedCustomer}
+                  onSelectCustomer={setSelectedCustomer}
+                  onCustomerCreated={(customer) => {
+                    setSelectedCustomer(customer);
+                  }}
+                  theme={theme}
+                  currentProfileId={currentProfile?.id}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className={`flex items-center justify-between text-sm ${textMuted}`}>
             <span className="flex items-center gap-2">
@@ -1151,24 +1093,35 @@ export const PosView: React.FC<PosViewProps> = ({
 
             {/* Customer & Payment Method - Desktop */}
             <div className={`mt-4 pt-3 ${borderLine} space-y-3`}>
-              <div className={`flex items-center justify-between text-sm ${textMuted} gap-2`}>
-                <span className="flex items-center gap-2 shrink-0">
-                  <User className="w-4 h-4" />
-                  Customer:
-                </span>
-                <div className="flex-1 max-w-[320px]">
-                  <CustomerSelector
-                    pharmacyName={pharmacyName || ''}
-                    selectedCustomer={selectedCustomer}
-                    onSelectCustomer={setSelectedCustomer}
-                    onCustomerCreated={(customer) => {
-                      setSelectedCustomer(customer);
-                    }}
-                    theme={theme}
-                    currentProfileId={currentProfile?.id}
-                  />
+              {selectedCustomer ? (
+                <SelectedCustomerCard
+                  customer={selectedCustomer}
+                  onClear={() => setSelectedCustomer(null)}
+                  onChange={() => setSelectedCustomer(null)}
+                  isDark={isDark}
+                  textMuted={textMuted}
+                  textTitle={textTitle}
+                />
+              ) : (
+                <div className={`flex items-center justify-between text-sm ${textMuted} gap-2`}>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <User className="w-4 h-4" />
+                    Customer:
+                  </span>
+                  <div className="flex-1 max-w-[320px]">
+                    <CustomerSelector
+                      pharmacyName={pharmacyName || ''}
+                      selectedCustomer={selectedCustomer}
+                      onSelectCustomer={setSelectedCustomer}
+                      onCustomerCreated={(customer) => {
+                        setSelectedCustomer(customer);
+                      }}
+                      theme={theme}
+                      currentProfileId={currentProfile?.id}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div className={`flex items-center justify-between text-sm ${textMuted}`}>
                 <span className="flex items-center gap-2">
                   <Tag className="w-4 h-4" />
@@ -1500,6 +1453,163 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
       )}
 
+    </div>
+  );
+};
+// =============================================
+// SELECTED CUSTOMER CARD — premium, always visible
+// =============================================
+// Why this exists:
+//   When a customer is selected, we show a full card
+//   with their name, phone, tier, points, and controls.
+//   This prevents staff from confusing customers when
+//   awarding loyalty points.
+// =============================================
+interface SelectedCustomerCardProps {
+  customer: Customer;
+  onClear: () => void;
+  onChange: () => void;
+  isDark: boolean;
+  textMuted: string;
+  textTitle: string;
+}
+
+const AVATAR_GRADIENTS = [
+  'from-emerald-500 to-teal-600',
+  'from-blue-500 to-indigo-600',
+  'from-purple-500 to-pink-600',
+  'from-amber-500 to-orange-600',
+  'from-rose-500 to-red-600',
+  'from-cyan-500 to-blue-600',
+  'from-lime-500 to-green-600',
+  'from-fuchsia-500 to-purple-600',
+];
+
+function getAvatarGradient(name: string): string {
+  if (!name) return AVATAR_GRADIENTS[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+}
+
+function getInitials(name: string): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getTierFromPoints(points: number) {
+  if (points >= 500)
+    return { label: 'Platinum', color: 'text-purple-400', bg: 'bg-purple-500/20' };
+  if (points >= 200)
+    return { label: 'Gold', color: 'text-amber-400', bg: 'bg-amber-400/20' };
+  if (points >= 100)
+    return { label: 'Silver', color: 'text-slate-300', bg: 'bg-slate-400/20' };
+  if (points >= 50)
+    return { label: 'Bronze', color: 'text-amber-600', bg: 'bg-amber-500/20' };
+  return { label: 'Member', color: 'text-slate-400', bg: 'bg-slate-500/20' };
+}
+
+const SelectedCustomerCard: React.FC<SelectedCustomerCardProps> = ({
+  customer,
+  onClear,
+  onChange,
+  isDark,
+  textMuted,
+  textTitle,
+}) => {
+  const points = customer.loyalty_points || 0;
+  const tier = getTierFromPoints(points);
+  const gradient = getAvatarGradient(customer.name || '?');
+  const initials = getInitials(customer.name || '?');
+
+  const cardBg = isDark ? 'bg-[#21262d]' : 'bg-[#f6f8fa]';
+
+  return (
+    <div className={`rounded-2xl p-3 ${cardBg} flex flex-col gap-2.5`}>
+      {/* Top row — avatar + name + actions */}
+      <div className="flex items-start gap-3">
+        {/* Avatar */}
+        <div className="relative shrink-0">
+          <div
+            className={`w-12 h-12 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-base font-black`}
+          >
+            {initials}
+          </div>
+          {/* Tier badge */}
+          <div
+            className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full ${tier.bg} flex items-center justify-center ring-2 ${isDark ? 'ring-[#21262d]' : 'ring-[#f6f8fa]'
+              }`}
+          >
+            <span className={`text-[8px] font-black ${tier.color}`}>★</span>
+          </div>
+        </div>
+
+        {/* Name + phone */}
+        <div className="flex-1 min-w-0">
+          <p className={`font-black text-sm ${textTitle} truncate`}>
+            {customer.name || 'Unknown Customer'}
+          </p>
+          {customer.phone ? (
+            <p className={`text-xs ${textMuted} truncate mt-0.5`}>
+              📞 {customer.phone}
+            </p>
+          ) : (
+            <p className={`text-xs ${textMuted} italic mt-0.5`}>No phone</p>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onChange}
+            className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-[#30363d]' : 'hover:bg-slate-200'} transition-colors ${textMuted}`}
+            title="Change customer"
+            aria-label="Change customer"
+          >
+            <User className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onClear}
+            className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-[#30363d]' : 'hover:bg-slate-200'} text-rose-500 transition-colors`}
+            title="Remove customer"
+            aria-label="Remove customer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom row — tier + points */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div
+          className={`px-2.5 py-1 rounded-full ${tier.bg} flex items-center gap-1.5`}
+        >
+          <span className={`text-[10px] font-black uppercase tracking-wider ${tier.color}`}>
+            {tier.label}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15">
+          <span className="text-[11px] font-black text-amber-500">
+            {points.toLocaleString()} pts
+          </span>
+        </div>
+
+        {customer.loyalty_card_number && (
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#2ea043]/15">
+            <span className="text-[10px] font-black text-[#2ea043]">
+              #{customer.loyalty_card_number}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Safety note — prevents wrong customer staff mistake */}
+      <div className={`text-[10px] ${textMuted} leading-tight`}>
+        ⚠️ Points will be credited to <span className="font-bold">{customer.name}</span>. Confirm this is the right customer before completing the sale.
+      </div>
     </div>
   );
 };

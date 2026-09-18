@@ -18,8 +18,28 @@ export function mapLoyaltyEntityToTable(entityType: string): string {
     return mapping[entityType] || entityType;
 }
 
-export const LOYALTY_TABLE_CONFIGS = [
-    { table: 'customers_loyalty_transactions', dbKey: 'customers_loyalty_transactions' },
-    { table: 'customers_rewards_catalog', dbKey: 'customers_rewards_catalog' },
-    { table: 'customers_loyalty_card_orders', dbKey: 'customers_loyalty_card_orders' },
-];
+export const LOYALTY_TABLE_CONFIGS: Array<{
+    table: string;
+    dbKey: string;
+}> = [
+        { table: 'customers_loyalty_transactions', dbKey: 'customers_loyalty_transactions' },
+        { table: 'customers_rewards_catalog', dbKey: 'customers_rewards_catalog' },
+        { table: 'customers_loyalty_card_orders', dbKey: 'customers_loyalty_card_orders' },
+    ];
+
+// =============================================
+// DEBUG LOGGING — same pattern as main pull
+//   localStorage.setItem('medp_loyalty_debug', 'true')
+// =============================================
+export function loyaltyDebugEnabled(): boolean {
+    try { return localStorage.getItem('medp_loyalty_debug') === 'true'; }
+    catch { return false; }
+}
+
+export function loyaltyLog(...args: any[]) {
+    if (loyaltyDebugEnabled()) console.log('[LOYALTY]', ...args);
+}
+
+export function loyaltyWarn(...args: any[]) {
+    console.warn('[LOYALTY]', ...args);
+}

@@ -1,8 +1,18 @@
 // hooks/useActions.ts - COMPLETE FIX
-
 import { useCallback } from 'react';
 import { db } from '../lib/db';
-import { queueOfflineMutation, getSupabaseClient, pullFromSupabaseToLocal, isSupabaseConfigured, processOfflineSyncQueue, changeUserPin, changeUserPassword, deleteAccount } from '../lib/supabase';
+import {
+    queueOfflineMutation,
+    getSupabaseClient,
+    pullFromSupabaseToLocal,
+    isSupabaseConfigured,
+    processOfflineSyncQueue,
+    changeUserPin,
+    changeUserPassword,
+    deleteAccount,
+    queueLoyaltyMutation,
+    processLoyaltyQueue,     // 🆕
+} from '../lib/supabase';
 import {
     Profile,
     Product,
@@ -49,7 +59,24 @@ export const useActions = (props: UseActionsProps) => {
         if (!currentProfile) return null;
         return normalizePharmacyName(currentProfile.pharmacy_name);
     }, [currentProfile]);
+    // =============================================
+    // LOYALTY POINT CALCULATION
+    // =============================================
+    // Rule: 1 point per KSh 100 spent.
+    // Adjust POINTS_PER_CURRENCY_UNIT to change the earn rate.
+    //
+    // Example: A KSh 250 sale earns floor(250 * 0.01) = 2 points.
+    //
+    // Where this runs: inside handleCompleteSale's transaction,
+    // so if the sale commits, points are guaranteed. If the sale
+    // rolls back, points roll back too.
+    // =============================================
+    const POINTS_PER_CURRENCY_UNIT = 0.01;
 
+    function calculatePointsEarned(totalAmount: number): number {
+        const pts = Math.floor((totalAmount || 0) * POINTS_PER_CURRENCY_UNIT);
+        return Math.max(0, pts);
+    }
     // =============================================
     // HELPER: Build complete product update payload
     // =============================================
@@ -367,6 +394,8 @@ export const useActions = (props: UseActionsProps) => {
                     db.audit_logs,
                     db.discounts,
                     db.sync_queue,
+                    db.customers,                       // 🆕
+                    db.customers_loyalty_transactions,  // 🆕
                 ],
                 async () => {
                     // 1. Sales rows
@@ -397,63 +426,62 @@ export const useActions = (props: UseActionsProps) => {
                     // 7. Sync queue entries (Dexie-only — safe in transaction)
                     //    Queue every entity we just wrote so it eventually
                     //    reaches Supabase.
-                    for (const sale of salesRows) {
-                        await queueOfflineMutation(
-                            pharmacyName,
-                            currentProfile?.id || '',
-                            'sale',
-                            'INSERT',
-                            sale
-                        );
-                    }
-                    for (const prod of productUpdates) {
-                        await queueOfflineMutation(
-                            pharmacyName,
-                            currentProfile?.id || '',
-                            'product',
-                            'UPDATE',
-                            buildProductUpdatePayload(prod)
-                        );
-                    }
-                    for (const bu of batchUpdates) {
-                        await queueOfflineMutation(
-                            pharmacyName,
-                            currentProfile?.id || '',
-                            'batch',
-                            'UPDATE',
-                            {
-                                id: bu.id,
-                                quantity_base: bu.quantity_base,
-                                updated_at: bu.updated_at,
-                                pharmacy_name: pharmacyName,
+                    // =============================================
+                    // 🆕 LOYALTY POINTS — awarded INSIDE the transaction
+                    // =============================================
+                    // We earn points here, in the same atomic block as
+                    // the sale. If anything below throws, everything
+                    // rolls back — no orphaned points.
+                    // =============================================
+                    if (saleData.customer_id) {
+                        const customer = await db.customers.get(saleData.customer_id);
+                        if (customer) {
+                            const pointsEarned = calculatePointsEarned(finalTotal);
+
+                            if (pointsEarned > 0) {
+                                const now2 = new Date().toISOString();
+                                const newBalance = (customer.loyalty_points || 0) + pointsEarned;
+
+                                // 1. Update customer balance
+                                await db.customers.update(saleData.customer_id, {
+                                    loyalty_points: newBalance,
+                                    total_points_earned: (customer.total_points_earned || 0) + pointsEarned,
+                                    total_spent: (customer.total_spent || 0) + finalTotal,
+                                    visit_count: (customer.visit_count || 0) + 1,
+                                    last_visit_date: now2,
+                                    first_visit_date: customer.first_visit_date || now2,
+                                    updated_at: now2,
+                                });
+
+                                // 2. Create loyalty transaction
+                                const loyaltyTxRow = {
+                                    id: genUUID(),
+                                    pharmacy_name: pharmacyName,
+                                    customer_id: saleData.customer_id,
+                                    sale_id: saleId,
+                                    sale_row_id: salesRows[0]?.id || null,   // 🆕 FK target — points to a real sales row
+                                    points: pointsEarned,
+                                    balance_after: newBalance,
+                                    transaction_type: 'earn_purchase' as const,
+                                    trigger_rule: 'points_per_currency',
+                                    reward_id: null,
+                                    reward_name: null,
+                                    description: `Earned ${pointsEarned} points from sale ${saleNumber}`,
+                                    metadata: {
+                                        sale_id: saleId,
+                                        sale_number: saleNumber,
+                                        total_amount: finalTotal,
+                                    },
+                                    created_at: now2,
+                                    created_by: currentProfile?.id || 'system',
+                                };
+
+                                await db.customers_loyalty_transactions.put(loyaltyTxRow);
                             }
-                        );
+                        }
                     }
-                    for (const mov of movementsRows) {
-                        await queueOfflineMutation(
-                            pharmacyName,
-                            currentProfile?.id || '',
-                            'stock_movement',
-                            'INSERT',
-                            mov
-                        );
-                    }
-                    await queueOfflineMutation(
-                        pharmacyName,
-                        currentProfile?.id || '',
-                        'audit_log',
-                        'INSERT',
-                        auditLog
-                    );
-                    if (discountRow) {
-                        await queueOfflineMutation(
-                            pharmacyName,
-                            currentProfile?.id || '',
-                            'discount',
-                            'INSERT',
-                            discountRow
-                        );
-                    }
+                    // ⚠️ STOP HERE. No sync_queue writes inside the transaction.
+                    //    Queueing happens AFTER the transaction commits.
                 }
             );
         } catch (txErr: any) {
@@ -471,9 +499,132 @@ export const useActions = (props: UseActionsProps) => {
         // Network calls MUST happen after the transaction commits.
         // If they fail, the local data is still consistent; sync will retry.
         // =============================================
+        // =============================================
+        // STEP 3b: QUEUE FOR SYNC (outside transaction)
+        // =============================================
+        // Now that the transaction has committed, the local DB is
+        // consistent. Queue every entity for sync.
+        // =============================================
+        try {
+            for (const sale of salesRows) {
+                await queueOfflineMutation(
+                    pharmacyName,
+                    currentProfile?.id || '',
+                    'sale',
+                    'INSERT',
+                    sale
+                );
+            }
+
+            for (const prod of productUpdates) {
+                await queueOfflineMutation(
+                    pharmacyName,
+                    currentProfile?.id || '',
+                    'product',
+                    'UPDATE',
+                    buildProductUpdatePayload(prod)
+                );
+            }
+
+            for (const bu of batchUpdates) {
+                await queueOfflineMutation(
+                    pharmacyName,
+                    currentProfile?.id || '',
+                    'batch',
+                    'UPDATE',
+                    {
+                        id: bu.id,
+                        quantity_base: bu.quantity_base,
+                        updated_at: bu.updated_at,
+                        pharmacy_name: pharmacyName,
+                    }
+                );
+            }
+
+            for (const mov of movementsRows) {
+                await queueOfflineMutation(
+                    pharmacyName,
+                    currentProfile?.id || '',
+                    'stock_movement',
+                    'INSERT',
+                    mov
+                );
+            }
+
+            await queueOfflineMutation(
+                pharmacyName,
+                currentProfile?.id || '',
+                'audit_log',
+                'INSERT',
+                auditLog
+            );
+
+            if (discountRow) {
+                await queueOfflineMutation(
+                    pharmacyName,
+                    currentProfile?.id || '',
+                    'discount',
+                    'INSERT',
+                    discountRow
+                );
+            }
+
+            // 🆕 Queue loyalty items if points were awarded
+            if (saleData.customer_id) {
+                const updatedCustomer = await db.customers.get(saleData.customer_id);
+                if (updatedCustomer) {
+                    // Customer balance update → MAIN queue
+                    await queueOfflineMutation(
+                        pharmacyName,
+                        currentProfile?.id || '',
+                        'customer',
+                        'UPDATE',
+                        updatedCustomer
+                    );
+
+                    // Loyalty transaction → LOYALTY queue
+                    const loyaltyTxs = await db.customers_loyalty_transactions
+                        .where('sale_id')
+                        .equals(saleId)
+                        .toArray();
+
+                    for (const tx of loyaltyTxs) {
+                        await queueLoyaltyMutation(
+                            pharmacyName,
+                            currentProfile?.id || 'system',
+                            'customers_loyalty_transactions',
+                            'INSERT',
+                            tx
+                        );
+                    }
+                }
+            }
+
+            console.log('[handleCompleteSale] ✅ All rows queued for sync');
+        } catch (queueErr: any) {
+            console.error('[handleCompleteSale] ⚠️ Queue write failed:', queueErr);
+            // Not fatal — local data is safe. Sync will pick up next cycle.
+        }
+
+        // =============================================
+        // STEP 4: TRIGGER SYNC (outside transaction)
+        // =============================================
+        // ORDER MATTERS:
+        //   1. Push the main queue first (sale, customer, products)
+        //      so the sale_id and customer_id exist in Supabase.
+        //   2. THEN push the loyalty queue. Its FK references will
+        //      resolve successfully on the first try.
+        //
+        // If we ran them in parallel (as before), the loyalty row
+        // would often fire before the sale landed → FK violation.
+        // =============================================
         if (navigator.onLine && isSupabaseConfigured()) {
             try {
+                // Main queue FIRST
                 await processOfflineSyncQueue();
+
+                // Loyalty queue SECOND — parents now exist
+                await processLoyaltyQueue();
             } catch (syncErr) {
                 console.warn(
                     '[handleCompleteSale] Background sync failed — will retry later:',
@@ -481,7 +632,6 @@ export const useActions = (props: UseActionsProps) => {
                 );
             }
         }
-
         // =============================================
         // STEP 5: RELOAD + RECEIPT + NOTIFICATION
         // =============================================
@@ -513,12 +663,22 @@ export const useActions = (props: UseActionsProps) => {
             // Notifications are best-effort
         }
 
+        // Look up how many points we awarded (for the UI to display)
+        let loyaltyAwarded = 0;
+        if (saleData.customer_id) {
+            const tx = await db.customers_loyalty_transactions
+                .where('sale_id').equals(saleId)
+                .first();
+            loyaltyAwarded = tx?.points || 0;
+        }
+
         return {
             success: true,
             saleId,
             saleNumber,
             totalItems,
             finalTotal,
+            loyaltyAwarded,
         };
     }, [
         currentProfile,
@@ -1045,14 +1205,7 @@ export const useActions = (props: UseActionsProps) => {
             await db.audit_logs.put(auditLog);
             await queueOfflineMutation(pharmacyName, currentProfile?.id || '', 'audit_log', 'INSERT', auditLog);
 
-            // Force sync immediately if online
-            if (navigator.onLine && isSupabaseConfigured()) {
-                try {
-                    await processOfflineSyncQueue();
-                } catch (syncErr) {
-                    console.warn('Sync failed, will retry later:', syncErr);
-                }
-            }
+
 
             await loadDatabaseData();
         } catch (err) {

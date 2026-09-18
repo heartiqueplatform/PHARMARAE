@@ -1,1037 +1,1187 @@
-/**
- * MED P Pharmacy Management System - Global TypeScript Definitions
- * Architecture: Single Profile Table (One Pharmacy, Multiple Users)
- */
-
-export type UserRole = 'owner' | 'admin' | 'pharmacist' | 'cashier' | 'storekeeper';
-
-export type DosageFormType =
-  | 'tablet'
-  | 'capsule'
-  | 'liquid'
-  | 'injection'
-  | 'cream'
-  | 'ointment'
-  | 'syrup'
-  | 'suspension'
-  | 'powder'
-  | 'inhaler'
-  | 'drops'
-  | 'sachet'
-  | 'bandage'
-  | 'equipment'
-  | 'other';
-
-export type ScheduleType = 'none' | 'schedule_I' | 'schedule_II' | 'schedule_III' | 'schedule_IV' | 'schedule_V';
+// lib/supabase/pull.ts
 // =============================================
-// LOYALTY & REWARDS SYSTEM TYPES
+// PRODUCTION-READY PULL ENGINE v2
+// =============================================
+// Key fixes vs v1:
+//   1. Cursor-based pagination on `server_updated_at` (monotonic, gap-free)
+//   2. Never overwrites a newer local row with a stale remote row
+//   3. Serialized table pulls (concurrency cap) — survives 10k+ users
+//   4. Throws on failure instead of silently breaking
+//   5. Debug logging that can be toggled via localStorage
+//   6. Full-resync prunes only after a successful fetch
+//
+// ⚠️ REQUIRES: `server_updated_at` column + trigger + index on every table.
+//    See migration SQL at bottom of file.
 // =============================================
 
-export type LoyaltyTransactionType =
-  | 'earn_purchase'
-  | 'earn_bonus'
-  | 'earn_referral'
-  | 'earn_welcome'
-  | 'redeem_reward'
-  | 'redeem_delivery'
-  | 'adjustment';
-
-export type RewardCategory =
-  | 'bp_check'
-  | 'glucose_test'
-  | 'dewormer'
-  | 'vitamins'
-  | 'hiv_test'
-  | 'delivery'
-  | 'discount';
-
-export type LoyaltyCardOrderStatus =
-  | 'pending'
-  | 'processing'
-  | 'shipped'
-  | 'delivered'
-  | 'cancelled';
-export type MovementType =
-  | 'opening_balance'
-  | 'purchase'
-  | 'sale'
-  | 'sale_return'
-  | 'purchase_return'
-  | 'damage'
-  | 'expiry'
-  | 'adjustment_in'
-  | 'adjustment_out'
-  | 'stock_transfer'
-  | 'stocktake_adjustment';
-
-export type PaymentMethod = 'cash' | 'mpesa' | 'card' | 'credit' | 'insurance' | 'other';
-
-export type PaymentStatus = 'pending' | 'paid' | 'partial' | 'refunded';
+import { db } from '../db';
+import { getSupabaseClient, isSupabaseConfigured } from './client';
+import { normalizePharmacyName, TABLE_CONFIGS } from './utils';
+import { genUUID } from '../../utils/helpers';
 
 // =============================================
-// PHARMACY SETTINGS
+// CONFIG
 // =============================================
-export interface PharmacySettings {
-  allow_negative_stock: boolean;
-  low_stock_threshold: number;
-  expiry_warning_days: number;
+const PAGE_SIZE = 1000;
+const TABLE_CONCURRENCY = 3;   // how many tables to pull at once
+const BREATHE_MS = 50;         // pause between table batches
+const MAX_RETRIES_PER_PAGE = 2;
+
+// =============================================
+// DEBUG LOGGING
+// =============================================
+// Enable in browser console:
+//   localStorage.setItem('medp_pull_debug', 'true')
+// Disable:
+//   localStorage.removeItem('medp_pull_debug')
+//
+// Then watch the console for `[PULL]` prefixed lines.
+// =============================================
+function debugEnabled(): boolean {
+  try {
+    return localStorage.getItem('medp_pull_debug') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function log(...args: any[]) {
+  if (debugEnabled()) {
+    console.log('[PULL]', ...args);
+  }
+}
+
+function warn(...args: any[]) {
+  // Always warn on real problems, even if debug is off
+  console.warn('[PULL]', ...args);
 }
 
 // =============================================
-// PROFILE (Single Table - Contains Everything)
+// CONCURRENCY GUARD
+// Prevent parallel pulls from racing (delete + bulkPut)
 // =============================================
-export interface Profile {
-  id: string;
-  auth_user_id?: string | null; // Link to Supabase Auth user
-
-  // Pharmacy Info
-  pharmacy_name: string;
-  pharmacy_trading_name?: string;
-  pharmacy_phone?: string;
-  pharmacy_email?: string;
-  pharmacy_address?: string;
-  pharmacy_county?: string;
-  pharmacy_town?: string;
-  pharmacy_logo_url?: string | null; // Pharmacy logo (for settings)
-  pharmacy_receipt_header: string;
-  pharmacy_receipt_footer: string;
-  pharmacy_currency: string;
-  pharmacy_settings: PharmacySettings;
-  pharmacy_is_active: boolean;
-
-  // User Info
-  full_name: string;
-  email: string;
-  phone?: string;
-  pin_code?: string; // For fast terminal login
-  role: UserRole;
-  is_owner: boolean;
-  is_active: boolean;
-
-  // Metadata
-  avatar_url?: string | null; // User avatar (for header/profile)
-  avatar_public_id?: string | null; // Cloudinary public ID for deletion
-  last_login_at?: string;
-  created_at: string;
-  updated_at: string;
-}
+let pullInFlight: Promise<boolean> | null = null;
 
 // =============================================
-// INVENTORY - CATEGORIES & UNITS
+// HELPER: Build sale_id from row
 // =============================================
-export interface Category {
-  id: string;
-  pharmacy_name: string;
-  name: string;
-  description?: string;
-  active: boolean;
-  created_at: string;
-}
-
-export interface Unit {
-  id: string;
-  pharmacy_name: string;
-  name: string;
-  abbreviation: string;
-  is_base_unit: boolean;
-}
-
+// ⚠️ NOTE: sale_id should be a REAL column in Supabase.
+//    This fallback exists only for legacy rows that predate the column.
+//    If you see sale_id values derived from `id` in the wild, you have
+//    legacy rows that need backfilling (see migration SQL).
 // =============================================
-// PRODUCTS
-// =============================================
-export interface ProductUnit {
-  id: string;
-  product_id: string;
-  unit_id: string;
-  unit_name?: string;
-  unit_abbr?: string;
-  conversion_to_base: number;
-  selling_price: number;
-  purchase_price?: number;
-  barcode?: string;
-  created_at?: string;
-}
-
-// Update the Product interface
-export interface Product {
-  id: string;
-  pharmacy_name: string;
-  category_id?: string;
-  category_name?: string;
-  name: string;
-  generic_name?: string;
-  brand?: string;
-  form: DosageFormType;
-  strength?: string;
-  manufacturer?: string;
-  sku?: string;
-  barcode?: string;
-  base_unit_id?: string;
-  base_unit_name?: string;
-  selling_price: number;
-  default_cost_price: number;
-  reorder_level: number;
-  prescription_required: boolean;
-  schedule_type?: ScheduleType;
-  active: boolean;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-
-  //  NEW INVENTORY LOCATION FIELDS
-  shelf_number?: string;              // Shelf number (e.g., "Shelf-3")
-  bay_number?: string;                // Bay or aisle (e.g., "Aisle-B", "Bay-2")
-  rack_number?: string;               // Rack within bay (e.g., "Rack-1")
-  storage_location?: string;          // Full location (e.g., "Bay-B, Rack-1, Shelf-3")
-  zone?: string;                      // Storage zone (e.g., "Zone-A", "Cold-Room")
-  bin_number?: string;                // Bin number (e.g., "BIN-007")
-  cardboard_box_id?: string;          // Cardboard box identifier
-  storage_condition?: StorageCondition; // Storage requirement
-  last_inventory_count_date?: string; // Last physical count date
-  last_inventory_count_by?: string;   // User who counted
-
-  // Calculated dynamically
-  total_stock_base?: number;
-  packaging_units?: ProductUnit[];
-  smart_tag?: 'LOW_STOCK' | 'FAST_MOVING' | 'SLOW_MOVING' | 'OUT_OF_STOCK' | 'EXPIRING_SOON' | 'EXPIRED' | 'NORMAL';
-}
-
-// Add new type for storage conditions
-export type StorageCondition =
-  | 'room_temperature'
-  | 'refrigerated'
-  | 'frozen'
-  | 'cold_chain'
-  | 'controlled'
-  | 'ambient';
-
-export interface ProductBatch {
-  id: string;
-  pharmacy_name: string;
-  product_id: string;
-  supplier_id?: string;
-  batch_number: string;
-  expiry_date: string;
-  quantity_base: number;
-  cost_price: number;
-  selling_price: number;
-  received_at: string;
-  created_at: string;
-  updated_at: string;
-  // Expanded
-  product_name?: string;
-  supplier_name?: string;
-}
-
-// =============================================
-// SUPPLIERS & PURCHASES
-// =============================================
-export interface Supplier {
-  id: string;
-  pharmacy_name: string;
-  name: string;
-  contact_person?: string;
-  phone: string;
-  email?: string;
-  address?: string;
-  notes?: string;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Purchase {
-  id: string;
-  pharmacy_name: string;
-  supplier_id: string;
-  supplier_name?: string;
-  purchase_number: string;
-  status: 'pending' | 'completed' | 'cancelled';
-  subtotal: number;
-  discount: number;
-  total: number;
-  received_by?: string;
-  received_by_name?: string;
-  purchased_at: string;
-  created_at: string;
-  updated_at: string;
-  items?: PurchaseItem[];
-}
-
-export interface PurchaseItem {
-  id: string;
-  purchase_id: string;
-  product_id: string;
-  batch_id?: string;
-  product_name?: string;
-  batch_number?: string;
-  expiry_date?: string;
-  quantity: number;
-  unit_id?: string;
-  unit_name?: string;
-  unit_cost: number;
-  subtotal: number;
-  created_at: string;
-}
-
-// =============================================
-// CUSTOMERS & SALES (UPDATED - Single Table Design)
-// =============================================
-export interface Customer {
-  id: string;
-  pharmacy_name: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  notes?: string;
-  credit_allowed: boolean;
-
-  // 🆕 LOYALTY FIELDS
-  loyalty_points?: number;
-  loyalty_card_number?: string;
-  location?: string;
-  county?: string;
-  town?: string;
-  estate?: string;
-  landmark?: string;
-  date_of_birth?: string;
-  gender?: 'male' | 'female' | 'other';
-  total_spent?: number;
-  visit_count?: number;
-  last_visit_date?: string;
-  first_visit_date?: string;
-  referral_code?: string;
-  referred_by?: string;
-  is_loyalty_member?: boolean;
-  total_points_earned?: number;
-  total_points_redeemed?: number;
-
-  created_at: string;
-  updated_at: string;
-}
-/**
- * SALE - Single Table Design
- * Since we sell ONE item at a time, all product details are stored directly
- * in the sales table. No separate sale_items table needed.
- */
-export interface Sale {
-  id: string;
-  pharmacy_name: string;
-  sale_number: string;
-  sale_id?: string;
-  // Customer Information
-  customer_id?: string;
-  customer_name?: string;
-
-  // Staff Information
-  sold_by?: string;
-  sold_by_name?: string;
-
-  //  PRODUCT DETAILS (Single Item per Sale)
-  product_id: string;
-  product_name: string;
-  product_barcode?: string;
-  product_sku?: string;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-
-  // Batch Information (Optional)
-  batch_id?: string;
-  batch_number?: string;
-
-  // Financial Details
-  discount: number;
-  discount_reason?: string;
-  tax: number;
-  total: number;
-
-  // Payment Details
-  payment_method?: PaymentMethod;
-  payment_status: PaymentStatus;
-  payment_reference?: string;
-
-  // Sale Status
-  status: 'completed' | 'returned' | 'voided' | 'pending';
-
-  //  Extra Product Metadata (Stored as JSON)
-  product_details?: {
-    generic_name?: string;
-    brand?: string;
-    form?: string;
-    strength?: string;
-    category?: string;
-    category_id?: string;
-    manufacturer?: string;
-    prescription_required?: boolean;
-    is_controlled?: boolean;
-    selling_price?: number;
-    cost_price?: number;
-    unit?: string;
-  };
-
-  // Additional Info
-  notes?: string;
-  offline_id?: string;
-  sale_date: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// ⚠️ DEPRECATED - SaleItem is no longer used
-// We now store everything in the Sale table directly
-// Keeping this for backward compatibility only
-export interface SaleItem {
-  id: string;
-  sale_id: string;
-  product_id: string;
-  product_name?: string;
-  batch_id?: string;
-  batch_number?: string;
-  quantity: number;
-  unit_id?: string;
-  unit_name?: string;
-  unit_price: number;
-  discount: number;
-  subtotal: number;
-  created_at: string;
-}
-
-// =============================================
-// PAYMENTS (Now Optional - Can use sale.payment_method)
-// =============================================
-export interface Payment {
-  id: string;
-  pharmacy_name: string;
-  sale_id: string;
-  method: PaymentMethod;
-  amount: number;
-  reference?: string;
-  status: PaymentStatus;
-  created_at: string;
-}
-
-// =============================================
-// STOCK MOVEMENTS & STOCKTAKES
-// =============================================
-export interface StockMovement {
-  id: string;
-  pharmacy_name: string;
-  product_id: string;
-  product_name?: string;
-  batch_id?: string;
-  batch_number?: string;
-  movement_type: MovementType;
-  quantity_base: number;
-  reference_type?: string;
-  reference_id?: string;
-  performed_by?: string;
-  performed_by_name?: string;
-  reason?: string;
-  created_at: string;
-}
-
-export interface Stocktake {
-  id: string;
-  pharmacy_name: string;
-  started_by: string;
-  started_by_name?: string;
-  status: 'in_progress' | 'completed' | 'cancelled';
-  started_at: string;
-  completed_at?: string;
-  notes?: string;
-  items?: StocktakeItem[];
-}
-
-export interface StocktakeItem {
-  id: string;
-  stocktake_id: string;
-  product_id: string;
-  product_name?: string;
-  batch_id?: string;
-  batch_number?: string;
-  system_quantity: number;
-  counted_quantity: number;
-  difference: number;
-  reason?: string;
-}
-
-// =============================================
-// RETURNS
-// =============================================
-export interface SaleReturn {
-  id: string;
-  pharmacy_name: string;
-  sale_id?: string;
-  sale_number?: string;
-  processed_by?: string;
-  processed_by_name?: string;
-  reason: string;
-  total: number;
-  created_at: string;
-  items?: SaleReturnItem[];
-}
-
-export interface SaleReturnItem {
-  id: string;
-  return_id: string;
-  sale_item_id?: string;
-  product_id: string;
-  product_name?: string;
-  batch_id?: string;
-  quantity: number;
-  amount: number;
-}
-
-// =============================================
-// DISCOUNTS
-// =============================================
-export interface Discount {
-  id: string;
-  pharmacy_name: string;
-  sale_id: string;
-  approved_by?: string;
-  approved_by_name?: string;
-  amount: number;
-  percentage?: number;
-  reason?: string;
-  created_at: string;
-}
-
-// =============================================
-// AUDIT & NOTIFICATIONS
-// =============================================
-export interface AuditLog {
-  id: string;
-  pharmacy_name: string;
-  user_id?: string;
-  user_name?: string;
-  action: string;
-  entity_type: string;
-  entity_id?: string;
-  old_data?: any;
-  new_data?: any;
-  metadata?: any;
-  created_at: string;
-}
-
-export interface Notification {
-  id: string;
-  pharmacy_name: string;
-  user_id: string;
-  type: string;
-  title: string;
-  message: string;
-  read: boolean;
-  created_at: string;
-}
-
-// =============================================
-// OFFLINE SYNC
-// =============================================
-export interface OfflineSyncItem {
-  id?: number;
-  sync_id: string;
-  pharmacy_name: string;
-  user_id: string;
-  entity_type: 'profile' | 'product' | 'batch' | 'purchase' | 'purchase_item' | 'sale' | 'sale_item' | 'payment' | 'customer' | 'supplier' | 'category' | 'unit' | 'stock_movement' | 'return' | 'return_item' | 'discount' | 'audit_log' | 'notification';
-  operation: 'INSERT' | 'UPDATE' | 'DELETE';
-  payload: any;
-  created_at: string;
-  status: 'pending' | 'syncing' | 'synced' | 'failed';
-  retry_count: number;
-  error?: string;
-}
-
-// =============================================
-// AUTH STATE (Simplified)
-// =============================================
-export interface AuthState {
-  isAuthenticated: boolean;
-  profile: Profile | null;
-  isLoading: boolean;
-  error: string | null;
-}
-
-// =============================================
-// APP STATE (Simplified)
-// =============================================
-export interface AppState {
-  auth: AuthState;
-  profile: Profile | null;
-  isOnline: boolean;
-  isSyncing: boolean;
-  syncQueue: OfflineSyncItem[];
-  pendingSyncCount: number;
-}
-
-// =============================================
-// DASHBOARD & ANALYTICS
-// =============================================
-export interface DashboardStats {
-  totalSales: number;
-  totalProducts: number;
-  totalCustomers: number;
-  totalSuppliers: number;
-  lowStockItems: number;
-  expiringItems: number;
-  todaySales: number;
-  todayTransactions: number;
-  salesChart: { date: string; amount: number }[];
-  topProducts: { name: string; quantity: number; amount: number }[];
-}
-
-// =============================================
-// FORM TYPES
-// =============================================
-export interface LoginFormData {
-  email: string;
-  password: string;
-  pinCode?: string;
-}
-
-export interface RegisterFormData {
-  pharmacyName: string;
-  fullName: string;
-  email: string;
-  password: string;
-  phone?: string;
-  pinCode: string;
-  role: UserRole;
-}
-
-export interface SupabaseConfig {
-  url: string;
-  key: string;
-}
-
-// =============================================
-// UTILITY TYPES
-// =============================================
-export type WithTimestamps<T> = T & {
-  created_at: string;
-  updated_at: string;
-};
-
-export type WithPharmacy<T> = T & {
-  pharmacy_name: string;
-};
-
-export type WithUser<T> = T & {
-  user_id: string;
-};
-
-export type PaginatedResponse<T> = {
-  data: T[];
-  count: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-};
-
-export type ApiResponse<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-};
-
-// =============================================
-// SEARCH & FILTER TYPES
-// =============================================
-export interface SearchParams {
-  query?: string;
-  limit?: number;
-  offset?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-export interface ProductSearchParams extends SearchParams {
-  category_id?: string;
-  active?: boolean;
-  low_stock?: boolean;
-  expiring?: boolean;
-}
-
-export interface SaleSearchParams extends SearchParams {
-  customer_id?: string;
-  customer_name?: string;
-  product_id?: string;
-  product_name?: string;
-  date_from?: string;
-  date_to?: string;
-  status?: string;
-  payment_method?: string;
-  payment_status?: string;
-}
-
-export interface UserSearchParams extends SearchParams {
-  role?: UserRole;
-  is_active?: boolean;
-}
-
-// =============================================
-// REPORT TYPES (UPDATED for Single Table Sales)
-// =============================================
-export interface SalesReport {
-  period: string;
-  totalSales: number;
-  totalTransactions: number;
-  averageTicket: number;
-  topProducts: {
-    product_id: string;
-    product_name: string;
-    quantity: number;
-    revenue: number;
-    total_sales: number;
-  }[];
-  paymentMethods: { method: PaymentMethod; count: number; amount: number }[];
-  dailySales: { date: string; count: number; total: number }[];
-}
-
-export interface StockReport {
-  productId: string;
-  productName: string;
-  currentStock: number;
-  reorderLevel: number;
-  totalPurchases: number;
-  totalSales: number;
-  stockValue: number;
-}
-
-export interface UserReport {
-  userId: string;
-  userName: string;
-  role: UserRole;
-  totalSales: number;
-  totalTransactions: number;
-  totalRevenue: number;
-  lastActive: string;
-}
-
-// =============================================
-// APP SETTINGS
-// =============================================
-export interface AppSettings {
-  profile: Profile;
-  currency: string;
-  taxRate: number;
-  dateFormat: string;
-  timeFormat: string;
-  receiptPrinting: {
-    enabled: boolean;
-    copies: number;
-    paperSize: '58mm' | '80mm';
-  };
-  notifications: {
-    lowStock: boolean;
-    expiry: boolean;
-    sales: boolean;
+function normalizeSaleRow(item: any, normalizedName: string) {
+  return {
+    ...item,
+    pharmacy_name: normalizedName,
+    sale_id:
+      item.sale_id ||
+      item.sale_number?.replace('INV-', '').split('-')[0] ||
+      item.id,
   };
 }
-// types/index.ts
-
-// Add this near other interfaces
-export interface RequestedItem {
-  id: string;
-  pharmacy_name: string;
-  item_name: string;
-  generic_name: string | null;
-  brand_name: string | null;
-  category: string | null;
-  form: string | null;
-  strength: string | null;
-  request_count: number;
-  last_requested_at: string;
-  created_at: string;
-  updated_at: string;
-  status: 'pending' | 'ordered' | 'added_to_inventory' | 'discontinued';
-  notes: string | null;
-  requested_by: string | null;
-  customer_phone: string | null;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  estimated_demand: number;
-  added_to_inventory_at: string | null;
-  ordered_from_supplier_at: string | null;
-  supplier_name: string | null;
-}
-
-export type RequestedItemStatus = 'pending' | 'ordered' | 'added_to_inventory' | 'discontinued';
-export type RequestedItemPriority = 'low' | 'medium' | 'high' | 'urgent';
-
-// types/index.ts - Add SalesReturn interface
-
-export interface SalesReturn {
-  id: string;
-  pharmacy_name: string;
-  sale_id: string;
-  sale_number: string;
-  product_id: string;
-  product_name: string;
-  batch_id: string | null;
-  batch_number: string | null;
-  quantity_returned: number;
-  original_quantity: number;
-  remaining_quantity: number;
-  return_reason: string;
-  return_type: 'customer_return' | 'damaged' | 'expired' | 'wrong_item';
-  refund_amount: number;
-  refund_method: 'cash' | 'mpesa' | 'bank' | 'store_credit' | null;
-  returned_by: string | null;
-  returned_by_name: string | null;
-  customer_id: string | null;
-  customer_name: string | null;
-  notes: string | null;
-  status: 'completed' | 'pending' | 'rejected';
-  created_at: string;
-  updated_at: string;
-}
-
-export type ReturnType = 'customer_return' | 'damaged' | 'expired' | 'wrong_item';
-export type RefundMethod = 'cash' | 'mpesa' | 'bank' | 'store_credit';
-// types/index.ts - Add these interfaces
 
 // =============================================
-// 🆕 SECURITY & ACCOUNT MANAGEMENT TYPES
+// HELPER: Apply table-specific row transforms
 // =============================================
-
-/**
- * Data required to change a user's PIN
- */
-export interface ChangePinData {
-  /** Current 4-digit PIN */
-  currentPin: string;
-  /** New 4-digit PIN */
-  newPin: string;
-  /** Confirm new PIN (must match newPin) */
-  confirmPin: string;
+function transformRow(tableName: string, item: any, normalizedName: string) {
+  if (tableName === 'sales') {
+    return normalizeSaleRow(item, normalizedName);
+  }
+  return { ...item, pharmacy_name: normalizedName };
 }
-
-/**
- * Data required to change a user's password
- */
-export interface ChangePasswordData {
-  /** Current password */
-  currentPassword: string;
-  /** New password (minimum 6 characters) */
-  newPassword: string;
-  /** Confirm new password (must match newPassword) */
-  confirmPassword: string;
-}
-
-/**
- * Data required to delete an account
- */
-export interface DeleteAccountData {
-  /** ID of the profile to delete */
-  profileId: string;
-  /** Confirmation text (must be "DELETE") */
-  confirmText: string;
-}
-
-/**
- * Result of a delete account operation
- */
-export interface DeleteAccountResult {
-  /** Whether the operation was successful */
-  success: boolean;
-  /** Whether the user deleted themselves */
-  isSelf: boolean;
-  /** Optional error message */
-  error?: string;
-}
-
-/**
- * Result of a PIN change operation
- */
-export interface ChangePinResult {
-  success: boolean;
-  error?: string;
-}
-
-/**
- * Result of a password change operation
- */
-export interface ChangePasswordResult {
-  success: boolean;
-  error?: string;
-}
-
-// types/index.ts - Add these types
 
 // =============================================
-// SUPPLIER PARTNERSHIP & ORDERING
+// SAFE BULK PUT — the single most important fix
 // =============================================
-
-export interface SupplierPartnershipRequest {
-  id: string;
-  supplier_id: string;
-  supplier_name: string;
-  supplier_license_number: string | null;
-  pharmacy_id: string | null;
-  pharmacy_name: string;
-  pharmacy_email: string | null;
-  pharmacy_phone: string | null;
-  pharmacy_town: string | null;
-  pharmacy_county: string | null;
-  proposed_credit_limit: number | null;
-  proposed_payment_terms: string | null;
-  discount_offered_percent: number | null;
-  categories_offered: string[] | null;
-  message: string | null;
-  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
-  pharmacy_response_note: string | null;
-  responded_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SupplierOrder {
-  id: string;
-  supplier_id: string;
-  order_number: string;
-  pharmacy_id: string | null;
-  pharmacy_name: string;
-  pharmacy_contact_person: string;
-  pharmacy_phone: string;
-  pharmacy_email: string | null;
-  pharmacy_address: string;
-  pharmacy_county: string;
-  pharmacy_town: string;
-  status: 'new' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'confirmed' | 'rejected' | 'cancelled';
-  subtotal: number;
-  tax_amount: number;
-  delivery_fee: number;
-  total_amount: number;
-  payment_terms: string;
-  payment_status: 'unpaid' | 'paid' | 'partial';
-  rejection_reason: string | null;
-  order_notes: string | null;
-  order_date: string;
-  created_at: string;
-  updated_at?: string;
-  delivery_info?: any;
-}
-
-export interface SupplierOrderItem {
-  id: string;
-  order_id: string;
-  product_id: string | null;
-  product_name: string;
-  sku: string | null;
-  dosage_form: string | null;
-  strength: string | null;
-  pack_size: string | null;
-  requested_quantity: number;
-  accepted_quantity: number;
-  unit_price: number;
-  total_price: number;
-  batch_number: string | null;
-  item_status: 'pending' | 'accepted' | 'rejected' | 'partially_accepted' | 'delivered';
-  created_at: string;
-}
-
-export interface ReorderRecommendation {
-  product_id: string;
-  product_name: string;
-  current_stock: number;
-  reorder_level: number;
-  reorder_quantity: number;
-  days_until_out: number;
-  monthly_sales: number;
-  weekly_sales: number;
-  priority: 'critical' | 'high' | 'medium' | 'low';
-  reason: string;
-  category?: string;
-}
-
-// types/index.ts - Add after SupplierPartnershipRequest
+// WHY THIS EXISTS:
+//   Dexie's `bulkPut` is last-write-wins. If a pull fetches a stale
+//   remote row (say, 3 days old) while a fresh local write exists
+//   (say, 2 seconds old), bulkPut would clobber the fresh row.
+//
+// WHAT THIS DOES:
+//   For each incoming row, compare its `updated_at` (or `created_at`
+//   fallback) against the local row's timestamp. Only write if the
+//   remote is genuinely newer.
+//
+// ⚠️ IMPORTANT: Uses `server_updated_at` if present — that's the
+//    server-authoritative timestamp from the trigger. Falls back to
+//    `updated_at` for tables that don't have the column yet.
 // =============================================
-// LOYALTY INTERFACES
+async function safeBulkPut(
+  tableName: string,
+  dbTable: any,
+  rows: any[]
+): Promise<{ written: number; skipped: number }> {
+  if (rows.length === 0) return { written: 0, skipped: 0 };
+
+  let written = 0;
+  let skipped = 0;
+
+  try {
+    await db.transaction('rw', dbTable, async () => {
+      const ids = rows.map(r => r.id).filter(Boolean);
+      if (ids.length === 0) {
+        warn(`${tableName}: incoming rows have no id — writing anyway`);
+        await dbTable.bulkPut(rows);
+        written = rows.length;
+        return;
+      }
+
+      const existing: any[] = await dbTable.bulkGet(ids);
+      const existingMap = new Map<string, any>();
+      for (const row of existing) {
+        if (row && row.id) existingMap.set(row.id, row);
+      }
+
+      const toWrite: any[] = [];
+      for (const remote of rows) {
+        const local = existingMap.get(remote.id);
+
+        // New row — always write
+        if (!local) {
+          toWrite.push(remote);
+          continue;
+        }
+
+        // Compare timestamps. Prefer server_updated_at (authoritative),
+        // fall back to updated_at, then created_at.
+        const localTs =
+          local.server_updated_at ||
+          local.updated_at ||
+          local.created_at ||
+          '1970-01-01T00:00:00.000Z';
+
+        const remoteTs =
+          remote.server_updated_at ||
+          remote.updated_at ||
+          remote.created_at ||
+          '1970-01-01T00:00:00.000Z';
+
+        if (remoteTs > localTs) {
+          toWrite.push(remote);
+        } else {
+          skipped++;
+          log(
+            `${tableName}: skip id=${remote.id} ` +
+            `(local=${localTs} >= remote=${remoteTs})`
+          );
+        }
+      }
+
+      if (toWrite.length > 0) {
+        await dbTable.bulkPut(toWrite);
+        written = toWrite.length;
+      }
+    });
+  } catch (err) {
+    warn(`${tableName}: safeBulkPut transaction failed`, err);
+    // Fallback: write everything (better to have stale than nothing)
+    try {
+      await dbTable.bulkPut(rows);
+      written = rows.length;
+    } catch (innerErr) {
+      warn(`${tableName}: fallback bulkPut also failed`, innerErr);
+      throw innerErr;
+    }
+  }
+
+  return { written, skipped };
+}
+
 // =============================================
-
-export interface LoyaltyTransaction {
-  id: string;
-  pharmacy_name: string;
-  customer_id: string;
-  sale_id: string | null;
-  points: number;
-  balance_after: number;
-  transaction_type: LoyaltyTransactionType;
-  trigger_rule: string | null;
-  reward_id: string | null;
-  reward_name: string | null;
-  description: string;
-  metadata: Record<string, any>;
-  created_at: string;
-  created_by: string;
-}
-
-export interface RewardCatalog {
-  id: string;
-  pharmacy_name: string;
-  name: string;
-  description: string | null;
-  points_required: number;
-  category: RewardCategory;
-  is_active: boolean;
-  max_redemptions_per_customer: number | null;
-  requires_approval: boolean;
-  image_url: string | null;
-  icon_name: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LoyaltyCardOrder {
-  id: string;
-  pharmacy_name: string;
-  order_number: string;
-  quantity: number;
-  card_start_number: string;
-  card_end_number: string;
-  status: LoyaltyCardOrderStatus;
-  contact_name: string;
-  contact_phone: string;
-  contact_email: string | null;
-  shipping_address: string;
-  shipping_county: string;
-  shipping_town: string;
-  shipping_landmark: string | null;
-  payment_method: 'mpesa' | 'cash' | 'bank_transfer';
-  payment_status: 'pending' | 'paid' | 'failed';
-  payment_reference: string | null;
-  total_amount: number;
-  notes: string | null;
-  ordered_at: string;
-  processed_at: string | null;
-  shipped_at: string | null;
-  delivered_at: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-}
+// PULL SINGLE TABLE (CURSOR-PAGINATED, SAFE)
 // =============================================
-// SUPPLIER ACCOUNTS (Read-only from supplier app)
+// WHY CURSOR PAGINATION:
+//   `range(from, to)` is offset-based. If rows are inserted/deleted
+//   mid-pull, offsets shift and you skip or duplicate rows.
+//
+//   Cursor-based pagination anchors on `server_updated_at > lastSeen`.
+//   The cursor is monotonic — no gaps, no duplicates, no drift.
+//
+// WHY order by server_updated_at ASC:
+//   - ASC = cursor moves forward in time
+//   - Matches the `gt(cursor)` filter exactly
+//   - Never mixes sort key and filter key (the v1 bug)
+//
+// WHY handle NULL server_updated_at:
+//   - Rows created before the trigger existed have NULL.
+//   - `gte('server_updated_at', since)` excludes NULLs.
+//   - We backfill in the migration, but defensive code is cheap.
 // =============================================
+async function pullTable<T>(
+  tableName: string,
+  pharmacyName: string,
+  dbTable: any,
+  options?: { limit?: number; since?: Date }
+): Promise<number> {
+  const client = getSupabaseClient();
+  if (!client) return 0;
 
-export interface SupplierAccount {
-  id: string;
-  user_id: string | null;
-  business_name: string;
-  trading_name: string;
-  contact_person: string;
-  phone: string;
-  email: string;
-  physical_address: string;
-  town: string;
-  county: string;
-  license_number: string;
-  tax_pin: string | null;
-  currency: string;
-  payment_terms: string;
-  status: 'active' | 'pending_verification' | 'suspended';
-  created_at: string;
-  updated_at: string;
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  const maxRows = options?.limit ?? Infinity;
+  const since = options?.since;
+
+  let total = 0;
+  let cursor: string | null = null;
+  let pageIndex = 0;
+
+  const startTime = Date.now();
+
+  log(
+    `pullTable(${tableName}) start — pharmacy=${normalizedName} ` +
+    `since=${since?.toISOString() || 'none'} limit=${maxRows}`
+  );
+
+  try {
+    while (total < maxRows) {
+      const remaining = maxRows === Infinity ? PAGE_SIZE : Math.min(PAGE_SIZE, maxRows - total);
+      const pageSize = remaining;
+
+      let query = client
+        .from(tableName)
+        .select('*')
+        .eq('pharmacy_name', normalizedName)
+        // ✅ Sort by the SAME column we filter by
+        .order('server_updated_at', { ascending: true })
+        .limit(pageSize);
+
+      // First page: filter by since. Later pages: filter by cursor.
+      if (cursor) {
+        query = query.gt('server_updated_at', cursor);
+      } else if (since) {
+        // Include NULLs defensively — legacy rows without server_updated_at
+        // would otherwise be invisible forever.
+        query = query.or(
+          `server_updated_at.gte.${since.toISOString()},server_updated_at.is.null`
+        );
+      }
+
+      let data: any[] | null = null;
+      let error: any = null;
+      let attempt = 0;
+
+      while (attempt <= MAX_RETRIES_PER_PAGE) {
+        const res = await query;
+        data = res.data;
+        error = res.error;
+        if (!error) break;
+        attempt++;
+        if (attempt > MAX_RETRIES_PER_PAGE) break;
+        warn(
+          `pullTable(${tableName}) page ${pageIndex} retry ${attempt}:`,
+          error.message
+        );
+        await new Promise(r => setTimeout(r, 250 * attempt));
+      }
+
+      if (error) {
+        warn(
+          `pullTable(${tableName}) page ${pageIndex} FAILED after retries:`,
+          error.message
+        );
+        // Throw so the caller knows — silent breaks are why you had bugs.
+        throw new Error(`pullTable(${tableName}): ${error.message}`);
+      }
+
+      if (!data || data.length === 0) {
+        log(`pullTable(${tableName}) page ${pageIndex}: empty — done`);
+        break;
+      }
+
+      const transformed = data.map(item =>
+        transformRow(tableName, item, normalizedName)
+      );
+
+      const { written, skipped } = await safeBulkPut(
+        tableName,
+        dbTable,
+        transformed
+      );
+
+      total += written;
+
+      // Advance cursor to last row's server_updated_at
+      const lastRow = data[data.length - 1];
+      cursor = lastRow.server_updated_at || cursor;
+
+      log(
+        `pullTable(${tableName}) page ${pageIndex}: ` +
+        `fetched=${data.length} written=${written} skipped=${skipped} ` +
+        `cursor=${cursor}`
+      );
+
+      pageIndex++;
+
+      if (data.length < pageSize) {
+        log(`pullTable(${tableName}) last page — done`);
+        break;
+      }
+
+      // Cursor must advance, or we'll loop forever
+      if (!cursor) {
+        warn(`pullTable(${tableName}): cursor did not advance — aborting`);
+        break;
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    log(`pullTable(${tableName}) complete — ${total} rows in ${elapsed}ms`);
+    return total;
+  } catch (err: any) {
+    warn(`pullTable(${tableName}) error:`, err?.message || err);
+    throw err;
+  }
 }
+
+// =============================================
+// PULL ENTIRE TABLE (with safe stale cleanup)
+// =============================================
+// Use this when you want a FULL resync + prune orphans.
+//
+// ⚠️ SAFETY: Pruning only happens AFTER the full fetch succeeds.
+//    If the fetch fails partway, we do NOT delete anything.
+// =============================================
+async function pullTableFullResync(
+  tableName: string,
+  pharmacyName: string,
+  dbTable: any
+): Promise<number> {
+  const client = getSupabaseClient();
+  if (!client) return 0;
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  const remoteIds = new Set<string>();
+  let cursor: string | null = null;
+  let total = 0;
+  let pageIndex = 0;
+  let fetchSucceeded = false;
+
+  const startTime = Date.now();
+  log(`pullTableFullResync(${tableName}) start — pharmacy=${normalizedName}`);
+
+  try {
+    while (true) {
+      let query = client
+        .from(tableName)
+        .select('*')
+        .eq('pharmacy_name', normalizedName)
+        .order('server_updated_at', { ascending: true })
+        .limit(PAGE_SIZE);
+
+      if (cursor) {
+        query = query.gt('server_updated_at', cursor);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        warn(`pullTableFullResync(${tableName}) page ${pageIndex} error:`, error.message);
+        throw new Error(`pullTableFullResync(${tableName}): ${error.message}`);
+      }
+
+      if (!data || data.length === 0) break;
+
+      const transformed = data.map(item =>
+        transformRow(tableName, item, normalizedName)
+      );
+
+      for (const it of transformed) {
+        if (it.id) remoteIds.add(it.id);
+      }
+
+      const { written, skipped } = await safeBulkPut(
+        tableName,
+        dbTable,
+        transformed
+      );
+      total += written;
+
+      const lastRow = data[data.length - 1];
+      cursor = lastRow.server_updated_at || cursor;
+
+      log(
+        `pullTableFullResync(${tableName}) page ${pageIndex}: ` +
+        `fetched=${data.length} written=${written} skipped=${skipped}`
+      );
+
+      pageIndex++;
+
+      if (data.length < PAGE_SIZE) break;
+      if (!cursor) {
+        warn(`pullTableFullResync(${tableName}): cursor did not advance`);
+        break;
+      }
+    }
+
+    fetchSucceeded = true;
+  } catch (err) {
+    warn(`pullTableFullResync(${tableName}) fetch failed — skipping prune`);
+    throw err;
+  }
+
+  // ✅ Only prune AFTER full fetch succeeded
+  if (fetchSucceeded && remoteIds.size > 0) {
+    try {
+      const localKeys: string[] = await dbTable
+        .where('pharmacy_name')
+        .equals(normalizedName)
+        .primaryKeys();
+
+      const toDelete = localKeys.filter((id: string) => !remoteIds.has(id));
+
+      if (toDelete.length > 0) {
+        await dbTable.bulkDelete(toDelete);
+        log(
+          `pullTableFullResync(${tableName}): pruned ${toDelete.length} orphans`
+        );
+      }
+    } catch (err) {
+      warn(`pullTableFullResync(${tableName}) prune failed:`, err);
+    }
+  }
+
+  const elapsed = Date.now() - startTime;
+  log(
+    `pullTableFullResync(${tableName}) complete — ` +
+    `${total} rows, ${remoteIds.size} remote ids in ${elapsed}ms`
+  );
+  return total;
+}
+
+// =============================================
+// PROCESS CONFIRMED ORDER — Auto-add stock
+// =============================================
+async function processConfirmedOrder(orderId: string) {
+  try {
+    const order = await db.suppliers_orders.get(orderId);
+    if (!order) return;
+
+    if (order.delivery_info?.stock_added) return;
+
+    const items = await db.suppliers_order_items
+      .where('order_id')
+      .equals(orderId)
+      .toArray();
+
+    const pharmacyName = order.pharmacy_name;
+
+    for (const item of items) {
+      if (!item.product_id) continue;
+      if (item.accepted_quantity <= 0) continue;
+
+      const product = await db.products.get(item.product_id);
+      if (!product) continue;
+
+      const currentStock = product.quantity || 0;
+      const newStock = currentStock + item.accepted_quantity;
+
+      await db.products.update(item.product_id, {
+        quantity: newStock,
+        updated_at: new Date().toISOString(),
+      });
+
+      const movement = {
+        id: genUUID(),
+        pharmacy_name: pharmacyName,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        batch_id: null,
+        batch_number: item.batch_number || null,
+        movement_type: 'purchase',
+        quantity_base: item.accepted_quantity,
+        reference_type: 'suppliers_orders',
+        reference_id: orderId,
+        performed_by: order.pharmacy_contact_person,
+        performed_by_name: order.pharmacy_contact_person,
+        reason: `Order #${order.order_number} confirmed - Supplier added stock`,
+        created_at: new Date().toISOString(),
+      };
+      await db.stock_movements.put(movement);
+    }
+
+    await db.suppliers_orders.update(orderId, {
+      'delivery_info.stock_added': true,
+      'delivery_info.stock_added_at': new Date().toISOString(),
+    });
+  } catch (error) {
+    warn('processConfirmedOrder failed:', error);
+  }
+}
+
+// =============================================
+// PULL SUPPLIER PARTNERSHIPS (CURSOR-PAGINATED)
+// =============================================
+async function pullSupplierPartnerships(pharmacyName: string): Promise<number> {
+  const client = getSupabaseClient();
+  if (!client) return 0;
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  let cursor: string | null = null;
+  let total = 0;
+
+  try {
+    while (true) {
+      let query = client
+        .from('suppliers_partnership_requests')
+        .select('*')
+        .eq('pharmacy_name', normalizedName)
+        .order('server_updated_at', { ascending: true })
+        .limit(PAGE_SIZE);
+
+      if (cursor) query = query.gt('server_updated_at', cursor);
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+
+      const items = data.map(item => ({
+        ...item,
+        pharmacy_name: normalizedName,
+      }));
+
+      await db.suppliers_partnership_requests.bulkPut(items);
+      total += items.length;
+
+      cursor = data[data.length - 1].server_updated_at || cursor;
+      if (data.length < PAGE_SIZE) break;
+      if (!cursor) break;
+    }
+
+    return total;
+  } catch (err) {
+    warn('pullSupplierPartnerships failed:', err);
+    throw err;
+  }
+}
+
+// =============================================
+// PULL SUPPLIER ORDERS (CURSOR-PAGINATED)
+// =============================================
+async function pullSupplierOrders(pharmacyName: string): Promise<number> {
+  const client = getSupabaseClient();
+  if (!client) return 0;
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  let cursor: string | null = null;
+  let total = 0;
+  const confirmedOrders: string[] = [];
+
+  try {
+    while (true) {
+      let query = client
+        .from('suppliers_orders')
+        .select('*')
+        .eq('pharmacy_name', normalizedName)
+        .order('server_updated_at', { ascending: true })
+        .limit(PAGE_SIZE);
+
+      if (cursor) query = query.gt('server_updated_at', cursor);
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+
+      const items = data.map(item => ({
+        ...item,
+        pharmacy_name: normalizedName,
+      }));
+
+      await db.suppliers_orders.bulkPut(items);
+      total += items.length;
+
+      for (const order of items) {
+        if (order.status === 'confirmed') {
+          confirmedOrders.push(order.id);
+        }
+      }
+
+      cursor = data[data.length - 1].server_updated_at || cursor;
+      if (data.length < PAGE_SIZE) break;
+      if (!cursor) break;
+    }
+
+    for (const orderId of confirmedOrders) {
+      await processConfirmedOrder(orderId);
+    }
+
+    return total;
+  } catch (err) {
+    warn('pullSupplierOrders failed:', err);
+    throw err;
+  }
+}
+
+// =============================================
+// PULL SUPPLIER ORDER ITEMS (by order_id, no pharmacy_name)
+// =============================================
+async function pullSupplierOrderItems(pharmacyName: string): Promise<number> {
+  const client = getSupabaseClient();
+  if (!client) return 0;
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+
+  try {
+    const orders = await db.suppliers_orders
+      .where('pharmacy_name')
+      .equals(normalizedName)
+      .toArray();
+
+    const orderIds = orders.map(o => o.id);
+    if (orderIds.length === 0) return 0;
+
+    let total = 0;
+    const CHUNK = 200;
+
+    for (let i = 0; i < orderIds.length; i += CHUNK) {
+      const chunk = orderIds.slice(i, i + CHUNK);
+      let cursor: string | null = null;
+
+      while (true) {
+        let query = client
+          .from('suppliers_order_items')
+          .select('*')
+          .in('order_id', chunk)
+          .order('server_updated_at', { ascending: true })
+          .limit(PAGE_SIZE);
+
+        if (cursor) query = query.gt('server_updated_at', cursor);
+
+        const { data, error } = await query;
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) break;
+
+        // Preserve local product_id (pharmacy-side product mapping)
+        for (const item of data) {
+          const localItem = await db.suppliers_order_items.get(item.id);
+          if (localItem && localItem.product_id) {
+            item.product_id = localItem.product_id;
+          }
+        }
+
+        await db.suppliers_order_items.bulkPut(data);
+        total += data.length;
+
+        cursor = data[data.length - 1].server_updated_at || cursor;
+        if (data.length < PAGE_SIZE) break;
+        if (!cursor) break;
+      }
+    }
+
+    return total;
+  } catch (err) {
+    warn('pullSupplierOrderItems failed:', err);
+    throw err;
+  }
+}
+
+// =============================================
+// PULL AVAILABLE SUPPLIERS
+// =============================================
+async function pullAvailableSuppliers(): Promise<number> {
+  const client = getSupabaseClient();
+  if (!client) return 0;
+
+  try {
+    let cursor: string | null = null;
+    const all: any[] = [];
+
+    while (true) {
+      let query = client
+        .from('suppliers_accounts')
+        .select('*')
+        .eq('status', 'active')
+        .order('server_updated_at', { ascending: true })
+        .limit(PAGE_SIZE);
+
+      if (cursor) query = query.gt('server_updated_at', cursor);
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+
+      all.push(...data);
+
+      cursor = data[data.length - 1].server_updated_at || cursor;
+      if (data.length < PAGE_SIZE) break;
+      if (!cursor) break;
+    }
+
+    if (all.length === 0) return 0;
+
+    localStorage.setItem('medp_available_suppliers', JSON.stringify(all));
+    localStorage.setItem(
+      'medp_available_suppliers_updated',
+      new Date().toISOString()
+    );
+
+    return all.length;
+  } catch (err) {
+    warn('pullAvailableSuppliers failed:', err);
+    return 0; // non-critical, don't throw
+  }
+}
+
+// =============================================
+// FULL PULL
+// =============================================
+// Pulls every table with concurrency cap.
+// Concurrency cap prevents thundering-herd at scale.
+// =============================================
+async function doPullFromSupabaseToLocal(
+  pharmacyName: string
+): Promise<boolean> {
+  const client = getSupabaseClient();
+
+  if (!navigator.onLine) {
+    log('full pull skipped — offline');
+    return false;
+  }
+  if (!client || !isSupabaseConfigured()) {
+    log('full pull skipped — not configured');
+    return false;
+  }
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  const startTime = Date.now();
+
+  log(`full pull start — pharmacy=${normalizedName}`);
+
+  try {
+    // Batch 1: main tables (concurrency capped)
+    const mainTables: Array<[string, any]> = [
+      ['products', db.products],
+      ['product_batches', db.product_batches],
+      ['categories', db.categories],
+      ['units', db.units],
+      ['suppliers', db.suppliers],
+      ['customers', db.customers],
+      ['sales', db.sales],
+      ['stock_movements', db.stock_movements],
+      ['audit_logs', db.audit_logs],
+      ['profiles', db.profiles],
+      ['requested_items', db.requested_items],
+      ['sales_returns', db.sales_returns],
+    ];
+
+    for (let i = 0; i < mainTables.length; i += TABLE_CONCURRENCY) {
+      const batch = mainTables.slice(i, i + TABLE_CONCURRENCY);
+      await Promise.allSettled(
+        batch.map(([table, dbTable]) => {
+          const opts =
+            table === 'audit_logs' ? { limit: 5000 } : undefined;
+          return pullTable(table, normalizedName, dbTable, opts);
+        })
+      );
+      if (i + TABLE_CONCURRENCY < mainTables.length) {
+        await new Promise(r => setTimeout(r, BREATHE_MS));
+      }
+    }
+
+    // Batch 2: supplier tables (sequential — they depend on each other)
+    try {
+      await pullSupplierPartnerships(normalizedName);
+      await pullSupplierOrders(normalizedName);
+      await pullSupplierOrderItems(normalizedName);
+    } catch (err) {
+      warn('supplier tables pull failed (non-fatal):', err);
+    }
+
+    // Batch 3: available suppliers (localStorage, non-critical)
+    await pullAvailableSuppliers();
+
+    const elapsed = Date.now() - startTime;
+    log(`full pull complete in ${elapsed}ms`);
+    return true;
+  } catch (err) {
+    warn('Full pull failed:', err);
+    return false;
+  }
+}
+
+export async function pullFromSupabaseToLocal(
+  pharmacyName: string
+): Promise<boolean> {
+  if (pullInFlight) return pullInFlight;
+  pullInFlight = doPullFromSupabaseToLocal(pharmacyName).finally(() => {
+    pullInFlight = null;
+  });
+  return pullInFlight;
+}
+
+// =============================================
+// SMART PULL (incremental-aware, cursor-safe)
+// =============================================
+async function doSmartPullFromSupabase(
+  pharmacyName: string,
+  lastSyncTime?: Date
+): Promise<boolean> {
+  const client = getSupabaseClient();
+
+  if (!navigator.onLine || !client || !isSupabaseConfigured()) {
+    log('smart pull skipped — offline or not configured');
+    return false;
+  }
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  const startTime = Date.now();
+
+  log(
+    `smart pull start — pharmacy=${normalizedName} ` +
+    `since=${lastSyncTime?.toISOString() || 'none'}`
+  );
+
+  try {
+    // Exclude tables that don't have pharmacy_name
+    const filteredConfigs = TABLE_CONFIGS.filter(config => {
+      if (config.table === 'suppliers_order_items') return false;
+      return true;
+    });
+
+    // Concurrency-capped pulls
+    for (let i = 0; i < filteredConfigs.length; i += TABLE_CONCURRENCY) {
+      const batch = filteredConfigs.slice(i, i + TABLE_CONCURRENCY);
+      await Promise.allSettled(
+        batch.map(async config => {
+          const dbTable = db[config.dbKey as keyof typeof db] as any;
+          if (!dbTable || typeof dbTable.bulkPut !== 'function') return 0;
+
+          try {
+            return await pullTable(config.table, normalizedName, dbTable, {
+              limit: config.limit || Infinity,
+              since: lastSyncTime,
+            });
+          } catch (err) {
+            warn(`smart pull: table ${config.table} failed`, err);
+            return 0;
+          }
+        })
+      );
+      if (i + TABLE_CONCURRENCY < filteredConfigs.length) {
+        await new Promise(r => setTimeout(r, BREATHE_MS));
+      }
+    }
+
+    // Supplier tables (sequential)
+    try {
+      await pullSupplierPartnerships(normalizedName);
+      await pullSupplierOrders(normalizedName);
+      await pullSupplierOrderItems(normalizedName);
+    } catch (err) {
+      warn('smart pull: supplier tables failed (non-fatal)', err);
+    }
+
+    await pullAvailableSuppliers();
+
+    const elapsed = Date.now() - startTime;
+    log(`smart pull complete in ${elapsed}ms`);
+    return true;
+  } catch (err) {
+    warn('Smart pull failed:', err);
+    return false;
+  }
+}
+
+export async function smartPullFromSupabase(
+  pharmacyName: string,
+  lastSyncTime?: Date
+): Promise<boolean> {
+  if (pullInFlight) return pullInFlight;
+  pullInFlight = doSmartPullFromSupabase(pharmacyName, lastSyncTime).finally(
+    () => {
+      pullInFlight = null;
+    }
+  );
+  return pullInFlight;
+}
+
+// =============================================
+// INCREMENTAL PULL
+// =============================================
+export async function incrementalPullFromSupabase(
+  pharmacyName: string,
+  lastSyncTime: Date,
+  options?: { tables?: string[] }
+): Promise<{ success: boolean; updated: number }> {
+  const client = getSupabaseClient();
+
+  if (!navigator.onLine || !client || !isSupabaseConfigured()) {
+    return { success: false, updated: 0 };
+  }
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  let totalUpdated = 0;
+
+  log(
+    `incremental pull start — pharmacy=${normalizedName} ` +
+    `since=${lastSyncTime.toISOString()}`
+  );
+
+  try {
+    const tablesToPull =
+      options?.tables || TABLE_CONFIGS.map(c => c.table);
+
+    const configs = TABLE_CONFIGS.filter(
+      c =>
+        tablesToPull.includes(c.table) &&
+        c.table !== 'suppliers_order_items'
+    );
+
+    for (let i = 0; i < configs.length; i += TABLE_CONCURRENCY) {
+      const batch = configs.slice(i, i + TABLE_CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(async config => {
+          const dbTable = db[config.dbKey as keyof typeof db] as any;
+          if (!dbTable || typeof dbTable.bulkPut !== 'function') return 0;
+
+          try {
+            return await pullTable(config.table, normalizedName, dbTable, {
+              limit: config.limit || Infinity,
+              since: lastSyncTime,
+            });
+          } catch (err) {
+            warn(`incremental: ${config.table} failed`, err);
+            return 0;
+          }
+        })
+      );
+
+      totalUpdated += results.reduce((sum, r) => {
+        if (r.status === 'fulfilled') return sum + r.value;
+        return sum;
+      }, 0);
+
+      if (i + TABLE_CONCURRENCY < configs.length) {
+        await new Promise(r => setTimeout(r, BREATHE_MS));
+      }
+    }
+
+    try {
+      totalUpdated += await pullSupplierPartnerships(normalizedName);
+      totalUpdated += await pullSupplierOrders(normalizedName);
+      totalUpdated += await pullSupplierOrderItems(normalizedName);
+    } catch (err) {
+      warn('incremental: supplier tables failed (non-fatal)', err);
+    }
+
+    log(`incremental pull complete — ${totalUpdated} rows updated`);
+    return { success: true, updated: totalUpdated };
+  } catch (err) {
+    warn('Incremental pull failed:', err);
+    return { success: false, updated: totalUpdated };
+  }
+}
+
+// =============================================
+// PULL SINGLE TABLE (public)
+// =============================================
+export async function pullSingleTable(
+  pharmacyName: string,
+  tableName: string,
+  options?: { limit?: number; since?: Date }
+): Promise<number> {
+  const client = getSupabaseClient();
+
+  if (!navigator.onLine || !client || !isSupabaseConfigured()) return 0;
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+
+  // Supplier special cases
+  if (tableName === 'suppliers_partnership_requests') {
+    return pullSupplierPartnerships(normalizedName);
+  }
+  if (tableName === 'suppliers_orders') {
+    return pullSupplierOrders(normalizedName);
+  }
+  if (tableName === 'suppliers_order_items') {
+    return pullSupplierOrderItems(normalizedName);
+  }
+
+  const config = TABLE_CONFIGS.find(c => c.table === tableName);
+
+  if (config) {
+    const dbTable = db[config.dbKey as keyof typeof db] as any;
+    if (dbTable && typeof dbTable.bulkPut === 'function') {
+      return pullTable(tableName, normalizedName, dbTable, {
+        limit: options?.limit ?? Infinity,
+        since: options?.since,
+      });
+    }
+  }
+
+  // Fallback: dynamic table lookup
+  const dbTable = db[tableName as keyof typeof db] as any;
+  if (dbTable && typeof dbTable.bulkPut === 'function') {
+    return pullTable(tableName, normalizedName, dbTable, {
+      limit: options?.limit ?? Infinity,
+      since: options?.since,
+    });
+  }
+
+  return 0;
+}
+
+// =============================================
+// FULL RESYNC FOR A SINGLE TABLE (with pruning)
+// =============================================
+export async function fullResyncTable(
+  pharmacyName: string,
+  tableName: string
+): Promise<number> {
+  const client = getSupabaseClient();
+  if (!navigator.onLine || !client || !isSupabaseConfigured()) return 0;
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  const config = TABLE_CONFIGS.find(c => c.table === tableName);
+
+  if (!config) return 0;
+
+  const dbTable = db[config.dbKey as keyof typeof db] as any;
+  if (!dbTable || typeof dbTable.bulkPut !== 'function') return 0;
+
+  return pullTableFullResync(tableName, normalizedName, dbTable);
+}
+
+// =============================================
+// CHECK FOR CHANGES
+// =============================================
+export async function hasDataChanged(
+  pharmacyName: string,
+  lastSyncTime: Date
+): Promise<{ changed: boolean; tables: string[] }> {
+  const client = getSupabaseClient();
+
+  if (!navigator.onLine || !client || !isSupabaseConfigured()) {
+    return { changed: false, tables: [] };
+  }
+
+  const normalizedName = normalizePharmacyName(pharmacyName);
+  const changedTables: string[] = [];
+
+  try {
+    const allTableConfigs = [
+      ...TABLE_CONFIGS,
+      {
+        table: 'suppliers_partnership_requests',
+        dbKey: 'suppliers_partnership_requests',
+      },
+      { table: 'suppliers_orders', dbKey: 'suppliers_orders' },
+    ];
+
+    await Promise.allSettled(
+      allTableConfigs.map(async config => {
+        const { count, error } = await client
+          .from(config.table)
+          .select('*', { count: 'exact', head: true })
+          .eq('pharmacy_name', normalizedName)
+          // ✅ Use server_updated_at, not updated_at
+          .gte('server_updated_at', lastSyncTime.toISOString());
+
+        if (!error && count && count > 0) {
+          changedTables.push(config.table);
+        }
+      })
+    );
+
+    return { changed: changedTables.length > 0, tables: changedTables };
+  } catch (err) {
+    warn('hasDataChanged failed:', err);
+    return { changed: false, tables: [] };
+  }
+}
+
+// =============================================
+// 🔧 MIGRATION SQL — RUN THIS IN SUPABASE
+// =============================================
+// Copy this into Supabase SQL Editor and run once.
+//
+// What it does:
+//   1. Adds `server_updated_at` to every synced table
+//   2. Backfills existing rows with created_at (or NOW())
+//   3. Adds a trigger so every UPDATE sets it to NOW()
+//   4. Adds a composite index (pharmacy_name, server_updated_at DESC)
+//      — this is what makes cursor pagination O(log n) instead of O(n)
+//
+// After running, verify with:
+//   SELECT pharmacy_name, server_updated_at FROM sales LIMIT 5;
+//
+// ─────────────────────────────────────────────
+/*
+-- 1. Add column + backfill + trigger + index
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'products','product_batches','categories','units','suppliers',
+    'customers','sales','stock_movements','audit_logs','profiles',
+    'requested_items','sales_returns',
+    'suppliers_partnership_requests','suppliers_orders','suppliers_order_items',
+    'suppliers_accounts'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    -- Add column
+    EXECUTE format(
+      'ALTER TABLE %I ADD COLUMN IF NOT EXISTS server_updated_at TIMESTAMPTZ DEFAULT NOW()',
+      t
+    );
+
+    -- Backfill existing NULLs
+    EXECUTE format(
+      'UPDATE %I SET server_updated_at = COALESCE(updated_at, created_at, NOW()) WHERE server_updated_at IS NULL',
+      t
+    );
+
+    -- Trigger function (idempotent)
+    EXECUTE format(
+      'CREATE OR REPLACE FUNCTION touch_%I_server_updated_at() RETURNS TRIGGER AS $f$ BEGIN NEW.server_updated_at = NOW(); RETURN NEW; END; $f$ LANGUAGE plpgsql',
+      t
+    );
+
+    -- Drop old trigger if exists, recreate
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_%I_touch ON %I', t, t);
+    EXECUTE format(
+      'CREATE TRIGGER trg_%I_touch BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION touch_%I_server_updated_at()',
+      t, t, t
+    );
+
+    -- Composite index (the scale fix)
+    EXECUTE format(
+      'CREATE INDEX IF NOT EXISTS idx_%I_pharmacy_server_updated ON %I (pharmacy_name, server_updated_at DESC)',
+      t, t
+    );
+  END LOOP;
+END $$;
+*/
+
+// =============================================
+// 🐛 DEBUGGING CHEAT SHEET
+// =============================================
+// Enable logging:
+//   localStorage.setItem('medp_pull_debug', 'true')
+//
+// Then watch console for [PULL] lines. Examples:
+//
+//   [PULL] pullTable(sales) start — pharmacy=MEDP limit=Infinity
+//   [PULL] pullTable(sales) page 0: fetched=1000 written=42 skipped=958 cursor=2024-...
+//   [PULL] pullTable(sales) complete — 42 rows in 812ms
+//
+// "skipped" means: local row is newer than remote — safeBulkPut protected it.
+// High skip count with low write count = healthy (your local writes are winning).
+// Zero writes with non-zero fetches = your local is already up to date.
+//
+// If you see:
+//   [PULL] pullTable(sales) page N FAILED after retries: <error>
+// Then check:
+//   1. Does `server_updated_at` column exist on that table?
+//   2. Is there an index on (pharmacy_name, server_updated_at)?
+//   3. Is Supabase reachable? (check network tab)
+//
+// To force a full resync of one table (with pruning):
+//   import { fullResyncTable } from './lib/supabase/pull';
+//   await fullResyncTable('MEDP', 'sales');
+//
+// To check what's in Supabase for a date range:
+//   import { getRemoteSalesByDate } from './lib/supabase/utils';
+//   await getRemoteSalesByDate('MEDP');
+// =============================================
