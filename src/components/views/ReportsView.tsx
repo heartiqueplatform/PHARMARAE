@@ -2,8 +2,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Pharmacy, Sale, Product, ProductBatch, StockMovement, UserRole, SaleItem } from '../../types';
 import { generateDailyReportPdf, generateMonthlyReportPdf, generateReceiptPdf } from '../../lib/pdf';
-import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt, Pencil, Save, X, Filter, Search, XCircle } from 'lucide-react';
-
+import { BarChart3, Download, Calendar, Printer, RefreshCw, FileText, TrendingUp, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Undo2, Package, Receipt, Pencil, Save, X, Filter, Search, XCircle, Lock } from 'lucide-react';
+import { useSubscription } from '../../contexts/SubscriptionContext';
+import { UpgradePrompt } from '../UpgradePrompt';
 interface ReportsViewProps {
   pharmacy: Pharmacy | null;
   role: UserRole;
@@ -76,6 +77,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   const [renderKey, setRenderKey] = useState(0);
 
+
+  // Subscription gate — PDF exports are Premium-only
+  const { can } = useSubscription();
+  const canExportPdf = can('advancedReporting');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  if (!pharmacy) return null;
   if (!pharmacy) return null;
 
   const getSaleProductDetails = (sale: Sale) => {
@@ -1086,9 +1094,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="space-y-4">
           <div className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 ${cardBg}`}>
             <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
-              <Calendar className="w-5 h-5 text-[#2ea043]" />
-              <span className={`text-sm font-bold ${textMuted}`}>Select Date:</span>
-              <div className="relative">
+              <Calendar className="w-5 h-5 text-[#2ea043] flex-shrink-0" />
+              <span className={`text-sm font-bold ${textMuted} flex-shrink-0`}>Select Date:</span>
+
+              <div className="relative w-full sm:w-auto min-w-0 flex-1 sm:flex-initial">
                 <input
                   type="date"
                   value={dailyDate}
@@ -1102,7 +1111,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       } catch { }
                     }
                   }}
-                  className={`text-sm rounded-xl pl-4 pr-10 py-3 focus:outline-none ${inputBg} ${touchTargetSmall}`}
+                  className={`
+        w-full sm:w-auto
+        min-w-0
+        text-sm rounded-xl
+        pl-4 pr-10 py-3
+        focus:outline-none
+        appearance-none
+        ${inputBg} ${touchTargetSmall}
+      `}
                 />
                 <Calendar
                   className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'
@@ -1122,11 +1139,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </button>
 
               <button
-                onClick={handleDownloadDailyPdf}
-                className={`w-full sm:w-auto px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+                onClick={() => {
+                  if (canExportPdf) {
+                    handleDownloadDailyPdf();
+                  } else {
+                    setShowUpgradeModal(true);
+                  }
+                }}
+                aria-disabled={!canExportPdf}
+                className={`w-full sm:w-auto px-5 py-3 font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall} ${canExportPdf
+                  ? 'bg-[#2ea043] hover:bg-[#3fb950] text-white'
+                  : isDark
+                    ? 'bg-[#21262d] text-[#8b949e] hover:bg-[#30363d]'
+                    : 'bg-[#f6f8fa] text-[#656d76] hover:bg-[#e8eaed]'
+                  }`}
+                title={canExportPdf ? 'Download Daily Report PDF' : 'Upgrade to download reports'}
               >
-                <Download className="w-5 h-5" />
-                <span>Download Daily PDF</span>
+                {canExportPdf ? (
+                  <Download className="w-5 h-5" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                <span>{canExportPdf ? 'Download Daily PDF' : 'Daily PDF · Premium'}</span>
               </button>
             </div>
           </div>
@@ -1270,11 +1304,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </button>
 
               <button
-                onClick={handleDownloadMonthlyPdf}
-                className={`w-full sm:w-auto px-5 py-3 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+                onClick={() => {
+                  if (canExportPdf) {
+                    handleDownloadMonthlyPdf();
+                  } else {
+                    setShowUpgradeModal(true);
+                  }
+                }}
+                aria-disabled={!canExportPdf}
+                className={`w-full sm:w-auto px-5 py-3 font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm ${touchTargetSmall} ${canExportPdf
+                  ? 'bg-[#2ea043] hover:bg-[#3fb950] text-white'
+                  : isDark
+                    ? 'bg-[#21262d] text-[#8b949e] hover:bg-[#30363d]'
+                    : 'bg-[#f6f8fa] text-[#656d76] hover:bg-[#e8eaed]'
+                  }`}
+                title={canExportPdf ? 'Download Monthly Audit PDF' : 'Upgrade to download reports'}
               >
-                <Download className="w-5 h-5" />
-                <span>Download Monthly Audit</span>
+                {canExportPdf ? (
+                  <Download className="w-5 h-5" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                <span>{canExportPdf ? 'Download Monthly Audit' : 'Monthly Audit · Premium'}</span>
               </button>
             </div>
           </div>
@@ -1622,6 +1673,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* =============================================
+          UPGRADE MODAL — triggered when a Free user
+          tries to export a PDF report
+          ============================================ */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <UpgradePrompt
+            reason="reportDownload"
+            theme={theme}
+            pharmacyName={pharmacy?.name}
+            onClose={() => setShowUpgradeModal(false)}
+          />
         </div>
       )}
     </div>

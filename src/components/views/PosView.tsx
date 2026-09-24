@@ -258,6 +258,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
   // Show confirmation overlay
+  // Show confirmation overlay
   const handleCheckoutClick = () => {
     if (cart.length === 0 || isSubmitting) return;
 
@@ -269,7 +270,7 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
 
-    playCompletionFeedback();
+    // No sound here — sound only plays after the sale completes.
     setShowConfirmOverlay(true);
   };
 

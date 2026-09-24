@@ -10,7 +10,7 @@
 // ============================================
 
 const KILL_SWITCH = true;      // 👈 FLIP TO false AFTER ONE WEEK
-const APP_VERSION = '1.0.1';   // 👈 bump every deploy (auto-bumped by build script)
+const APP_VERSION = '1.0.2';   // 👈 bump every deploy (auto-bumped by build script)
 
 const CACHE_NAME = `Pharmienta-${APP_VERSION}`;
 const PRECACHE_NAME = `Pharmienta-precache-${APP_VERSION}`;

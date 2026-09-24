@@ -1,11 +1,12 @@
 // components/views/InventoryView/index.tsx
 import React, { useState } from 'react';
 import { Pharmacy, Product, ProductBatch, Category, Supplier, Unit, StockMovement, DosageFormType, StorageCondition } from '../../../types';
-import { Package, Plus, Layers, ArrowUpRight, ArrowDownRight, Loader2, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Package, Plus, Layers, ArrowUpRight, ArrowDownRight, Loader2, Trash2, AlertTriangle, X, Lock } from 'lucide-react';
 import { ProductCatalog } from './ProductCatalog';
 import { ProductModals } from './ProductModals';
 import { COMMON_DRUGS_LIST, CommonDrug } from '../../../data/commonDrugs';
-
+import { useSubscription } from '../../../contexts/SubscriptionContext';
+import { UpgradePrompt } from '../../UpgradePrompt';
 interface InventoryViewProps {
     pharmacy: Pharmacy | null;
     products: Product[];
@@ -101,7 +102,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const [newProdBin, setNewProdBin] = useState('');
     const [newProdCardboard, setNewProdCardboard] = useState('');
     const [newProdStorageCondition, setNewProdStorageCondition] = useState<StorageCondition>('room_temperature');
-
+    // Subscription gate
+    const { hasReached, remaining, limits } = useSubscription();
+    const productCount = products.length;
+    const atProductLimit = hasReached('maxProducts', productCount);
+    const remainingProducts = remaining('maxProducts', productCount);
+    const maxProducts = limits.maxProducts; // null = unlimited
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     // Batch form state
     const [newBatchNumber, setNewBatchNumber] = useState('');
     const [newBatchExpiry, setNewBatchExpiry] = useState('');
@@ -399,13 +406,40 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         <Package className="w-5 h-5 text-[#2ea043]" />
                         <span>Pharmacy Stock & Batch Inventory</span>
                     </h2>
+                    {/* Live product count under the title */}
+                    <p className={`text-[11px] mt-1 font-semibold ${textMuted}`}>
+                        {maxProducts === null
+                            ? `${productCount} products • Unlimited`
+                            : `${productCount} of ${maxProducts} products • ${remainingProducts} left on Free`}
+                    </p>
                 </div>
                 <button
-                    onClick={() => setShowAddProductModal(true)}
-                    className={`px-4 py-2.5 bg-[#2ea043] hover:bg-[#3fb950] text-white font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall}`}
+                    onClick={() => {
+                        if (atProductLimit) {
+                            setShowUpgradeModal(true);
+                        } else {
+                            setShowAddProductModal(true);
+                        }
+                    }}
+                    aria-disabled={atProductLimit}
+                    className={`px-4 py-2.5 font-extrabold text-sm rounded-xl flex items-center gap-2 transition-colors shadow-sm ${touchTargetSmall} ${atProductLimit
+                        ? isDark
+                            ? 'bg-[#21262d] text-[#8b949e] hover:bg-[#30363d]'
+                            : 'bg-[#f6f8fa] text-[#656d76] hover:bg-[#e8eaed]'
+                        : 'bg-[#2ea043] hover:bg-[#3fb950] text-white'
+                        }`}
                 >
-                    <Plus className="w-5 h-5 stroke-[3]" />
-                    <span>New Product</span>
+                    {atProductLimit ? (
+                        <>
+                            <Lock className="w-4 h-4" />
+                            <span>Product Limit Reached</span>
+                        </>
+                    ) : (
+                        <>
+                            <Plus className="w-5 h-5 stroke-[3]" />
+                            <span>New Product</span>
+                        </>
+                    )}
                 </button>
             </div>
 
@@ -678,9 +712,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             </button>
                         </div>
                     </div>
+
                 </div>
             )}
 
+            {/* =============================================
+                UPGRADE MODAL — triggered when product limit is hit
+                ============================================ */}
+            {showUpgradeModal && (
+                <div className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm overflow-y-auto">
+                    <UpgradePrompt
+                        reason="productLimit"
+                        theme={theme}
+                        pharmacyName={pharmacy?.name}
+                        onClose={() => setShowUpgradeModal(false)}
+                    />
+                </div>
+            )}
             {/* CSS for animations */}
             <style>{`
                 @keyframes fadeIn {
