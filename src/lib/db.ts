@@ -1091,6 +1091,10 @@ export class MedPDatabase extends Dexie {
     await this.customers_loyalty_transactions.clear();
     await this.customers_rewards_catalog.clear();
     await this.customers_loyalty_card_orders.clear();
+    await this.subscription_payments.clear();
+    await this.subscriptions.clear();
+    // NOTE: Do NOT clear subscription_plans — they are system data,
+    // same on every device, and expensive to re-fetch.
   }
 
   async clearPharmacyData(pharmacyName: string) {
