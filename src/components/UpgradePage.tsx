@@ -24,7 +24,7 @@ interface UpgradePageProps {
 
 type PageState = 'details' | 'entering-phone' | 'waiting' | 'success' | 'error';
 
-const PRICE_MONTHLY = 2
+const PRICE_MONTHLY = 199
 const CURRENCY = 'KSh';
 
 const BENEFITS = [
