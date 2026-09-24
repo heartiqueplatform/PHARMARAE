@@ -256,7 +256,7 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
             <PageShell>
                 <HeroHeader
                     title="Upgrade to Premium"
-                    subtitle="Understand your business. Insights, analytics, and deeper reporting — for KSh 299/month."
+                    subtitle="Understand your business. Insights, analytics, and deeper reporting — for KSh 199/month."
                 />
 
                 <div className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-4 md:py-6 space-y-3.5">

@@ -226,7 +226,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
 
                     <div className="inline-flex items-center gap-2 mt-4 md:mt-5 px-4 md:px-5 py-2 md:py-2.5 rounded-full bg-white text-[#1a7f37] font-black text-sm">
                         <Crown className="w-4 h-4" />
-                        <span>KSh 299</span>
+                        <span>KSh 199</span>
                         <span className="text-xs font-semibold opacity-70">/ month</span>
                     </div>
                 </div>
@@ -348,7 +348,7 @@ const InlineCard: React.FC<any> = ({
                 </p>
                 <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-white text-[#1a7f37] font-black text-sm">
                     <Crown className="w-4 h-4" />
-                    <span>KSh 299</span>
+                    <span>KSh 199</span>
                     <span className="text-xs font-semibold opacity-70">/ month</span>
                 </div>
             </div>
