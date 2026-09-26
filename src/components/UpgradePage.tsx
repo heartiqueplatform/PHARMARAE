@@ -23,9 +23,12 @@ interface UpgradePageProps {
 }
 
 type PageState = 'details' | 'entering-phone' | 'waiting' | 'success' | 'error';
+type PlanDuration = '1-month' | '1-year';
 
-const PRICE_MONTHLY = 199
+const PRICE_MONTHLY = 299;
+const PRICE_YEARLY = 2990;
 const CURRENCY = 'KSh';
+const YEARLY_SAVINGS = PRICE_MONTHLY * 12 - PRICE_YEARLY; // 598
 
 const BENEFITS = [
     'Unlimited products (Free is capped at 120)',
@@ -97,9 +100,18 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
     const { subscription, refresh } = useSubscription();
 
     const [state, setState] = useState<PageState>('details');
+    const [duration, setDuration] = useState<PlanDuration>('1-month');
     const [phone, setPhone] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [checkoutId, setCheckoutId] = useState<string | null>(null);
+
+    // Derived
+    const price = duration === '1-month' ? PRICE_MONTHLY : PRICE_YEARLY;
+    const durationLabel = duration === '1-month' ? 'Monthly' : 'Yearly';
+    const renewLabel =
+        duration === '1-month'
+            ? 'Valid for 30 days. Pay again when it expires.'
+            : 'Valid for 12 months. Pay again when it expires.';
 
     // Colors
     const pageBg = isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]';
@@ -172,10 +184,10 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
                 {
                     body: {
                         phone: clean,
-                        amount: PRICE_MONTHLY,
+                        amount: price,
                         pharmacy_name: pharmacyName,
                         plan_code: 'premium',
-                        duration_type: '1-month',
+                        duration_type: duration,
                     },
                 }
             );
@@ -197,6 +209,7 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
         try {
             await refresh();
         } catch { }
+        if (onSuccess) onSuccess();
         setTimeout(() => window.location.reload(), 300);
     };
 
@@ -249,6 +262,66 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
     );
 
     // =============================================
+    // Plan selector (reused in details + entering-phone)
+    // =============================================
+    const PlanSelector = () => (
+        <div className="grid grid-cols-2 gap-2.5">
+            {/* Monthly */}
+            <button
+                type="button"
+                onClick={() => setDuration('1-month')}
+                className={`relative p-3.5 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${duration === '1-month'
+                    ? 'border-[#2ea043] bg-[#2ea043]/10'
+                    : isDark
+                        ? 'border-[#30363d] bg-[#161b22] hover:border-[#484f58]'
+                        : 'border-[#d0d7de] bg-white hover:border-[#afb8c1]'
+                    }`}
+            >
+                <p className={`text-[10px] font-black uppercase tracking-wider ${textMuted}`}>
+                    Monthly
+                </p>
+                <p className={`text-xl font-black ${textTitle} mt-0.5`}>
+                    {CURRENCY} {PRICE_MONTHLY}
+                </p>
+                <p className={`text-[11px] ${textMuted} mt-0.5`}>per month</p>
+                {duration === '1-month' && (
+                    <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-[#2ea043] flex items-center justify-center">
+                        <Check className="w-3 h-3 text-white" strokeWidth={3.5} />
+                    </div>
+                )}
+            </button>
+
+            {/* Yearly */}
+            <button
+                type="button"
+                onClick={() => setDuration('1-year')}
+                className={`relative p-3.5 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${duration === '1-year'
+                    ? 'border-[#2ea043] bg-[#2ea043]/10'
+                    : isDark
+                        ? 'border-[#30363d] bg-[#161b22] hover:border-[#484f58]'
+                        : 'border-[#d0d7de] bg-white hover:border-[#afb8c1]'
+                    }`}
+            >
+                <span className="absolute -top-2 right-2 text-[9px] font-black px-2 py-0.5 rounded-full bg-[#2ea043] text-white tracking-wide">
+                    SAVE {CURRENCY} {YEARLY_SAVINGS}
+                </span>
+                <p className={`text-[10px] font-black uppercase tracking-wider ${textMuted}`}>
+                    Yearly
+                </p>
+                <p className={`text-xl font-black ${textTitle} mt-0.5`}>
+                    {CURRENCY} {PRICE_YEARLY}
+                </p>
+                <p className={`text-[11px] ${textMuted} mt-0.5`}>per year</p>
+                {duration === '1-year' && (
+                    <div className="absolute bottom-2.5 right-2.5 w-5 h-5 rounded-full bg-[#2ea043] flex items-center justify-center">
+                        <Check className="w-3 h-3 text-white" strokeWidth={3.5} />
+                    </div>
+                )}
+            </button>
+        </div>
+    );
+
+    // =============================================
     // STATE: Details
     // =============================================
     if (state === 'details') {
@@ -256,7 +329,7 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
             <PageShell>
                 <HeroHeader
                     title="Upgrade to Premium"
-                    subtitle="Understand your business. Insights, analytics, and deeper reporting — for KSh 199/month."
+                    subtitle="Understand your business. Insights, analytics, and deeper reporting."
                 />
 
                 <div className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-4 md:py-6 space-y-3.5">
@@ -283,17 +356,25 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
                         ))}
                     </div>
 
+                    <div className="space-y-2.5">
+                        <div className="flex items-center gap-2">
+                            <Crown className="w-4 h-4 text-[#2ea043]" />
+                            <h2 className={`text-sm md:text-base font-extrabold ${textTitle}`}>
+                                Choose your plan
+                            </h2>
+                        </div>
+                        <PlanSelector />
+                    </div>
+
                     <div className={`p-4 rounded-2xl ${cardBg} flex items-center justify-between`}>
                         <div>
                             <p className={`text-xs font-bold uppercase tracking-wider ${textMuted}`}>
                                 Total today
                             </p>
                             <p className={`text-2xl font-black ${textTitle}`}>
-                                {CURRENCY} {PRICE_MONTHLY}
+                                {CURRENCY} {price}
                             </p>
-                            <p className={`text-xs ${textMuted} mt-0.5`}>
-                                Renews monthly. Cancel anytime.
-                            </p>
+                            <p className={`text-xs ${textMuted} mt-0.5`}>{renewLabel}</p>
                         </div>
                         <Crown className="w-9 h-9 text-[#2ea043]" strokeWidth={2} />
                     </div>
@@ -334,6 +415,9 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
                 />
 
                 <div className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-4 md:py-6 space-y-3.5">
+                    {/* Allow plan change right here too */}
+                    <PlanSelector />
+
                     <div className={`p-4 rounded-2xl ${cardBg}`}>
                         <label className={`block mb-2 font-bold text-sm ${textMuted}`}>
                             M-Pesa Phone Number
@@ -361,12 +445,14 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
                         <div className="flex items-center justify-between text-sm">
                             <span className={textMuted}>Amount</span>
                             <span className={`font-bold ${textTitle}`}>
-                                {CURRENCY} {PRICE_MONTHLY}
+                                {CURRENCY} {price}
                             </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                             <span className={textMuted}>Plan</span>
-                            <span className={`font-bold ${textTitle}`}>Premium (monthly)</span>
+                            <span className={`font-bold ${textTitle}`}>
+                                Premium ({durationLabel})
+                            </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                             <span className={textMuted}>Pharmacy</span>
@@ -409,7 +495,7 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
                             "
                         >
                             <ShieldCheck className="w-5 h-5" strokeWidth={2.5} />
-                            <span>Pay {CURRENCY} {PRICE_MONTHLY}</span>
+                            <span>Pay {CURRENCY} {price}</span>
                         </button>
                     </div>
 
@@ -455,7 +541,13 @@ export const UpgradePage: React.FC<UpgradePageProps> = ({
                         <div className="flex items-center justify-between text-sm">
                             <span className={textMuted}>Amount</span>
                             <span className={`font-bold ${textTitle}`}>
-                                {CURRENCY} {PRICE_MONTHLY}
+                                {CURRENCY} {price}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                            <span className={textMuted}>Plan</span>
+                            <span className={`font-bold ${textTitle}`}>
+                                Premium ({durationLabel})
                             </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">

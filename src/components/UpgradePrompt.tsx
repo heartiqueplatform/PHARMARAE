@@ -89,7 +89,7 @@ const REASON_CONFIG: Record<
     productLimit: {
         title: 'Product Limit Reached',
         subtitle:
-            "You've reached the Free plan limit of 120 products. Upgrade to Premium for unlimited products plus every insight tool.",
+            "You've reached the Free plan limit of 120 products. Upgrade to Premium for unlimited products plus every insight tool — from KSh 299/month.",
         benefits: PRODUCT_LIMIT_BENEFITS,
     },
     reportDownload: {
@@ -226,8 +226,11 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
 
                     <div className="inline-flex items-center gap-2 mt-4 md:mt-5 px-4 md:px-5 py-2 md:py-2.5 rounded-full bg-white text-[#1a7f37] font-black text-sm">
                         <Crown className="w-4 h-4" />
-                        <span>KSh 199</span>
+                        <span>KSh 299</span>
                         <span className="text-xs font-semibold opacity-70">/ month</span>
+                        <span className="text-xs font-semibold opacity-60">·</span>
+                        <span className="text-xs font-semibold opacity-70">KSh 2990</span>
+                        <span className="text-xs font-semibold opacity-70">/ year</span>
                     </div>
                 </div>
 
@@ -316,7 +319,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
                             )}
 
                             <p className={`text-center text-xs ${textMuted}`}>
-                                Cancel anytime. Your data stays yours.
+                                Pay once. Valid until the period ends. Your data stays yours.
                             </p>
                         </div>
 
@@ -348,7 +351,7 @@ const InlineCard: React.FC<any> = ({
                 </p>
                 <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-white text-[#1a7f37] font-black text-sm">
                     <Crown className="w-4 h-4" />
-                    <span>KSh 199</span>
+                    <span>KSh 299</span>
                     <span className="text-xs font-semibold opacity-70">/ month</span>
                 </div>
             </div>
