@@ -1,3 +1,4 @@
+// src/components/views/PrivacyPolicyView.tsx
 import React from 'react';
 import {
     Shield, Lock, Eye, Database, Users, Mail,
@@ -9,107 +10,90 @@ import {
     RefreshCw, Link, Code, Wifi, Download,
     Brain, LineChart, PieChart, Target, TrendingUp
 } from 'lucide-react';
+
+import { privacyPolicy } from '../../lib/datasecurity/privacyPolicyContent';
+import type { PolicySection } from '../../lib/datasecurity/policyTypes';
+
 interface PrivacyPolicyViewProps {
     theme: 'dark' | 'light';
-    onBack?: () => void;        // ← ADD THIS LINE
+    onBack?: () => void;
 }
+
+// ---------------------------------------------------------
+// Icon mapping — maps each content section id to an icon
+// ---------------------------------------------------------
+const SECTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    'who-we-are': FileText,
+    'information-we-collect': Eye,
+    'how-we-use': Lock,
+    'lawful-basis': FileCheck,
+    'sharing': Share2,
+    'transfers': Globe,
+    'security': Shield,
+    'retention': Clock,
+    'rights': UserCheck,
+    'complaints': MessageSquare,
+    'breach': AlertCircle,
+    'children': Users,
+    'cookies': Cookie,
+    'bi': Brain,
+    'dpa-role': Server,
+    'changes': RefreshCw,
+    'contact': Mail,
+};
+
+// ---------------------------------------------------------
+// Compliance / BI extras (UI-only, shown below the policy)
+// ---------------------------------------------------------
+const complianceItems = [
+    { icon: BadgeCheck, label: 'Kenya Data Protection Act (2019)', description: 'Aligned with Kenya\'s data-protection framework' },
+    { icon: FileCheck, label: 'Data Protection (General) Regulations, 2021', description: 'Regulations made under the DPA 2019' },
+    { icon: Shield, label: 'Pharmacy & Poisons Board', description: 'Designed with Kenyan pharmacy-record handling in mind' },
+    { icon: Clock, label: 'Retention Aligned to Law', description: 'Retention periods defined in our Data Retention & Disposal Policy' },
+    { icon: Lock, label: 'Data Minimisation', description: 'Collect only what is necessary to run the Service' },
+    { icon: AlertTriangle, label: 'Legal Review Required', description: 'Draft framework — pending review by a Kenyan advocate' },
+];
+
+const biPrivacyItems = [
+    { icon: Brain, label: 'Anonymized Analytics', description: 'Business Intelligence insights use anonymized, aggregated data only' },
+    { icon: LineChart, label: 'Trend Analysis', description: 'Revenue and sales trends are analyzed without exposing individual transactions' },
+    { icon: PieChart, label: 'Payment Insights', description: 'Payment method breakdowns are aggregated for business optimization' },
+    { icon: Target, label: 'Performance Metrics', description: 'KPIs are calculated using anonymized data to protect sensitive information' },
+];
 
 export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onBack }) => {
     const isDark = theme === 'dark';
 
-    const sections = [
-        {
-            icon: Eye,
-            title: 'Information We Collect',
-            items: [
-                { label: 'Pharmacy Information', description: 'Pharmacy name, trading name, address, phone, email, county, town, and licensing details as required by Kenyan regulations' },
-                { label: 'User Data', description: 'Name, email, phone number, role, PIN code, and activity logs for staff members in Kenyan pharmacies' },
-                { label: 'Transaction Data', description: 'Sales records, inventory movements, customer purchases, and payment histories including M-Pesa transactions' },
-                { label: 'Product Information', description: 'Stock levels, batch numbers, expiry dates, pricing, and supplier information for Kenyan pharmaceutical products' },
-                { label: 'Customer Data', description: 'Patient names, contact details, prescription history, and purchase patterns for healthcare delivery in Kenya' },
-                { label: 'Device Information', description: 'Device type, operating system, browser version, and IP addresses for analytics and security monitoring' },
-                { label: 'Business Intelligence Data', description: 'Anonymized sales trends, product performance metrics, and operational insights for pharmacy optimization' },
-            ]
-        },
-        {
-            icon: Lock,
-            title: 'How We Use Your Information',
-            items: [
-                { label: 'Core Operations', description: 'Process sales, manage inventory, and generate receipts for customers in Kenyan pharmacies' },
-                { label: 'Analytics & Reporting', description: 'Generate insights on sales trends, inventory turnover, staff performance, and business intelligence dashboards' },
-                { label: 'Access Management', description: 'Manage staff permissions, role-based access, and security controls for Kenyan pharmacy hierarchy' },
-                { label: 'Customer Service', description: 'Provide transaction history, prescription records, and customer support in English and Swahili' },
-                { label: 'Compliance', description: 'Maintain regulatory compliance with KRA eTIMS, Kenyan Data Protection Act, and pharmacy board requirements' },
-                { label: 'System Optimization', description: 'Improve performance, fix bugs, and enhance user experience for Kenyan pharmacy operations' },
-                { label: 'Business Growth', description: 'Provide actionable insights to help pharmacies increase sales, reduce costs, and expand across Kenya' },
-            ]
-        },
-        {
-            icon: Shield,
-            title: 'Data Security Measures',
-            items: [
-                { label: 'Encryption', description: 'All data is encrypted in transit using TLS/HTTPS and at rest using AES-256 encryption standards' },
-                { label: 'Authentication', description: 'Multi-factor authentication and secure password policies compliant with Kenyan security standards' },
-                { label: 'Access Control', description: 'Role-based access with granular permissions and audit trails for all Kenyan pharmacy staff' },
-                { label: 'Monitoring', description: '24/7 security monitoring and intrusion detection systems hosted in Kenya' },
-                { label: 'Backup & Recovery', description: 'Automated daily backups with point-in-time recovery capabilities for business continuity' },
-                { label: 'Compliance Audits', description: 'Regular security audits and penetration testing by Kenyan cybersecurity experts' },
-            ]
-        },
-        {
-            icon: Database,
-            title: 'Data Storage & Processing',
-            items: [
-                { label: 'Local Storage', description: 'Data stored locally using IndexedDB for offline access and fast retrieval in areas with poor connectivity' },
-                { label: 'Cloud Storage', description: 'Secure cloud synchronization with Supabase for backup and multi-device access across Kenya' },
-                { label: 'Data Retention', description: 'Data retained for 7 years to comply with Kenyan pharmacy regulations and KRA requirements' },
-                { label: 'Data Processing', description: 'Processed in compliance with Kenyan Data Protection Act (2019) and healthcare data standards' },
-                { label: 'Third-Party Services', description: 'Integration with Kenyan payment processors (M-Pesa) and analytics services' },
-                { label: 'Data Portability', description: 'Easy export of data in CSV, PDF, and JSON formats for Kenyan regulatory reporting' },
-            ]
-        },
-        {
-            icon: Users,
-            title: 'Data Subject Rights',
-            items: [
-                { label: 'Right to Access', description: 'Access all personal data held about you at any time as per Kenyan Data Protection Act' },
-                { label: 'Right to Rectification', description: 'Request corrections to inaccurate or incomplete data under Kenyan law' },
-                { label: 'Right to Erasure', description: 'Request deletion of your data under certain circumstances as per Kenyan regulations' },
-                { label: 'Right to Restriction', description: 'Restrict processing of your data under certain conditions in compliance with Kenyan law' },
-                { label: 'Right to Data Portability', description: 'Receive your data in a structured, machine-readable format for Kenyan reporting' },
-                { label: 'Right to Object', description: 'Object to data processing for marketing or non-essential purposes under Kenyan law' },
-            ]
-        },
-        {
-            icon: Cookie,
-            title: 'Cookies & Tracking',
-            items: [
-                { label: 'Essential Cookies', description: 'Required for basic functionality and authentication in the Kenyan pharmacy environment' },
-                { label: 'Analytics Cookies', description: 'Help us understand how Kenyan pharmacies interact with the platform' },
-                { label: 'Preferences Cookies', description: 'Remember user preferences and settings for Kenyan pharmacy workflows' },
-                { label: 'Security Cookies', description: 'Maintain session security and prevent fraud in Kenyan pharmacy operations' },
-                { label: 'Third-Party Cookies', description: 'Used for payment processing (M-Pesa) and analytics services' },
-                { label: 'Cookie Consent', description: 'Users can manage cookie preferences at any time in compliance with Kenyan law' },
-            ]
-        }
-    ];
+    // Convert content sections to the shape the UI renders
+    const sections = privacyPolicy.sections.map((s: PolicySection) => {
+        const items = s.labelledItems
+            ? s.labelledItems.map((it) => ({ label: it.label, description: it.description }))
+            : (s.items ?? []).map((t) => ({ label: '', description: t }));
 
-    const complianceItems = [
-        { icon: BadgeCheck, label: 'Kenyan Data Protection Act (2019)', description: 'Fully compliant with Kenya\'s data protection regulations' },
-        { icon: Globe, label: 'GDPR Standards', description: 'European data protection standards for international operations' },
-        { icon: FileCheck, label: 'KRA eTIMS Compliance', description: 'Ready for Kenyan tax invoice management system integration' },
-        { icon: Shield, label: 'Kenya Pharmacy Board', description: 'Meets pharmacy board data handling requirements' },
-        { icon: Clock, label: '7-Year Retention', description: 'Data retention policy aligned with Kenyan regulatory requirements' },
-        { icon: Lock, label: 'Data Minimization', description: 'Collect only necessary data for Kenyan pharmacy operations' },
-    ];
+        return {
+            id: s.id,
+            icon: SECTION_ICONS[s.id] ?? FileText,
+            title: s.title,
+            intro: s.intro,
+            table: s.table,
+            callout: s.callout,
+            items,
+        };
+    });
 
-    // BI-specific privacy items
-    const biPrivacyItems = [
-        { icon: Brain, label: 'Anonymized Analytics', description: 'Business Intelligence insights use anonymized, aggregated data only' },
-        { icon: LineChart, label: 'Trend Analysis', description: 'Revenue and sales trends are analyzed without exposing individual transactions' },
-        { icon: PieChart, label: 'Payment Insights', description: 'Payment method breakdowns are aggregated for business optimization' },
-        { icon: Target, label: 'Performance Metrics', description: 'KPIs are calculated using anonymized data to protect sensitive information' },
-    ];
+    const renderText = (text: string) =>
+        text.split(/(\[LEGAL REVIEW[^\]]*\])/g).map((part, j) =>
+            part.startsWith('[LEGAL REVIEW') ? (
+                <span
+                    key={j}
+                    className="inline-block mx-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-500/20 text-amber-500"
+                >
+                    {part}
+                </span>
+            ) : (
+                <span key={j}>{part}</span>
+            )
+        );
 
     return (
         <div className={`max-w-5xl mx-auto p-4 sm:p-6 pt-16 sm:pt-20 pb-24 sm:pb-32 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1f2328]'}`}>
@@ -126,55 +110,65 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
             </button>
 
             {/* Header */}
-            {/* Header */}
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 rounded-xl bg-[#2ea043]/10">
                     <Shield className="w-8 h-8 text-[#2ea043]" />
                 </div>
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-3">
-                        Privacy Policy
-
+                        {privacyPolicy.title}
                     </h1>
-                    <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-2`}>
+                    <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex flex-wrap items-center gap-2`}>
                         <Clock className="w-4 h-4" />
-                        Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        Version {privacyPolicy.version} · Effective {privacyPolicy.effectiveDate} · Updated {privacyPolicy.lastUpdated}
                         <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
-                        <span className="text-[#2ea043]">Effective immediately</span>
-                        <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
-                        <span className="text-[#f0883e]">Compliant with Kenyan Law</span>
+                        <span className="text-[#f0883e]">Governing Law: Republic of Kenya</span>
                     </p>
                 </div>
             </div>
 
+            {/* Legal review banner */}
+            <div className={`p-4 rounded-xl mb-6 border-2 ${isDark ? 'bg-amber-500/10 border-amber-500/40 text-amber-200' : 'bg-amber-50 border-amber-400 text-amber-900'}`}>
+                <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
+                    <div className="text-sm">
+                        <p className="font-bold mb-1">Draft policy framework — legal review required</p>
+                        <p className="leading-relaxed">
+                            This document is part of Pharmienta's policy framework. Sections marked
+                            <span className="mx-1 inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-500/20 text-amber-500">[LEGAL REVIEW]</span>
+                            must be reviewed by a qualified Kenyan advocate and/or data-protection professional before being relied upon for enforcement.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Quick Overview */}
-            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-0' : 'bg-[#f6f8fa] border-0'}`}>
+            <div className={`p-5 rounded-xl mb-6 border-0 ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                 <div className="flex items-center gap-2 mb-2">
                     <AlertCircle className="w-5 h-5 text-[#2ea043]" />
                     <h2 className="text-lg font-semibold">Privacy at a Glance</h2>
                 </div>
-                <p className="text-sm leading-relaxed">
-                    Pharmienta Pro is committed to protecting your privacy and ensuring the security of your data
-                    in compliance with the Kenyan Data Protection Act (2019). We collect only the information necessary
-                    to provide our pharmacy management services to pharmacies across all 47 counties. Your data is stored
-                    securely, encrypted, and never shared with third parties without your explicit consent.
+                <p className="text-sm leading-relaxed">{privacyPolicy.summary}</p>
+                <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                    For full details of our data-protection controls, retention periods, and account closure process,
+                    see Sections 11–17 of our Terms &amp; Conditions.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#30363d]/30">
                     <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Secure Encryption</span>
+                        <span className="text-xs">Encrypted in transit</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Offline-First</span>
+                        <span className="text-xs">Offline-first</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Kenya DPA Compliant</span>
+                        <span className="text-xs">Kenya DPA aligned</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">24/7 Monitoring</span>
+                        <span className="text-xs">No data selling</span>
                     </div>
                 </div>
             </div>
@@ -182,36 +176,95 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
             <div className="space-y-6">
                 {/* Dynamic Sections */}
                 {sections.map((section, idx) => (
-                    <section key={idx}>
+                    <section key={section.id || idx}>
                         <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                             <section.icon className="w-5 h-5 text-[#2ea043]" />
                             {section.title}
-                            <span className={`text-xs font-normal px-2 py-0.5 rounded ${isDark ? 'bg-[#21262d] text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'}`}>
-                                {section.items.length} items
-                            </span>
+                            {section.items.length > 0 && (
+                                <span className={`text-xs font-normal px-2 py-0.5 rounded ${isDark ? 'bg-[#21262d] text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'}`}>
+                                    {section.items.length} items
+                                </span>
+                            )}
                         </h2>
                         <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                            <ul className="space-y-2 text-sm">
-                                {section.items.map((item, i) => (
-                                    <li key={i} className="flex items-start gap-2">
-                                        <span className="text-[#2ea043] mt-0.5">•</span>
-                                        <div>
-                                            <span className="font-semibold">{item.label}:</span>
-                                            <span className="ml-1 opacity-80">{item.description}</span>
+                            {section.intro && (
+                                <p className="text-sm mb-3 leading-relaxed">{renderText(section.intro)}</p>
+                            )}
+
+                            {section.table && (
+                                <div className="overflow-x-auto my-3">
+                                    <table className="w-full text-xs sm:text-sm border-collapse">
+                                        <thead>
+                                            <tr className={isDark ? 'bg-[#21262d]' : 'bg-[#eaeef2]'}>
+                                                {section.table.headers.map((h, i) => (
+                                                    <th key={i} className={`text-left p-2 font-semibold border-b ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'}`}>
+                                                        {h}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {section.table.rows.map((row, i) => (
+                                                <tr key={i} className={isDark ? 'border-b border-[#30363d]' : 'border-b border-[#d0d7de]'}>
+                                                    {row.map((cell, j) => (
+                                                        <td key={j} className="p-2 align-top">{cell}</td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {section.items.length > 0 && (
+                                <ul className="space-y-2 text-sm">
+                                    {section.items.map((item, i) => (
+                                        <li key={i} className="flex items-start gap-2">
+                                            <span className="text-[#2ea043] mt-0.5">•</span>
+                                            <div>
+                                                {item.label && (
+                                                    <span className="font-semibold">{item.label}:</span>
+                                                )}
+                                                <span className={item.label ? 'ml-1 opacity-80' : ''}>
+                                                    {renderText(item.description)}
+                                                </span>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            {section.callout && (
+                                <div className={`mt-4 p-3 rounded-lg border-2 ${section.callout.tone === 'danger'
+                                    ? (isDark ? 'bg-red-500/10 border-red-500/40' : 'bg-red-50 border-red-300')
+                                    : section.callout.tone === 'warning'
+                                        ? (isDark ? 'bg-amber-500/10 border-amber-500/40' : 'bg-amber-50 border-amber-400')
+                                        : section.callout.tone === 'success'
+                                            ? (isDark ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-emerald-50 border-emerald-300')
+                                            : (isDark ? 'bg-blue-500/10 border-blue-500/40' : 'bg-blue-50 border-blue-300')
+                                    }`}>
+                                    <div className="flex items-start gap-2">
+                                        <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${section.callout.tone === 'danger' ? 'text-red-500'
+                                            : section.callout.tone === 'warning' ? 'text-amber-500'
+                                                : section.callout.tone === 'success' ? 'text-emerald-500'
+                                                    : 'text-blue-500'
+                                            }`} />
+                                        <div className="text-sm">
+                                            <p className="font-bold mb-1">{section.callout.title}</p>
+                                            <p className="leading-relaxed">{renderText(section.callout.body)}</p>
                                         </div>
-                                    </li>
-                                ))}
-                            </ul>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </section>
                 ))}
 
-                {/* Business Intelligence Privacy Section - NEW */}
+                {/* BI Privacy */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <Brain className="w-5 h-5 text-[#2ea043]" />
                         Business Intelligence & Privacy
-
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <p className="text-sm mb-3">
@@ -236,11 +289,11 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
                     </div>
                 </section>
 
-                {/* Compliance Section */}
+                {/* Compliance */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <BadgeCheck className="w-5 h-5 text-[#2ea043]" />
-                        Regulatory Compliance
+                        Regulatory Alignment
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {complianceItems.map((item, idx) => (
@@ -257,46 +310,49 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
                     </div>
                 </section>
 
-                {/* Data Processing Agreement */}
+                {/* Data Processing Roles */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <FileText className="w-5 h-5 text-[#2ea043]" />
-                        Data Processing Agreement
+                        Data Processing Roles
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                             <div className="flex items-start gap-2">
-                                <Server className="w-4 h-4 text-[#2ea043] mt-0.5" />
+                                <Building2 className="w-4 h-4 text-[#2ea043] mt-0.5" />
                                 <div>
-                                    <p className="font-semibold">Data Processor</p>
+                                    <p className="font-semibold">Controller (Customer Data)</p>
                                     <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                        Pharmienta Kenya acts as data processor
+                                        The Kenyan pharmacy that owns the account
                                     </p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-2">
-                                <Building2 className="w-4 h-4 text-[#2ea043] mt-0.5" />
+                                <Server className="w-4 h-4 text-[#2ea043] mt-0.5" />
                                 <div>
-                                    <p className="font-semibold">Data Controller</p>
+                                    <p className="font-semibold">Processor (Customer Data)</p>
                                     <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                        Kenyan pharmacy owners are data controllers
+                                        Pharmienta, acting on the pharmacy's instructions
                                     </p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-2">
                                 <Key className="w-4 h-4 text-[#2ea043] mt-0.5" />
                                 <div>
-                                    <p className="font-semibold">Data Sub-processors</p>
+                                    <p className="font-semibold">Sub-processors</p>
                                     <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                        Supabase, M-Pesa, Stripe, and analytics providers
+                                        Cloud hosting, database, storage, email/SMS, payment providers
                                     </p>
                                 </div>
                             </div>
                         </div>
+                        <div className={`mt-3 pt-3 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                            <span>A current list of processors is available on request.</span>
+                        </div>
                     </div>
                 </section>
 
-                {/* Contact Information */}
+                {/* Contact */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <MessageSquare className="w-5 h-5 text-[#2ea043]" />
@@ -304,8 +360,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <p className="text-sm mb-3">
-                            For privacy-related questions, data access requests, or concerns about your data in compliance with Kenyan law,
-                            please contact our Data Protection Officer:
+                            For privacy-related questions, data-access requests, or concerns about your data, please contact our privacy team:
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                             <div className="space-y-2">
@@ -325,7 +380,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Clock className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>Response within 48 hours</span>
+                                    <span>We aim to respond within 48 hours</span>
                                 </p>
                             </div>
                         </div>
@@ -337,14 +392,14 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                             <Lock className="w-3 h-3" />
-                            <span>Secure Connection • All data encrypted • 🇰🇪 Kenyan Data Protection Act (2019) Compliant</span>
+                            <span>Legal Agreement · Republic of Kenya · Version {privacyPolicy.version}</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span>© {new Date().getFullYear()} Pharmienta Kenya</span>
+                            <span>© {new Date().getFullYear()} Pharmienta</span>
                             <span>|</span>
                             <span className="flex items-center gap-1">
                                 <RefreshCw className="w-3 h-3" />
-                                <span>Updated regularly</span>
+                                <span>Subject to change</span>
                             </span>
                         </div>
                     </div>
@@ -353,3 +408,5 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ theme, onB
         </div>
     );
 };
+
+export default PrivacyPolicyView;

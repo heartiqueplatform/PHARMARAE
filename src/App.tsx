@@ -32,6 +32,8 @@ import { UpgradePrompt } from './components/UpgradePrompt';
 import { useSubscription } from './contexts/SubscriptionContext';
 import { UpgradePage } from './components/UpgradePage';
 import type { FeatureKey } from './lib/subscription';
+import { RestrictedAccountView } from './components/RestrictedAccountView';   // ← ADD
+import { isAccountRestricted, isIdRestricted } from './lib/datasecurity/accountRestriction'; // ← ADD
 
 // ============================================================
 // Premium feature gate — wraps Business Intelligence
@@ -71,7 +73,7 @@ export default function App() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradePromptFeature, setUpgradePromptFeature] = useState<FeatureKey | undefined>(undefined);
   const [upgradePromptReason, setUpgradePromptReason] = useState<'productLimit' | 'reportDownload' | undefined>(undefined);
-
+  const [restrictedPolicyView, setRestrictedPolicyView] = useState<null | 'terms' | 'privacy'>(null);
   // App State
   const app = useApp();
   const {
@@ -165,6 +167,17 @@ export default function App() {
     setUpgradePromptReason(undefined);
     setActiveTab('home');   // ← return to Home when the prompt closes
   }, [setActiveTab]);
+
+  // ============================================================
+  // ACCOUNT RESTRICTION CHECK — edit accountRestriction.ts
+  // ============================================================
+  const restricted =
+    isAccountRestricted(currentProfile) ||
+    isIdRestricted(
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem('medp_current_user_id')
+        : null
+    );
   // Handle updating individual sale items
   const handleUpdateSale = useCallback(async (saleId: string, updates: Partial<Sale>) => {
     try {
@@ -300,13 +313,66 @@ export default function App() {
       clearToast();
     }
   };
-
   // ============================================================
   // FULL-PAGE OVERRIDES (rendered ABOVE header & navigation)
   // ============================================================
 
   // ------------------------------------------------------------
-  // 0. UPGRADE PROMPT — full-screen takeover (ABOVE everything)
+  // 0. ACCOUNT RESTRICTION — ABSOLUTE highest priority
+  //    Blocks restricted accounts before ANY other view can render
+  //    (upgrade, reset, security, about, privacy, terms, main app).
+  // ------------------------------------------------------------
+  // ============================================================
+  // ACCOUNT RESTRICTION — highest priority
+  // ============================================================
+  if (restricted) {
+    // Allow the user to still read Terms / Privacy while restricted
+    if (restrictedPolicyView === 'terms') {
+      return (
+        <div className={`h-screen flex flex-col font-sans antialiased ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+          }`}>
+          <div className="flex-1 overflow-y-auto">
+            <TermsConditionsView
+              theme={theme}
+              onBack={() => setRestrictedPolicyView(null)}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (restrictedPolicyView === 'privacy') {
+      return (
+        <div className={`h-screen flex flex-col font-sans antialiased ${isDark ? 'bg-[#0d1117] text-[#c9d1d9]' : 'bg-[#f6f8fa] text-[#1f2328]'
+          }`}>
+          <div className="flex-1 overflow-y-auto">
+            <PrivacyPolicyView
+              theme={theme}
+              onBack={() => setRestrictedPolicyView(null)}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <RestrictedAccountView
+        theme={theme}
+        onOpenTerms={() => setRestrictedPolicyView('terms')}
+        onOpenPrivacy={() => setRestrictedPolicyView('privacy')}
+        onSignOut={() => {
+          try {
+            localStorage.removeItem('medp_authenticated');
+            localStorage.removeItem('medp_current_user_id');
+          } catch { }
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 1. UPGRADE PROMPT — full-screen takeover (ABOVE everything)
   //    Priority is highest so About / Privacy / Terms / Security /
   //    HardReset / main app are all covered.
   // ------------------------------------------------------------

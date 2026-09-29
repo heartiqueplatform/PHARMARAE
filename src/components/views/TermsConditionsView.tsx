@@ -1,3 +1,4 @@
+// src/components/views/TermsConditionsView.tsx
 import React from 'react';
 import {
     FileCheck, AlertCircle, CheckCircle, Shield, FileText,
@@ -8,184 +9,124 @@ import {
     Download, Link, Key, Award, Star, BadgeCheck,
     Gavel, Scale, Clipboard, ClipboardList, Bell,
     ShoppingBag, Package, Truck, Store,
-    Brain, LineChart, PieChart // Added for BI
+    Brain, LineChart, PieChart,
 } from 'lucide-react';
+
+// Core Terms content
+import {
+    TERMS_VERSION,
+    TERMS_EFFECTIVE_DATE,
+    TERMS_LAST_UPDATED,
+    CONTACT,
+    DEFINITIONS,
+    ACCEPTANCE,
+    ACCOUNT_CREATION,
+    ACCOUNT_SECURITY,
+    CUSTOMER_RESPONSIBILITIES,
+    PHARMIENTA_RESPONSIBILITIES,
+    ACCEPTABLE_USE,
+    PAYMENTS,
+    SERVICE_AVAILABILITY,
+    INTELLECTUAL_PROPERTY,
+    THIRD_PARTY,
+    SUSPENSION,
+    TERMINATION,
+    DATA_HANDLING,
+    DISPUTE_RESOLUTION,
+    LIABILITY,
+    CHANGES_TO_TERMS,
+    GOVERNING_LAW,
+    LEGAL_REVIEW_FLAGS,
+    RETENTION_SCHEDULE,
+} from '../../lib/datasecurity/termsContent';
+
+// Additional policy documents rendered inside the Terms page
+import { PolicyView } from './PolicyView';
+import { paymentPolicy } from '../../lib/datasecurity/paymentPolicyContent';
+import { dataProtectionPolicy } from '../../lib/datasecurity/dataProtectionPolicyContent';
+import { dataRetentionPolicy } from '../../lib/datasecurity/dataRetentionPolicyContent';
+import { acceptableUsePolicy } from '../../lib/datasecurity/acceptableUsePolicyContent';
+import { suspensionTerminationPolicy } from '../../lib/datasecurity/suspensionTerminationPolicyContent';
+import { disputeComplaintsPolicy } from '../../lib/datasecurity/disputeComplaintsPolicyContent';
+import { administratorPolicy } from '../../lib/datasecurity/administratorPolicyContent';
+import { accountClosurePolicy } from '../../lib/datasecurity/accountClosurePolicyContent';
 
 interface TermsConditionsViewProps {
     theme: 'dark' | 'light';
-    onBack?: () => void;        // ← ADD THIS LINE
+    onBack?: () => void;
 }
+
 export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme, onBack }) => {
     const isDark = theme === 'dark';
 
-    const sections = [
-        {
-            icon: FileCheck,
-            title: 'Acceptance of Terms',
-            items: [
-                'By using Pharmienta Pro, you agree to these Terms & Conditions',
-                'If you do not agree, please do not use the application',
-                'These terms apply to all users including owners, staff, and administrators in Kenyan pharmacies',
-                'Continued use constitutes acceptance of any updates or modifications',
-                'You must be 18 years or older to use this application as per Kenyan law',
-                'You represent that you have the authority to bind your pharmacy to these terms',
-                'These terms are governed by the laws of the Republic of Kenya'
-            ]
-        },
-        {
-            icon: Users,
-            title: 'User Registration & Accounts',
-            items: [
-                'Each user must register with accurate and complete information as per Kenyan pharmacy regulations',
-                'You are responsible for maintaining the confidentiality of your credentials including PIN codes',
-                'One account per individual user - sharing accounts is prohibited for security reasons',
-                'You must notify us immediately of any unauthorized access to your pharmacy data',
-                'We reserve the right to verify user identities and pharmacy licenses from Kenyan authorities',
-                'Temporary accounts may be created for training purposes in Kenyan pharmacies',
-                'All users must have valid Kenyan pharmacy board registration where applicable'
-            ]
-        },
-        {
-            icon: Scale,
-            title: 'User Responsibilities',
-            items: [
-                'Maintain the confidentiality of your account credentials and PIN codes',
-                'Ensure all pharmacy data entered is accurate and up-to-date in compliance with Kenyan standards',
-                'Comply with all applicable Kenyan laws and regulations for pharmaceutical products',
-                'Report any security vulnerabilities or unauthorized access immediately to our Kenyan support team',
-                'Use the system only for legitimate pharmacy business purposes in Kenya',
-                'Respect patient privacy and confidentiality as required by Kenyan law',
-                'Ensure all M-Pesa and other payment transactions are properly recorded',
-                'Maintain compliance with KRA eTIMS requirements for tax reporting'
-            ]
-        },
-        {
-            icon: Shield,
-            title: 'License & Access Rights',
-            items: [
-                'Pharmienta Pro is licensed per pharmacy location/branch in Kenya',
-                'Access is granted to pharmacy staff based on role-specific permissions',
-                'You may not share your account credentials with non-staff members',
-                'We reserve the right to suspend or terminate access for violations of Kenyan law',
-                'Licenses are non-transferable between pharmacies unless approved',
-                'Enterprise licenses available for multi-branch operations across Kenya',
-                'Licenses must be renewed annually in compliance with Kenyan business regulations'
-            ]
-        },
-        {
-            icon: Database,
-            title: 'Data Ownership & Confidentiality',
-            items: [
-                'All pharmacy data is owned by the pharmacy entity as per Kenyan law',
-                'Customer information must be handled with strict confidentiality under Kenyan Data Protection Act (2019)',
-                'Pharmienta does not share your data with third parties without consent under Kenyan law',
-                'You may export and backup your data at any time for regulatory compliance',
-                'Data stored in compliance with Kenyan Data Protection Act (2019)',
-                'You retain full ownership of your business and customer data',
-                'Data may be shared with Kenyan regulatory authorities when legally required',
-                'Business Intelligence data is anonymized and aggregated for insights'
-            ]
-        },
-        {
-            icon: Lock,
-            title: 'Security & Data Protection',
-            items: [
-                'All data is encrypted in transit and at rest with AES-256 encryption',
-                'Multi-factor authentication is available for enhanced security in Kenyan pharmacies',
-                'Regular security audits and penetration testing are conducted',
-                'You are responsible for securing your devices and network in your pharmacy',
-                'Report any security incidents within 24 hours of discovery to our Kenyan team',
-                'Session timeouts are enforced after periods of inactivity for security',
-                'Compliant with Kenyan Data Protection Act (2019) requirements',
-                'Data centers and servers are located in compliance with Kenyan data sovereignty laws'
-            ]
-        },
-        {
-            icon: Server,
-            title: 'Service Availability & Support',
-            items: [
-                'We strive for 99.9% uptime for cloud synchronization features in Kenya',
-                'Offline mode allows continuous operation without internet in remote areas',
-                'Support is available during business hours (Mon-Fri, 8AM-6PM East Africa Time)',
-                'Emergency support available 24/7 for critical issues in Kenyan pharmacies',
-                'Maintenance windows will be communicated in advance via email',
-                'Service may be temporarily interrupted for scheduled updates',
-                'Support available in English and Swahili for Kenyan users',
-                'On-site training available for pharmacies in major Kenyan cities'
-            ]
-        },
-        {
-            icon: AlertTriangle,
-            title: 'Prohibited Activities',
-            items: [
-                'Attempting to bypass security measures or access unauthorized data',
-                'Using the system for illegal activities or fraud under Kenyan law',
-                'Intentionally introducing malware or harmful code',
-                'Uploading false or misleading information about pharmaceutical products',
-                'Reverse engineering or decompiling the application',
-                'Using automated systems to access the application beyond normal use',
-                'Selling or distributing pharmaceutical products without proper licensing',
-                'Violating Kenyan pharmacy regulations or KRA eTIMS requirements'
-            ]
-        },
-        {
-            icon: Gavel,
-            title: 'Termination & Suspension',
-            items: [
-                'Accounts may be terminated for violations of these terms or Kenyan law',
-                'You may terminate your account at any time by contacting support',
-                'Data will be retained for 30 days after termination unless requested otherwise under Kenyan law',
-                'We reserve the right to suspend service for security reasons',
-                'Refunds for remaining subscription periods will be prorated as per Kenyan law',
-                'Termination does not affect data ownership rights under Kenyan law',
-                'We will provide notice of termination in accordance with Kenyan regulations'
-            ]
-        },
-        {
-            icon: Clipboard,
-            title: 'Limitation of Liability',
-            items: [
-                'Pharmienta is provided "as is" without warranties of any kind under Kenyan law',
-                'We are not liable for data loss, system failures, or business interruptions beyond our control',
-                'Users are responsible for maintaining regular backups of their pharmacy data',
-                'We recommend having a secondary backup system in place for business continuity',
-                'Liability is limited to the amount paid for the service in the last 12 months',
-                'We are not liable for any indirect, incidental, or consequential damages as per Kenyan law',
-                'Users are responsible for their own insurance and risk management'
-            ]
-        }
-    ];
+    // ---- Section builder ----
+    const renderSection = (
+        icon: React.ComponentType<{ className?: string }>,
+        title: string,
+        items: string[],
+        opts?: { isList?: boolean }
+    ) => {
+        const Icon = icon;
+        return (
+            <section key={title} className="scroll-mt-24">
+                <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                    <Icon className="w-5 h-5 text-[#2ea043]" />
+                    {title}
+                </h2>
+                <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
+                    <ul className="space-y-2 text-sm">
+                        {items.map((item, i) => {
+                            const isSub = item.startsWith('  •') || item.startsWith('  -');
+                            const text = isSub ? item.replace(/^\s+[•-]\s*/, '') : item;
+                            return (
+                                <li key={i} className={`flex items-start gap-2 ${isSub ? 'ml-5' : ''}`}>
+                                    <span className="text-[#2ea043] mt-0.5">{isSub ? '◦' : '•'}</span>
+                                    <span>
+                                        {text.split(/(\[LEGAL REVIEW[^\]]*\])/g).map((part, j) =>
+                                            part.startsWith('[LEGAL REVIEW') ? (
+                                                <span
+                                                    key={j}
+                                                    className="inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-500/20 text-amber-500"
+                                                >
+                                                    {part}
+                                                </span>
+                                            ) : (
+                                                <span key={j}>{part}</span>
+                                            )
+                                        )}
+                                    </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            </section>
+        );
+    };
 
-    const keyFeatures = [
-        { icon: Smartphone, label: 'Mobile Access', description: 'Available on all devices with responsive design for Kenyan pharmacies' },
-        { icon: Clock, label: '24/7 Availability', description: 'Offline mode ensures continuous operation even with poor connectivity' },
-        { icon: Globe, label: 'Multi-Branch Support', description: 'Manage multiple pharmacy locations across all 47 counties' },
-        { icon: Building2, label: 'Enterprise Ready', description: 'Scalable solutions for growing pharmacy chains in Kenya' },
-        { icon: CreditCard, label: 'Flexible Billing', description: 'Monthly or annual subscription options in Kenyan Shillings (KES)' },
-        { icon: Users, label: 'Staff Training', description: 'Comprehensive training and onboarding support in English and Swahili' },
-        { icon: Brain, label: 'Business Intelligence', description: 'AI-powered insights for Kenyan pharmacy growth and optimization' },
-        { icon: FileCheck, label: 'KRA eTIMS Ready', description: 'Integrated with Kenyan tax invoice management system' }
-    ];
-
-    const complianceItems = [
-        { icon: BadgeCheck, label: 'Kenyan Data Protection Act (2019)', description: 'Fully compliant with Kenya\'s data protection regulations' },
-        { icon: Scale, label: 'Pharmacy & Poisons Board', description: 'Aligns with Kenyan pharmaceutical regulatory requirements' },
-        { icon: Globe, label: 'GDPR Standards', description: 'European data protection standards for international operations' },
-        { icon: Shield, label: 'ISO 27001', description: 'Information security management standards' },
-        { icon: Clock, label: '7-Year Data Retention', description: 'Data retention policy aligned with Kenyan regulatory requirements' },
-        { icon: FileCheck, label: 'KRA eTIMS Compliant', description: 'Ready for Kenyan tax invoice management system integration' },
-        { icon: Lock, label: 'Data Sovereignty', description: 'Data hosted and processed in compliance with Kenyan law' },
-        { icon: Users, label: 'Kenyan Support', description: 'Local support team familiar with Kenyan pharmacy operations' }
+    // ============================================================
+    // ADDITIONAL POLICY DOCUMENTS
+    // Rendered as embedded PolicyView blocks inside the Terms page.
+    // ============================================================
+    const embeddedPolicies = [
+        paymentPolicy,
+        dataProtectionPolicy,
+        dataRetentionPolicy,
+        acceptableUsePolicy,
+        suspensionTerminationPolicy,
+        disputeComplaintsPolicy,
+        administratorPolicy,
+        accountClosurePolicy,
     ];
 
     return (
         <div className={`max-w-5xl mx-auto p-4 sm:p-6 pt-16 sm:pt-20 pb-24 sm:pb-32 ${isDark ? 'text-[#c9d1d9]' : 'text-[#1f2328]'}`}>
-
-            {/* Back Arrow — icon only */}
+            {/* Back */}
             <button
                 onClick={onBack}
                 aria-label="Go back"
-                className={`mb-4 flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-[#c9d1d9]' : 'hover:bg-black/5 text-[#1f2328]'}`}
+                className={`mb-4 flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-[#c9d1d9]' : 'hover:bg-black/5 text-[#1f2328]'
+                    }`}
             >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -193,190 +134,256 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme,
             </button>
 
             {/* Header */}
-            {/* Header */}
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 rounded-xl bg-[#2ea043]/10">
                     <FileCheck className="w-8 h-8 text-[#2ea043]" />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-3">
-                        Terms & Conditions
-
-
-                    </h1>
-                    <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex items-center gap-2`}>
+                    <h1 className="text-3xl font-bold">Terms &amp; Conditions</h1>
+                    <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'} flex flex-wrap items-center gap-2`}>
                         <Calendar className="w-4 h-4" />
-                        Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        Version {TERMS_VERSION} · Effective {TERMS_EFFECTIVE_DATE} · Updated {TERMS_LAST_UPDATED}
                         <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
-                        <span className="text-[#2ea043]">Effective immediately</span>
-                        <span className="w-1 h-1 rounded-full bg-[#2ea043]"></span>
-                        <span className="text-[#f0883e]">Governing Law: Kenya</span>
+                        <span className="text-[#f0883e]">Governing Law: {CONTACT.jurisdiction}</span>
                     </p>
                 </div>
             </div>
 
-            {/* Quick Overview */}
-            <div className={`p-5 rounded-xl mb-6 border ${isDark ? 'bg-[#161b22] border-0' : 'bg-[#f6f8fa] border-0'}`}>
+            {/* LEGAL REVIEW BANNER */}
+            <div
+                className={`p-4 rounded-xl mb-6 border-2 ${isDark
+                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+                    : 'bg-amber-50 border-amber-400 text-amber-900'
+                    }`}
+            >
+                <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
+                    <div className="text-sm">
+                        <p className="font-bold mb-1">Draft policy framework — legal review required</p>
+                        <p className="leading-relaxed">
+                            This document sets out Pharmienta's intended Terms &amp; Conditions and integrated policies. Sections marked
+                            <span className="mx-1 inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-500/20 text-amber-500">
+                                [LEGAL REVIEW]
+                            </span>
+                            must be reviewed by a qualified Kenyan advocate and, where applicable, a data-protection
+                            professional before being relied upon for enforcement. Nothing in this document should be
+                            read as a waiver of any rights that cannot be waived under Kenyan law.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Terms at a Glance */}
+            <div className={`p-5 rounded-xl mb-6 ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                 <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-5 h-5 text-[#2ea043]" />
                     <h2 className="text-lg font-semibold">Terms at a Glance</h2>
                 </div>
                 <p className="text-sm leading-relaxed">
-                    Welcome to Pharmienta Pro. By using our pharmacy management platform in Kenya, you agree to these terms
-                    and conditions which govern your use of the application. We've designed these terms to be clear,
-                    fair, and in compliance with Kenyan law while protecting both your pharmacy's data and our intellectual property.
-                    These terms are specifically tailored for pharmacies operating in Kenya and align with local regulations.
+                    Pharmienta is a pharmacy-management service. These Terms explain the agreement between
+                    Pharmienta and the pharmacy that uses the Service. They cover who may use the Service,
+                    what each side is responsible for, how payments and suspensions work, how data is
+                    handled, and how disputes are resolved. They apply consistently to every Pharmienta
+                    customer in Kenya and are read alongside the integrated policies below: Payment &amp;
+                    Subscription, Data Protection, Data Retention &amp; Disposal, Acceptable Use, Suspension
+                    &amp; Termination, Dispute &amp; Complaints, Administrator, and Account Closure.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#30363d]/30">
-                    <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Fair & Transparent</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Data Ownership</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Secure & Compliant</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-[#2ea043]" />
-                        <span className="text-xs">Kenyan Law</span>
-                    </div>
+                    {[
+                        'Fair & Transparent',
+                        'Customer Owns Data',
+                        'Secure & Compliant',
+                        'Kenyan Law',
+                    ].map((t) => (
+                        <div key={t} className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-[#2ea043]" />
+                            <span className="text-xs">{t}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
 
             <div className="space-y-6">
-                {/* Dynamic Sections */}
-                {sections.map((section, idx) => (
-                    <section key={idx}>
-                        <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                            <section.icon className="w-5 h-5 text-[#2ea043]" />
-                            {section.title}
-                            <span className={`text-xs font-normal px-2 py-0.5 rounded ${isDark ? 'bg-[#21262d] text-[#8b949e]' : 'bg-[#f6f8fa] text-[#656d76]'}`}>
-                                {section.items.length} items
-                            </span>
-                        </h2>
-                        <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                            <ul className="space-y-2 text-sm">
-                                {section.items.map((item, i) => (
-                                    <li key={i} className="flex items-start gap-2">
-                                        <span className="text-[#2ea043] mt-0.5">•</span>
-                                        <span>{item}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </section>
-                ))}
-
-                {/* Key Features */}
+                {/* 1. Definitions */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Award className="w-5 h-5 text-[#2ea043]" />
-                        Platform Features & Benefits
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {keyFeatures.map((feature, idx) => (
-                            <div key={idx} className={`p-3 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                                <div className="flex items-start gap-2">
-                                    <feature.icon className="w-5 h-5 text-[#2ea043] flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="text-sm font-semibold">{feature.label}</p>
-                                        <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                            {feature.description}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* Compliance */}
-                <section>
-                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <BadgeCheck className="w-5 h-5 text-[#2ea043]" />
-                        Regulatory Compliance
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {complianceItems.map((item, idx) => (
-                            <div key={idx} className={`p-3 rounded-lg flex items-start gap-2 ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                                <item.icon className="w-5 h-5 text-[#2ea043] flex-shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-semibold">{item.label}</p>
-                                    <p className={`text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                        {item.description}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* Governing Law */}
-                <section>
-                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
-                        <Gavel className="w-5 h-5 text-[#2ea043]" />
-                        Governing Law & Dispute Resolution
+                        <BookOpen className="w-5 h-5 text-[#2ea043]" />
+                        1. Definitions
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p className="font-semibold mb-1">Jurisdiction</p>
-                                <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                    These terms are governed by the laws of the Republic of Kenya. Any disputes shall be resolved in
-                                    the courts of Nairobi, Kenya. All parties submit to the exclusive jurisdiction of Kenyan courts.
-                                </p>
-                            </div>
-                            <div>
-                                <p className="font-semibold mb-1">Dispute Resolution</p>
-                                <p className={`text-sm ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                                    Parties agree to attempt informal resolution through mediation before legal proceedings.
-                                    Arbitration may be used for complex disputes in accordance with Kenyan arbitration laws.
-                                    All disputes shall be resolved in the English language.
-                                </p>
-                            </div>
-                        </div>
-                        <div className={`mt-3 pt-3 border-t ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'} text-xs ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
-                            <span>Compliant with Kenyan legal framework and pharmaceutical regulations</span>
-                        </div>
+                        <dl className="space-y-2 text-sm">
+                            {DEFINITIONS.map((d) => (
+                                <div key={d.term} className="flex flex-col sm:flex-row sm:gap-2">
+                                    <dt className="font-semibold sm:w-64 flex-shrink-0">{d.term}</dt>
+                                    <dd className={isDark ? 'text-[#c9d1d9]' : 'text-[#1f2328]'}>{d.meaning}</dd>
+                                </div>
+                            ))}
+                        </dl>
                     </div>
                 </section>
 
-                {/* Contact */}
+                {/* 2. Acceptance */}
+                {renderSection(FileCheck, '2. Acceptance of Terms & Eligibility', ACCEPTANCE)}
+
+                {/* 3. Account creation */}
+                {renderSection(Users, '3. Account Creation & Authorised Users', ACCOUNT_CREATION)}
+
+                {/* 4. Account security */}
+                {renderSection(Lock, '4. Account Security', ACCOUNT_SECURITY)}
+
+                {/* 5. Customer responsibilities */}
+                {renderSection(UserCheck, '5. Customer / Pharmacy Responsibilities', CUSTOMER_RESPONSIBILITIES)}
+
+                {/* 6. Pharmienta responsibilities */}
+                {renderSection(Shield, '6. Pharmienta Responsibilities', PHARMIENTA_RESPONSIBILITIES)}
+
+                {/* 7. Acceptable use */}
+                {renderSection(AlertTriangle, '7. Acceptable Use', ACCEPTABLE_USE)}
+
+                {/* 8. Payments & subscriptions */}
+                {renderSection(CreditCard, '8. Payments & Subscriptions', PAYMENTS)}
+
+                {/* 9. Service availability */}
+                {renderSection(Server, '9. Service Availability & Limitations', SERVICE_AVAILABILITY)}
+
+                {/* 10. IP */}
+                {renderSection(Fingerprint, '10. Intellectual Property', INTELLECTUAL_PROPERTY)}
+
+                {/* 11. Third parties */}
+                {renderSection(Globe, '11. Third-Party Services', THIRD_PARTY)}
+
+                {/* 12. Suspension */}
+                {renderSection(AlertCircle, '12. Account Suspension', SUSPENSION)}
+
+                {/* 13. Termination */}
+                {renderSection(FileText, '13. Account Termination', TERMINATION)}
+
+                {/* 14. Data handling */}
+                {renderSection(Database, '14. Data Handling & Ownership', DATA_HANDLING)}
+
+                {/* 14b. Retention Schedule table */}
+                <section>
+                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                        <Clock className="w-5 h-5 text-[#2ea043]" />
+                        14b. Retention Schedule (per data type)
+                    </h2>
+                    <div className={`p-4 rounded-lg overflow-x-auto ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
+                        <table className="w-full text-xs sm:text-sm border-collapse">
+                            <thead>
+                                <tr className={isDark ? 'bg-[#21262d]' : 'bg-[#eaeef2]'}>
+                                    {RETENTION_SCHEDULE.headers.map((h, i) => (
+                                        <th
+                                            key={i}
+                                            className={`text-left p-2 font-semibold border-b ${isDark ? 'border-[#30363d]' : 'border-[#d0d7de]'
+                                                }`}
+                                        >
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {RETENTION_SCHEDULE.rows.map((row, i) => (
+                                    <tr
+                                        key={i}
+                                        className={isDark ? 'border-b border-[#30363d]' : 'border-b border-[#d0d7de]'}
+                                    >
+                                        {row.map((cell, j) => (
+                                            <td key={j} className="p-2 align-top">
+                                                {cell}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                {/* 15. Dispute resolution */}
+                {renderSection(Gavel, '15. Dispute Resolution', DISPUTE_RESOLUTION)}
+
+                {/* 16. Liability */}
+                {renderSection(Scale, '16. Limitation of Liability', LIABILITY)}
+
+                {/* 17. Changes */}
+                {renderSection(RefreshCw, '17. Changes to These Terms', CHANGES_TO_TERMS)}
+
+                {/* 18. Governing law */}
+                {renderSection(Scale, '18. Governing Law & Jurisdiction', GOVERNING_LAW)}
+
+                {/* 19. Contact */}
                 <section>
                     <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
                         <MessageSquare className="w-5 h-5 text-[#2ea043]" />
-                        Contact Information
+                        19. Contact Information
                     </h2>
                     <div className={`p-4 rounded-lg ${isDark ? 'bg-[#161b22]' : 'bg-[#f6f8fa]'}`}>
                         <p className="text-sm mb-3">
-                            For questions about these terms, legal matters, or to report violations in Kenya, please contact:
+                            For questions about these Terms, legal notices, billing queries, data-protection
+                            requests, or complaints, please contact:
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                             <div className="space-y-2">
                                 <p className="flex items-center gap-2">
                                     <Mail className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>Pharmienta@gmail.com</span>
+                                    <span>{CONTACT.email}</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Phone className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>+254 717 517 371</span>
+                                    <span>{CONTACT.phone}</span>
                                 </p>
                             </div>
                             <div className="space-y-2">
                                 <p className="flex items-center gap-2">
                                     <MapPin className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>Nairobi, Kenya</span>
+                                    <span>{CONTACT.address}</span>
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <Building2 className="w-4 h-4 text-[#2ea043] flex-shrink-0" />
-                                    <span>Pharmienta Kenya</span>
+                                    <span>{CONTACT.companyName}</span>
                                 </p>
                             </div>
                         </div>
+                    </div>
+                </section>
+
+                {/* ============================================================
+                    EMBEDDED POLICY DOCUMENTS
+                    Each is rendered by PolicyView. Placed after the core Terms
+                    so they read as "annexes" to the main agreement.
+                   ============================================================ */}
+                <section className="pt-6 border-t-2 border-dashed border-[#30363d]/40">
+                    <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
+                        <FileText className="w-6 h-6 text-[#2ea043]" />
+                        Integrated Policies
+                    </h2>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-[#8b949e]' : 'text-[#656d76]'}`}>
+                        The following policies form part of these Terms &amp; Conditions and apply to every Pharmienta customer.
+                    </p>
+
+                    {embeddedPolicies.map((doc) => (
+                        <div key={doc.slug} className="mb-10">
+                            <PolicyView doc={doc} theme={theme} />
+                        </div>
+                    ))}
+                </section>
+
+                {/* Legal review flags */}
+                <section>
+                    <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-500" />
+                        Items Flagged for Kenyan Legal / Privacy Review
+                    </h2>
+                    <div className={`p-4 rounded-lg border-2 ${isDark ? 'bg-amber-500/5 border-amber-500/30' : 'bg-amber-50 border-amber-300'}`}>
+                        <ul className="space-y-2 text-sm">
+                            {LEGAL_REVIEW_FLAGS.map((flag, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                    <span className="text-amber-500 mt-0.5">⚠</span>
+                                    <span>{flag}</span>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </section>
 
@@ -385,10 +392,10 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme,
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                             <Lock className="w-3 h-3" />
-                            <span>Legal Agreement • 🇰🇪 Kenyan Law • Last reviewed: {new Date().toLocaleDateString()}</span>
+                            <span>Legal Agreement · {CONTACT.jurisdiction} · Version {TERMS_VERSION}</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span>© {new Date().getFullYear()} Pharmienta Kenya</span>
+                            <span>© {new Date().getFullYear()} {CONTACT.companyName}</span>
                             <span>|</span>
                             <span className="flex items-center gap-1">
                                 <RefreshCw className="w-3 h-3" />
@@ -401,3 +408,5 @@ export const TermsConditionsView: React.FC<TermsConditionsViewProps> = ({ theme,
         </div>
     );
 };
+
+export default TermsConditionsView;
