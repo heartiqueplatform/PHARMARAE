@@ -29,8 +29,7 @@ import type { Profile } from './types'; // adjust import path if needed
  * Restricted profile IDs (the `id` column in your profiles table).
  */
 export const RESTRICTED_ACCOUNT_IDS: string[] = [
-    '68edf854-2624-4c36-bc4d-78dca2779870', // Japheth Samson (cashier)
-    'd3ce22df-1050-4987-adf9-08c9612d977e', // Japheth K (owner)
+    // (empty — no accounts restricted)
 ];
 
 /**
@@ -38,15 +37,14 @@ export const RESTRICTED_ACCOUNT_IDS: string[] = [
  * Leave empty if not needed.
  */
 export const RESTRICTED_AUTH_USER_IDS: string[] = [
-    'cb705cb1-aa03-4a79-9359-0113357b92dc', // auth_user_id for d3ce22df...
+    // (empty — no accounts restricted)
 ];
 
 /**
  * Restricted emails (lowercase). Matches profile.email.
  */
 export const RESTRICTED_EMAILS: string[] = [
-    'japhethsamson41@gmail.com',
-    'brianmuthomi851@gmail.com',
+    // (empty — no accounts restricted)
 ];
 
 /**
@@ -54,14 +52,14 @@ export const RESTRICTED_EMAILS: string[] = [
  * If set, ALL profiles belonging to this pharmacy are restricted.
  */
 export const RESTRICTED_PHARMACY_NAMES: string[] = [
-    "RODNEY'S PHARMACY KARAGITA",
+    // (empty — no accounts restricted)
 ];
 
 /**
  * Restricted pharmacy trading names (case-insensitive, trimmed).
  */
 export const RESTRICTED_PHARMACY_TRADING_NAMES: string[] = [
-    "RODNEY'S PHARMACY KARAGITA",
+    // (empty — no accounts restricted)
 ];
 
 // ============================================================
